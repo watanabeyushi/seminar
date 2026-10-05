@@ -1,0 +1,142 @@
+\documentclass{beamer}
+
+\usepackage{luatexja}
+\usepackage{luatexja-fontspec}
+
+% ---- ブロックの設定（block / alertblock / exampleblock）----
+\definecolor{alertcol}{RGB}{200,80,40}            % alertblock の色（オレンジ系）
+\definecolor{examplecol}{RGB}{30,120,60}          % exampleblock の色（緑系）
+\setbeamertemplate{blocks}[rounded][shadow=false] % 角丸・影なし（3種類すべてに適用）
+
+% block（通常）：青
+\setbeamercolor{block title}{fg=white,bg=main}
+\setbeamercolor{block body}{fg=black,bg=main!6}
+
+% alertblock（注意）：オレンジ
+\setbeamercolor{block title alerted}{fg=white,bg=alertcol}
+\setbeamercolor{block body alerted}{fg=black,bg=alertcol!6}
+
+% exampleblock（例）：緑
+\setbeamercolor{block title example}{fg=white,bg=examplecol}
+\setbeamercolor{block body example}{fg=black,bg=examplecol!6}
+
+% タイトルを太字に（任意）
+\setbeamerfont{block title}{series=\bfseries}
+\setbeamerfont{block title alerted}{series=\bfseries}
+\setbeamerfont{block title example}{series=\bfseries}
+%====================================================
+% --------------------------------------------------
+\setbeamertemplate{itemize items}[circle]   % 平たい丸
+% \setbeamertemplate{itemize items}[ball]     % 立体的な丸
+% \setbeamertemplate{itemize items}[square]   % 四角
+% \setbeamertemplate{itemize items}[triangle] % 三角（今の状態）
+%==================================================
+\definecolor{main}{RGB}{30,70,140}                  % バナーで定義済みなら不要
+\setbeamercolor{block title}{fg=white,bg=main}      % タイトル部：白文字・青背景
+\setbeamercolor{block body}{bg=main!6}              % 本体：main を 6% に薄めた色
+\setbeamertemplate{blocks}[rounded][shadow=false]   % 角を丸める・影なし
+\setbeamertemplate{itemize items}[circle]           % 箇条書きを丸に
+
+\newcommand{\argmax}{\mathop{\rm arg~max}\limits}
+\newcommand{\argmin}{\mathop{\rm arg~min}\limits}
+%===================================================
+
+\title{The Principles of Diffusion Models 1-1}
+\author{渡邉 有志}
+\date{\today}
+
+\begin{document}
+
+\begin{frame}
+    \titlepage
+\end{frame}
+
+\begin{frame}{目次}
+    
+    \begin{itemize}
+        \item 
+    \end{itemize}
+\end{frame}
+
+%=======================================================
+\begin{frame}{DGM(深層生成モデル)}
+\begin{block}{DGM(Deep Generative Models)}
+高次元データに対する確率分布を学習し、データセットに類似したサンプルの生成が可能なモデル\\
+\end{block}
+
+\vspace{-1em}           
+
+\begin{columns}[T]
+\begin{column}{0.48\textwidth}
+\begin{exampleblock}{\small 目標1 Realistic Generation}
+\small 実際のデータと区別できないような\textbf{新しいサンプルを生成}
+\end{exampleblock}
+\end{column}
+
+\begin{column}{0.48\textwidth}
+\begin{exampleblock}{\small 目標2 Controllable Generation}
+\small 生成過程を解釈可能な形での制御を可能に
+\end{exampleblock}
+\end{column}
+\end{columns}
+
+\vspace{1em}     
+
+\small モデルが表す確率分布:\boldmath{$p_{\phi}$}  実際のデータが従う確率分布\footnote{data distribution, true distributionとも呼び、一般に$p_{data}$自体は未知である}:$p_{data}$\unboldmath\\
+
+\begin{itemize}
+\item 有限個のデータセットに対し\\
+$p_{\phi}$と$p_{data}$間の損失関数を最小化→${\phi}$を最適化
+\end{itemize}
+
+\begin{exampleblock}{}
+⇒つまり$p_{\phi}(x)\approx p_{data}(x)$が理想的\\
+しかし$p_{data}(x)$が不明なので手元にある$p_{data}$から得られた\\サンプル$x^{(1)},x^{(2)},...x^{(N)}$から$\phi$を学習 ⇒ 分布を推定
+\end{exampleblock}
+\end{frame}
+%=======================================================
+\begin{frame}{1.1.1 Mathematical Setup -Goal of DGM}
+\begin{exampleblock}{}
+    前提：未知の分布$p_{data}$からサンプリングした有限個のサンプル\[
+\left\{\mathbf{x}^{(i)}\right\}_{i=1}^{N}が手元にある
+\]
+\end{exampleblock}
+\small $p_{data}$を表す式、新しいサンプルを生成する方法もわからない\\
+⇒そこでパラメータ$\phi$を持つ深層ネットで\textbf{モデル分布}$p_{\phi}(x)$を構成\footnote{pは文脈により($p_{data}$)確率分布または($p_{data}(x)$)確率密度関数}
+\begin{block}{DGMの目標}
+    \centering$\phi^{*}$を学習して$p_{\phi^{*}}(\boldsymbol{x})\approx p_{data}(\boldsymbol{x})$\\
+    $p_{\phi}$をGenerative model（生成モデル）という
+\end{block}
+⇒未知の$p_{data}$から得られた有限データを使って$p_{\phi^{*}}\approx p_{data}$となる\\
+モデルを学習し、そこから新しいデータを生成する
+
+\end{frame}
+%=======================================================
+\begin{frame}{1-1-1 Training of DGM}
+\begin{block}{学習}
+モデル族$\{p_{\phi}\}$の中で不一致$\mathcal{D}$を最小化するパラメータを求める\\
+\centering $\phi^{*}\in \argmin_{\phi}\mathcal{D}(p_{data},p_{\phi})$
+\end{block}
+
+
+\end{frame}
+%=======================================================
+\begin{frame}{Forward KL divergence}
+\begin{block}{義:KL divergence}
+    $D_{KL}(p_{data}\mid\mid p_{\phi}):=\int p_{data}({\boldsymbol{x}})log\frac{p_{data}(\boldsymbol{x})}{p_{\phi}(\boldsymbol{x})}dx=\boldsymbol{\mathbb{E}_{\boldsymbol{x}\sim p_{data}}[logp_{data}(\boldsymbol{x})-logp_{\phi}(\boldsymbol{x})]}$
+\end{block}
+
+\begin{itemize}
+    \item 非対称:$D_{KL}(p_{data}\mid p_{\phi} )\neq D_{KL}(p_{\phi}\mid\mid p_{data})$
+    \item 
+    
+\end{itemize}
+\end{frame}
+%=======================================================
+\begin{frame}
+
+\end{frame}
+%=======================================================
+%=======================================================
+%=======================================================
+\end{document}

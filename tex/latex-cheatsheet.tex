@@ -1,0 +1,806 @@
+\documentclass[aspectratio=169,10pt]{beamer}
+
+\usepackage{luatexja}
+\usepackage{luatexja-fontspec}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{mathtools}
+\usepackage{bm}
+\usepackage{booktabs}
+\usepackage{listings}
+
+%==================================================
+% 色と見た目
+\definecolor{main}{RGB}{30,70,140}
+\definecolor{alertcol}{RGB}{200,80,40}
+\definecolor{examplecol}{RGB}{30,120,60}
+\definecolor{codebg}{RGB}{245,247,250}
+
+\setbeamercolor{structure}{fg=main}
+\setbeamercolor{frametitle}{fg=white,bg=main}
+\setbeamercolor{block title}{fg=white,bg=main}
+\setbeamercolor{block body}{fg=black,bg=main!6}
+\setbeamercolor{block title alerted}{fg=white,bg=alertcol}
+\setbeamercolor{block body alerted}{fg=black,bg=alertcol!6}
+\setbeamercolor{block title example}{fg=white,bg=examplecol}
+\setbeamercolor{block body example}{fg=black,bg=examplecol!6}
+\setbeamertemplate{blocks}[rounded][shadow=false]
+\setbeamertemplate{itemize items}[circle]
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{footline}[frame number]
+
+\setbeamerfont{block title}{series=\bfseries}
+\setbeamerfont{block title alerted}{series=\bfseries}
+\setbeamerfont{block title example}{series=\bfseries}
+
+%==================================================
+% コード表示
+\lstset{
+  language=[LaTeX]TeX,
+  basicstyle=\ttfamily\scriptsize,
+  backgroundcolor=\color{codebg},
+  frame=single,
+  rulecolor=\color{black!15},
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false,
+  breaklines=true,
+  aboveskip=0.4em,
+  belowskip=0.4em
+}
+
+%==================================================
+% よく使うコマンド
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\KL}{D_{\mathrm{KL}}}
+\newcommand{\data}{p_{\mathrm{data}}}
+\newcommand{\Normal}{\mathcal{N}}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator{\Tr}{Tr}
+\DeclareMathOperator{\diag}{diag}
+
+\title{機械学習・拡散モデルのための\\LaTeX / Beamer 早見表}
+\subtitle{数式・ブロック・箇条書き・色・レイアウト}
+\author{ゼミ資料作成用}
+\date{\today}
+
+\begin{document}
+
+\begin{frame}
+  \titlepage
+\end{frame}
+
+\begin{frame}{この早見表の使い方}
+  \begin{block}{目的}
+    左側のコードをコピーし、右側の表示を確認しながらスライドを作る。
+  \end{block}
+
+  \begin{itemize}
+    \item 数式は『The Principles of Diffusion Models』の記法を中心に収録
+    \item ソース：\texttt{tex/latex-cheatsheet.tex}
+    \item 完成PDF：\texttt{pdf/latex-cheatsheet.pdf}
+    \item 新しいスライドは基本的に
+      \texttt{\textbackslash begin\{frame\}\{タイトル\}} から作る
+  \end{itemize}
+
+  \begin{alertblock}{注意}
+    \texttt{\textbackslash begin} と \texttt{\textbackslash end}、
+    \texttt{\{} と \texttt{\}} は必ず対応させる。
+  \end{alertblock}
+\end{frame}
+
+\section{基本}
+
+\begin{frame}[fragile]{最小構成}
+\begin{lstlisting}
+\documentclass[aspectratio=169]{beamer}
+\usepackage{luatexja}
+\usepackage{luatexja-fontspec}
+
+\title{タイトル}
+\author{著者名}
+\date{\today}
+
+\begin{document}
+\begin{frame}
+  \titlepage
+\end {frame}
+
+\begin{frame}{スライドタイトル}
+  本文
+\end {frame}
+\end {document}
+\end{lstlisting}
+
+\begin{exampleblock}{ポイント}
+  日本語をLuaLaTeXで扱うため、\texttt{luatexja}を読み込む。
+  \texttt{aspectratio=169}は16:9のスライドを意味する。
+\end{exampleblock}
+\end{frame}
+
+\begin{frame}[fragile]{文字と数式の基本}
+\begin{columns}[T]
+\begin{column}{0.50\textwidth}
+\begin{lstlisting}
+本文中の数式は $p(x)$ と書く。
+
+独立した数式は
+\[
+  p_\phi(x) \approx p_{\mathrm{data}}(x)
+\]
+
+\textbf{太字}
+\emph{強調}
+\alert{注意}
+\end{lstlisting}
+\end{column}
+\begin{column}{0.46\textwidth}
+本文中の数式は $p(x)$ と書く。
+
+独立した数式は
+\[
+  p_\phi(x) \approx p_{\mathrm{data}}(x)
+\]
+
+\textbf{太字}\\
+\emph{強調}\\
+\alert{注意}
+\end{column}
+\end{columns}
+
+\begin{alertblock}{使い分け}
+  数式中の添字は \texttt{\_}、上付きは \texttt{\^{}}。
+  本文中の特殊文字 \texttt{\_ \% \& \#} には先頭に
+  \texttt{\textbackslash}を付ける。
+\end{alertblock}
+\end{frame}
+
+\section{機械学習の数式}
+
+\begin{frame}[fragile]{スカラー・ベクトル・行列}
+\begin{columns}[T]
+\begin{column}{0.52\textwidth}
+\begin{lstlisting}
+$a$                       % scalar
+$\mathbf{x}\in\mathbb{R}^D$
+$\bm{x}$                  % bold symbol
+$A\in\mathbb{R}^{m\times n}$
+$A^\top$
+$I_D$
+$\operatorname{diag}(\mathbf{a})$
+$\operatorname{Tr}(A)$
+$\|\mathbf{x}\|_2$
+\end{lstlisting}
+\end{column}
+\begin{column}{0.44\textwidth}
+\begin{align*}
+a & &&\text{スカラー}\\
+\mathbf{x}&\in\mathbb{R}^D &&\text{ベクトル}\\
+\bm{x}& &&\text{太字の数式記号}\\
+A&\in\mathbb{R}^{m\times n} &&\text{行列}\\
+A^\top& &&\text{転置}\\
+I_D& &&\text{単位行列}\\
+\diag(\mathbf{a})& &&\text{対角行列}\\
+\Tr(A)& &&\text{トレース}\\
+\|\mathbf{x}\|_2& &&\text{$L_2$ノルム}
+\end{align*}
+\end{column}
+\end{columns}
+\end{frame}
+
+\begin{frame}[fragile]{確率・統計}
+\begin{columns}[T]
+\begin{column}{0.52\textwidth}
+\begin{lstlisting}
+$\mathbf{x}\sim p_{\mathrm{data}}$
+$p(\mathbf{x}\mid\mathbf{z})$
+$\mathbb{E}_{\mathbf{x}\sim p}[f(\mathbf{x})]$
+$\operatorname{Var}(X)$
+$\operatorname{Cov}(X,Y)$
+$\epsilon\sim\mathcal{N}(0,I)$
+$\mathcal{N}(\mathbf{x};\bm{\mu},\Sigma)$
+\end{lstlisting}
+\end{column}
+\begin{column}{0.44\textwidth}
+\begin{align*}
+\mathbf{x}&\sim \data\\
+p(\mathbf{x}\mid\mathbf{z})&\\
+\E_{\mathbf{x}\sim p}[f(\mathbf{x})]&\\
+\operatorname{Var}(X)&\\
+\operatorname{Cov}(X,Y)&\\
+\epsilon&\sim\Normal(0,I)\\
+\Normal(\mathbf{x};\bm{\mu},\Sigma)&
+\end{align*}
+\end{column}
+\end{columns}
+
+\begin{block}{読み方}
+  \texttt{\textbackslash mid} は条件「given」、
+  \texttt{\textbackslash sim} は「～に従う」を表す。
+\end{block}
+\end{frame}
+
+\begin{frame}[fragile]{微分・勾配・積分}
+\begin{columns}[T]
+\begin{column}{0.52\textwidth}
+\begin{lstlisting}
+$\frac{dy}{dx}$
+$\frac{\partial f}{\partial x_i}$
+$\nabla_{\mathbf{x}} f(\mathbf{x})$
+$\nabla_{\mathbf{x}}\log p(\mathbf{x})$
+$\nabla\cdot\mathbf{v}(\mathbf{x},t)$
+$\nabla_{\mathbf{x}}^2 f(\mathbf{x})$
+$\int_{\mathbb{R}^D} f(\mathbf{x})\,d\mathbf{x}$
+\end{lstlisting}
+\end{column}
+\begin{column}{0.44\textwidth}
+\begin{align*}
+\frac{dy}{dx}& &&\text{常微分}\\
+\frac{\partial f}{\partial x_i}& &&\text{偏微分}\\
+\nabla_{\mathbf{x}} f(\mathbf{x})& &&\text{勾配}\\
+\nabla_{\mathbf{x}}\log p(\mathbf{x})& &&\text{スコア}\\
+\nabla\cdot\mathbf{v}(\mathbf{x},t)& &&\text{発散}\\
+\nabla_{\mathbf{x}}^2 f(\mathbf{x})& &&\text{ラプラシアン}\\
+\int_{\R^D} f(\mathbf{x})\,d\mathbf{x}&
+\end{align*}
+\end{column}
+\end{columns}
+\end{frame}
+
+\begin{frame}[fragile]{最適化・損失関数}
+\begin{lstlisting}
+\[
+  \phi^* \in \argmin_{\phi}
+  \mathcal{D}(p_{\mathrm{data}},p_\phi)
+\]
+
+\[
+  \widehat{\mathcal{L}}(\phi)
+  = -\frac{1}{N}\sum_{i=1}^{N}
+    \log p_\phi\!\left(\mathbf{x}^{(i)}\right)
+\]
+\end{lstlisting}
+
+\begin{columns}[T]
+\begin{column}{0.48\textwidth}
+\begin{block}{母集団上の目的}
+\[
+\phi^*\in\argmin_\phi
+\mathcal{D}(\data,p_\phi)
+\]
+\end{block}
+\end{column}
+\begin{column}{0.48\textwidth}
+\begin{exampleblock}{経験損失の例}
+\[
+\widehat{\mathcal{L}}(\phi)
+=-\frac{1}{N}\sum_{i=1}^{N}
+\log p_\phi(\mathbf{x}^{(i)})
+\]
+\end{exampleblock}
+\end{column}
+\end{columns}
+\end{frame}
+
+\begin{frame}[fragile]{KLダイバージェンス}
+\begin{lstlisting}
+\begin{align}
+D_{\mathrm{KL}}(p\|q)
+&= \int p(\mathbf{x})
+   \log\frac{p(\mathbf{x})}{q(\mathbf{x})}
+   \,d\mathbf{x} \\
+&= \mathbb{E}_{\mathbf{x}\sim p}
+   [\log p(\mathbf{x})-\log q(\mathbf{x})].
+\end{align}
+\end{lstlisting}
+
+\begin{block}{表示}
+\begin{align*}
+\KL(p\|q)
+&=\int p(\mathbf{x})
+\log\frac{p(\mathbf{x})}{q(\mathbf{x})}\,d\mathbf{x}\\
+&=\E_{\mathbf{x}\sim p}
+[\log p(\mathbf{x})-\log q(\mathbf{x})].
+\end{align*}
+\end{block}
+
+\begin{alertblock}{重要}
+  KLは一般に非対称：
+  $\KL(p\|q)\neq\KL(q\|p)$。
+  二本線は \texttt{\textbackslash|} ではなく \texttt{\textbackslash\textbackslash|} または
+  \texttt{\textbackslash mid\textbackslash mid} より、
+  \texttt{\textbackslash Vert} や \texttt{\textbackslash\textbackslash|} の見た目を確認して使う。
+\end{alertblock}
+\end{frame}
+
+\begin{frame}[fragile]{拡散モデル：ガウス摂動}
+\begin{lstlisting}
+\[
+  p_t(\mathbf{x}_t\mid\mathbf{x}_0)
+  = \mathcal{N}
+    (\mathbf{x}_t;
+     \alpha_t\mathbf{x}_0,\sigma_t^2 I)
+\]
+\[
+  \mathbf{x}_t
+  = \alpha_t\mathbf{x}_0+\sigma_t\bm{\epsilon},
+  \qquad \bm{\epsilon}\sim\mathcal{N}(0,I).
+\]
+\end{lstlisting}
+
+\begin{exampleblock}{表示}
+\[
+p_t(\mathbf{x}_t\mid\mathbf{x}_0)
+=\Normal(\mathbf{x}_t;
+\alpha_t\mathbf{x}_0,\sigma_t^2I)
+\]
+\[
+\mathbf{x}_t
+=\alpha_t\mathbf{x}_0+\sigma_t\bm{\epsilon},
+\qquad \bm{\epsilon}\sim\Normal(0,I).
+\]
+\end{exampleblock}
+\end{frame}
+
+\begin{frame}[fragile]{拡散モデル：Score・SDE・ODE}
+\begin{lstlisting}
+% score function
+\[
+  \mathbf{s}_\theta(\mathbf{x},t)
+  \approx \nabla_{\mathbf{x}}\log p_t(\mathbf{x})
+\]
+
+% forward SDE
+\[
+  d\mathbf{x}_t
+  = \mathbf{f}(\mathbf{x}_t,t)\,dt
+  + g(t)\,d\mathbf{w}_t
+\]
+
+% probability-flow ODE
+\[
+  \frac{d\mathbf{x}_t}{dt}
+  = \mathbf{v}_\theta(\mathbf{x}_t,t)
+\]
+\end{lstlisting}
+
+\[
+\mathbf{s}_\theta(\mathbf{x},t)
+\approx\nabla_{\mathbf{x}}\log p_t(\mathbf{x}),
+\quad
+d\mathbf{x}_t=\mathbf{f}(\mathbf{x}_t,t)\,dt+g(t)\,d\mathbf{w}_t
+\]
+\[
+\frac{d\mathbf{x}_t}{dt}
+=\mathbf{v}_\theta(\mathbf{x}_t,t)
+\]
+\end{frame}
+
+\begin{frame}[fragile]{長い数式を揃える}
+\begin{columns}[T]
+\begin{column}{0.50\textwidth}
+\begin{lstlisting}
+\begin{align}
+\mathcal{L}(\theta)
+&= \mathbb{E}_{t,\mathbf{x}_0,\epsilon}
+   \Bigl[
+   \lambda(t)
+   \bigl\|
+   \mathbf{s}_\theta(\mathbf{x}_t,t)
+   - \nabla_{\mathbf{x}_t}
+     \log p_t(\mathbf{x}_t)
+   \bigr\|_2^2
+   \Bigr] \\
+&\ge 0.
+\end{align}
+\end{lstlisting}
+\end{column}
+\begin{column}{0.46\textwidth}
+\begin{align*}
+\mathcal{L}(\theta)
+&=\E_{t,\mathbf{x}_0,\epsilon}
+\Bigl[
+\lambda(t)
+\bigl\|
+\mathbf{s}_\theta(\mathbf{x}_t,t)\\
+&\qquad-\nabla_{\mathbf{x}_t}
+\log p_t(\mathbf{x}_t)
+\bigr\|_2^2
+\Bigr]\\
+&\ge 0.
+\end{align*}
+\end{column}
+\end{columns}
+
+\begin{block}{コツ}
+  \texttt{\&}を揃えたい位置に置き、
+  \texttt{\textbackslash\textbackslash}で改行する。
+  番号不要なら \texttt{align*} を使う。
+\end{block}
+\end{frame}
+
+\begin{frame}[fragile]{括弧・場合分け・集合}
+\begin{columns}[T]
+\begin{column}{0.52\textwidth}
+\begin{lstlisting}
+\[
+\left\{\mathbf{x}^{(i)}\right\}_{i=1}^{N}
+\]
+
+\[
+f(x)=
+\begin{cases}
+  x^2, & x\ge 0,\\
+  0,   & x<0.
+\end{cases}
+\]
+
+\[
+\underbrace{p(\mathbf{x})}_{\text{target}}
+\quad
+\overbrace{q_\phi(\mathbf{x})}^{\text{model}}
+\]
+\end{lstlisting}
+\end{column}
+\begin{column}{0.44\textwidth}
+\[
+\left\{\mathbf{x}^{(i)}\right\}_{i=1}^{N}
+\]
+\[
+f(x)=
+\begin{cases}
+x^2,&x\ge0,\\
+0,&x<0.
+\end{cases}
+\]
+\[
+\underbrace{p(\mathbf{x})}_{\text{target}}
+\quad
+\overbrace{q_\phi(\mathbf{x})}^{\text{model}}
+\]
+\end{column}
+\end{columns}
+\end{frame}
+
+\section{Beamerの機能}
+
+\begin{frame}[fragile]{3種類のブロック}
+\begin{columns}[T]
+\begin{column}{0.49\textwidth}
+\begin{lstlisting}
+\begin{block}{定義}
+  通常の説明や定義
+\end{block}
+
+\begin{exampleblock}{例・結論}
+  例、利点、重要な結論
+\end{exampleblock}
+
+\begin{alertblock}{注意}
+  注意点、制約、誤りやすい点
+\end{alertblock}
+\end{lstlisting}
+\end{column}
+\begin{column}{0.47\textwidth}
+\begin{block}{定義}
+通常の説明や定義
+\end{block}
+\begin{exampleblock}{例・結論}
+例、利点、重要な結論
+\end{exampleblock}
+\begin{alertblock}{注意}
+注意点、制約、誤りやすい点
+\end{alertblock}
+\end{column}
+\end{columns}
+\end{frame}
+
+\begin{frame}[fragile]{ブロックの色と形}
+\begin{lstlisting}
+\definecolor{main}{RGB}{30,70,140}
+\definecolor{alertcol}{RGB}{200,80,40}
+
+\setbeamertemplate{blocks}[rounded][shadow=false]
+\setbeamercolor{block title}{fg=white,bg=main}
+\setbeamercolor{block body}{fg=black,bg=main!6}
+\setbeamercolor{block title alerted}
+  {fg=white,bg=alertcol}
+\setbeamercolor{block body alerted}
+  {fg=black,bg=alertcol!6}
+\end{lstlisting}
+
+\begin{itemize}
+  \item \texttt{fg}：文字色、\texttt{bg}：背景色
+  \item \texttt{main!6}：mainを6\%使用した薄い色
+  \item \texttt{RGB}：各成分を0～255で指定
+  \item \texttt{rounded}：角丸、\texttt{shadow=false}：影なし
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{箇条書き・番号付きリスト}
+\begin{columns}[T]
+\begin{column}{0.50\textwidth}
+\begin{lstlisting}
+\begin{itemize}
+  \item 1段目
+  \begin{itemize}
+    \item 2段目
+  \end{itemize}
+  \item \alert{重要項目}
+\end{itemize}
+
+\begin{enumerate}
+  \item forward process
+  \item training
+  \item sampling
+\end{enumerate}
+\end{lstlisting}
+\end{column}
+\begin{column}{0.46\textwidth}
+\begin{itemize}
+  \item 1段目
+  \begin{itemize}
+    \item 2段目
+  \end{itemize}
+  \item \alert{重要項目}
+\end{itemize}
+
+\begin{enumerate}
+  \item forward process
+  \item training
+  \item sampling
+\end{enumerate}
+\end{column}
+\end{columns}
+
+\begin{block}{記号の形}
+\texttt{\textbackslash setbeamertemplate\{itemize items\}[circle]}
+の \texttt{circle} は \texttt{square} や \texttt{triangle} に変更できる。
+\end{block}
+\end{frame}
+
+\begin{frame}[fragile]{2列レイアウト}
+\begin{lstlisting}
+\begin{columns}[T]
+  \begin{column}{0.48\textwidth}
+    左側の内容
+  \end{column}
+  \begin{column}{0.48\textwidth}
+    右側の内容
+  \end{column}
+\end{columns}
+\end{lstlisting}
+
+\begin{columns}[T]
+\begin{column}{0.48\textwidth}
+\begin{block}{左：理論}
+\[
+\mathbf{x}_t
+=\alpha_t\mathbf{x}_0+\sigma_t\epsilon
+\]
+\begin{itemize}
+\item forward process
+\item noise addition
+\end{itemize}
+\end{block}
+\end{column}
+\begin{column}{0.48\textwidth}
+\begin{exampleblock}{右：意味}
+データに時間依存のノイズを加え、
+単純な事前分布へ徐々に変換する。
+\end{exampleblock}
+\end{column}
+\end{columns}
+
+\begin{alertblock}{幅}
+  2列なら各 \texttt{0.48\textbackslash textwidth} 程度にすると余白が残る。
+\end{alertblock}
+\end{frame}
+
+\begin{frame}[fragile]{図の挿入}
+\begin{lstlisting}
+\usepackage{graphicx} % beamerでは通常読み込み済み
+
+\begin{figure}
+  \centering
+  \includegraphics[
+    width=0.75\textwidth
+  ]{images/figure-name.png}
+  \caption{図の説明}
+\end{figure}
+\end{lstlisting}
+
+\begin{itemize}
+  \item 画像はプロジェクト内の \texttt{tex/images/} などにまとめる
+  \item \texttt{width}で横幅、\texttt{height}で高さを指定
+  \item 縦横比を保つには片方だけ指定する
+  \item 論文の図を使う場合は出典と利用条件を確認する
+\end{itemize}
+
+\begin{block}{出典の例}
+  \texttt{\textbackslash footnotesize Source: Author et al., year, Fig.~1.}
+\end{block}
+\end{frame}
+
+\begin{frame}[fragile]{表の作成}
+\begin{columns}[T]
+\begin{column}{0.55\textwidth}
+\begin{lstlisting}
+\begin{tabular}{lll}
+\toprule
+View & Object & Dynamics \\
+\midrule
+Variational & denoiser & discrete \\
+Score-based & score & SDE \\
+Flow-based & velocity & ODE \\
+\bottomrule
+\end{tabular}
+\end{lstlisting}
+\end{column}
+\begin{column}{0.41\textwidth}
+\centering
+\begin{tabular}{lll}
+\toprule
+View & Object & Eq.\\
+\midrule
+VAE & denoiser & discrete\\
+Score & score & SDE\\
+Flow & velocity & ODE\\
+\bottomrule
+\end{tabular}
+\end{column}
+\end{columns}
+
+\begin{itemize}
+  \item \texttt{l / c / r}：左寄せ・中央・右寄せ
+  \item \texttt{\&}：列の区切り、\texttt{\textbackslash\textbackslash}：行の終端
+  \item \texttt{booktabs}の横線は見やすい表に適する
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{段階表示（発表用）}
+\begin{columns}[T]
+\begin{column}{0.50\textwidth}
+\begin{lstlisting}
+\begin{itemize}
+  \item<1-> 最初に表示
+  \item<2-> 次に表示
+  \item<3-> 最後に表示
+\end{itemize}
+
+\only<2>{
+  2枚目だけに表示
+}
+
+\uncover<3->{
+  3枚目以降に表示
+}
+\end{lstlisting}
+\end{column}
+\begin{column}{0.46\textwidth}
+\begin{itemize}
+  \item<1-> 最初に表示
+  \item<2-> 次に表示
+  \item<3-> 最後に表示
+\end{itemize}
+
+\begin{block}{簡単な方法}
+  項目間に \texttt{\textbackslash pause} を置いても段階表示できる。
+\end{block}
+\end{column}
+\end{columns}
+\end{frame}
+
+\begin{frame}[fragile]{数式番号と参照}
+\begin{lstlisting}
+\begin{equation}
+  \phi^*
+  = \argmin_\phi \mathcal{L}(\phi)
+  \label{eq:training}
+\end{equation}
+
+式~\eqref{eq:training}より、最適な
+パラメータを求める。
+\end{lstlisting}
+
+\begin{block}{ルール}
+\begin{itemize}
+  \item \texttt{\textbackslash label\{eq:名前\}}：番号に名前を付ける
+  \item \texttt{\textbackslash eqref\{eq:名前\}}：括弧付きで式番号を参照
+  \item 図は \texttt{fig:}、表は \texttt{tab:} を接頭辞にすると整理しやすい
+  \item 参照番号が \texttt{??} のときは、通常はもう一度ビルドする
+\end{itemize}
+\end{block}
+\end{frame}
+
+\section{実用上の注意}
+
+\begin{frame}[fragile]{頻出エラーの確認表}
+\small
+\begin{tabular}{p{0.28\textwidth}p{0.31\textwidth}p{0.33\textwidth}}
+\toprule
+症状 & 主な原因 & 確認すること\\
+\midrule
+\texttt{Undefined control sequence}
+& コマンド名の誤記、パッケージ不足
+& エラー行の \texttt{\textbackslash command} を確認\\
+\addlinespace
+\texttt{Missing \$ inserted}
+& 数式コマンドを本文で使用
+& \texttt{\$...\$} 内に入れる\\
+\addlinespace
+\texttt{Extra \} / runaway argument}
+& 波括弧の数が不一致
+& \texttt{\{} と \texttt{\}} を対応させる\\
+\addlinespace
+スライドから内容がはみ出す
+& 1枚の情報量が多い
+& 分割、\texttt{\textbackslash small}、余白調整\\
+\addlinespace
+画像が見つからない
+& パスまたは拡張子が違う
+& texファイルから見た相対パスを確認\\
+\bottomrule
+\end{tabular}
+
+\begin{alertblock}{基本方針}
+  文字を極端に小さくする前に、1枚を2枚へ分割する。
+\end{alertblock}
+\end{frame}
+
+\begin{frame}{論文解説スライドの推奨構成}
+\begin{enumerate}
+  \item \textbf{問い}：この節は何を解決するのか
+  \item \textbf{前提・記号}：変数と分布を先に定義
+  \item \textbf{中心式}：1枚につき主役となる式を1つ
+  \item \textbf{式の意味}：各項を文章または色で対応付け
+  \item \textbf{直感・図}：forward / reverseなどの流れを図示
+  \item \textbf{要点}：結論と次節への接続
+\end{enumerate}
+
+\begin{exampleblock}{1枚の基本形}
+  上：結論または中心式 \quad
+  左下：定義・導出 \quad
+  右下：直感・注意点
+\end{exampleblock}
+\end{frame}
+
+\begin{frame}{論文で特によく使う記号}
+\small
+\begin{tabular}{lll}
+\toprule
+記号 & LaTeX & 意味\\
+\midrule
+$\data$ & \texttt{p\_\{\textbackslash mathrm\{data\}\}} & データ分布\\
+$p_\phi$ & \texttt{p\_\textbackslash phi} & モデル分布\\
+$\phi^*$ & \texttt{\textbackslash phi\^{}*} & 最適パラメータ\\
+$\mathbf{x}\sim p$ & \texttt{\textbackslash mathbf\{x\}\textbackslash sim p} & 分布$p$からの標本\\
+$\E[f(\mathbf{x})]$ & \texttt{\textbackslash mathbb\{E\}[f(\textbackslash mathbf\{x\})]} & 期待値\\
+$\KL(p\|q)$ & \texttt{D\_\{\textbackslash mathrm\{KL\}\}(p\textbackslash|q)} & KL divergence\\
+$\nabla_{\mathbf{x}}\log p_t$ & \texttt{\textbackslash nabla\_\{\textbackslash mathbf\{x\}\}\textbackslash log p\_t} & score\\
+$\Normal(0,I)$ & \texttt{\textbackslash mathcal\{N\}(0,I)} & 標準正規分布\\
+$\mathbf{x}_t$ & \texttt{\textbackslash mathbf\{x\}\_t} & 時刻$t$の状態\\
+\bottomrule
+\end{tabular}
+\end{frame}
+
+\begin{frame}{参考資料}
+\begin{block}{主資料}
+  Chieh-Hsin Lai, Yang Song, Dongjun Kim, Yuki Mitsufuji,
+  Stefano Ermon,\\
+  \emph{The Principles of Diffusion Models}, arXiv:2510.21890.\\[0.3em]
+  \href{https://arxiv.org/pdf/2510.21890}
+       {\texttt{https://arxiv.org/pdf/2510.21890}}
+\end{block}
+
+\begin{itemize}
+  \item 本早見表は同資料の「Notations」と第1章、および後続章で使う
+        Score・SDE・ODEの記法を意識して構成
+  \item 数式を引用する際は、元資料の式番号と定義を必ず再確認する
+  \item コード例は必要な部分をコピーして各ゼミ資料へ利用できる
+\end{itemize}
+\end{frame}
+
+\end{document}

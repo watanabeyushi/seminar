@@ -1,0 +1,37 @@
+{
+  "files.encoding": "utf8",
+  "files.associations": {
+    "*.tex": "latex"
+  },
+  "files.exclude": {
+    "build": true
+  },
+  "latex-workshop.latex.autoBuild.run": "onFileChange",
+  "latex-workshop.latex.outDir": "%DIR%/../pdf",
+  "latex-workshop.latex.tools": [
+    {
+      "name": "latexmk (LuaLaTeX)",
+      "command": "latexmk",
+      "args": [
+        "-lualatex",
+        "-interaction=nonstopmode",
+        "-file-line-error",
+        "-auxdir=..\\build",
+        "-outdir=..\\pdf",
+        "%DOCFILE%"
+      ],
+      "env": {},
+      "cwd": "%DIR%"
+    }
+  ],
+  "latex-workshop.latex.recipes": [
+    {
+      "name": "latexmk (LuaLaTeX)",
+      "tools": [
+        "latexmk (LuaLaTeX)"
+      ]
+    }
+  ],
+  "latex-workshop.latex.recipe.default": "first",
+  "latex-workshop.view.pdf.viewer": "tab"
+}
