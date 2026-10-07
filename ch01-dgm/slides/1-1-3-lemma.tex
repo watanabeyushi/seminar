@@ -1,0 +1,112 @@
+% !TEX root = ../tex/1-1.tex
+% KLの意味、最尤推定との同値、Mode Covering
+\begin{frame}{KLダイバージェンスのモチベーション(1)}
+    \small モデルの分布が真の分布をどれだけ適切に表現できているかを測る指標
+    \begin{block}{なぜ確率の比を考えるか}
+    あるデータxについて$\log \frac{p_{data}(x)}{p_{\phi}(x)}$を考える\\
+    ⇒同じｘに対してどの程度の確率（確率密度）を割り当てているか\\
+    \end{block}
+    \begin{block}{対数を使う理由}
+        離散データでは確率$p(x)$に対して$-\log p(x)$は情報量を表す\\
+    \[
+\log\frac{p_{\mathrm{data}}(x)}{p_{\phi}(x)}
+=
+\underbrace{-\log p_{\phi}(x)}_{\text{モデルに基づく情報量}}
+-
+\underbrace{\bigl(-\log p_{\mathrm{data}}(x)\bigr)}_{\text{本当の分布に基づく情報量}}
+\]
+    \end{block}
+
+    \begin{block}{なぜデータ分布で平均するのか}
+        1つのxだけでは分布が適切かどうか判断できない\\
+        ⇒データ分布で平均することで分布が適切かどうか判断できる\\
+        \centering$D_{KL}(p_{data}\mid\mid p_{\phi})=\mathbb{E}_{\boldsymbol{x}\sim p_{data}}[\log \frac{p_{data}(\boldsymbol{x})}{p_{\phi}(\boldsymbol{x})}]$\\
+        連続値の場合は期待値を積分で書く\\
+        ここで、重み$p_{data}$は実データで現れる領域での評価を平均に強く反映
+    \end{block}
+
+\end{frame}
+%=======================================================
+\begin{frame}{KLダイバージェンスのモチベーション(2)}
+    なぜ数学的な距離\footnote{数学的な距離は正値性、対称性、三角不等式を満たす性質を持つ}を使わないのか
+    \begin{itemize}
+    \item 分布の違いの評価が可能\\
+    ⇒数学的な距離は満たさないが、非負で0になるのは両分布が一致するときであり目的関数として利用できる\\
+    \item 実データを基準にして評価できる\\
+    ⇒比較に方向があり、実データで起こりやすいものにモデルが低い確率を割り当てると、大きなペナルティ
+    \item 最尤推定につなげやすい\\
+    ⇒順方向KLの最小化は、対数尤度の期待値の最大化と同じ
+    \item 未知のデータ分布でも学習可能\\
+    ⇒期待値をサンプル平均で近似すれば、手元の訓練データとモデルの確率密度を使って学習可能
+
+    \end{itemize}
+
+\end{frame}
+%=======================================================
+\begin{frame}{Lemma. 1.1.1}
+\begin{exampleblock}{Lemma 1.1.1 (Minimizing KL $\leftrightarrow$ MLE)}
+    \centering$\min\limits_{\phi}\mathcal{D}(p_{data}\mid\mid p_{\phi})\iff \max\limits_{\phi}\mathbb{E}_{x\sim p_{data}}[\log p_{\phi}(x)]$
+\end{exampleblock}
+\vspace{1em}
+$p_{data}$の期待値をサンプル${\boldsymbol{x}^{(i)}}_{i=1}^{N}$を用いた平均に置き換え\\
+ただし、$p_{data}$からi.i.d.で抽出したと仮定する。\\
+これにより経験的な負の対数尤度を目的関数として得る
+\vspace{1em}
+\centering$\hat{\mathcal{L}}_{MLE}(\phi) := -\frac{1}{N}\sum_{i=1}^{N}\log p_{\phi}(x^{(i)})$\\
+\vspace{1em}
+ミニバッチから計算した確率的勾配法を用いて最適化が可能\\
+⇒最尤推定に必要なのは$p_{data}$から得られたサンプルのみであり、\\未知のデータ分布の確率密度そのものを評価しなくてよい
+
+\end{frame}
+%=======================================================
+\begin{frame}{証明}
+    \begin{exampleblock}{証明(lemma1.1.1)}
+エントロピー等の各項が有限で最適解が存在すると仮定する
+
+\centering$\mathcal{J}(\phi) := \mathbb{E}_{x\sim p_{data}}[\log p_{\phi}{x}]$と置くと
+\centering$\mathcal{D}_{KL}(p_{data}\mid\mid p_{\phi}) = \mathcal{J}(\phi) + H(p_{data})$\\
+\small ※ここで、$\mathcal{H}は\phi$に依存しない定数である\\
+\end{exampleblock}
+
+\begin{exampleblock}{}
+    ($\implies$)
+$\phi^{*}$がKLを最小にすると仮定すると
+\centering$\forall \phi,\mathcal{D}_{KL}(p_{data}\mid\mid p^{\phi^{*}}) \leq \mathcal{D}_{KL}(p_{data}\mid\mid p^{\phi})$
+\centering$-\mathcal{J}(\phi^{*})-\mathcal{H}(p_{data}) \leq -\mathcal{J}(\phi)-\mathcal{H}(p_{data})$\\
+\centering$-\mathcal{J}(\phi^{*}) \leq -\mathcal{J}(\phi)$\\
+\centering$\mathcal{J}(\phi^{*}) \geq \mathcal{J}(\phi)$\\
+任意の$\phi$に対して成り立つため、$\phi^{*}$は期待対数尤度を最大にする
+\end{exampleblock}
+
+\begin{exampleblock}{}
+($\impliedby$)
+$\phi^{*}$が期待対数尤度を最大にすると仮定すると
+\centering$\forall \phi,\mathcal{J}(\phi^{*}) \geq \mathcal{J}(\phi)$\\
+さっきの逆の手順によって証明可能\\
+任意の$\phi$に対して成り立つため、$\phi^{*}$はKLを最小にする
+\end{exampleblock}
+\end{frame}
+%=======================================================
+\begin{frame}{順方向のKLダイバージェンス}
+    \begin{block}{}
+    \centering$\mathcal{D}_{KL}(p_{data}\mid\mid p_{\phi})=\mathbb{E}_{x\sim p_{data}}[\log \frac{p_{data}(x)}{p_{\phi}(x)}]$
+
+        \begin{itemize}
+            \item 順方向\\
+            データ分布に関して期待値を取る\\
+            ⇒$p_{data}$の下でデータが現れる領域をモデルも捉える必要
+            \item 逆方向\\
+            モデル分布から得られるサンプルに関して期待値を取る
+        \end{itemize}
+
+        \begin{alertblock}{Mode Covering}
+            データ分布が正の確率を割り当てる領域をAとする\\
+            すなわち$p_{data}(A)>0$が存在するがモデルが密度を割り当てずに$x\in A$に対して($p_{\phi}(x)=0$)であるとする\\
+            このとき$p_{data}(x)>0$ である場所では\\
+            \centering$\log \frac{p_{data}(x)}{p_{\phi}(x)}=+\infty$\\
+
+            データ分布が確率密度を割り当てた領域を見落とす場合に\\強いペナルティを与える
+            ⇒Mode Covering(モード被覆)
+        \end{alertblock}
+    \end{block}
+\end{frame}

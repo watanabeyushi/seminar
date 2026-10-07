@@ -1,0 +1,57 @@
+% !TEX root = ../tex/1-1.tex
+% Challenges of Modeling
+\begin{frame}{分布のモデリングにおける課題}
+    ★複雑なデータ分布をモデル化するためにNNを用いて$p_{data}$を近似するためのモデル分布$p_{\phi}$をパラメータ化したい\\
+    \begin{block}{$p_{\phi}$が有効な確率密度になるための条件}
+        \begin{itemize}
+            \item[(i)] 非負性：$\forall x, p_{\phi}(x)\geq 0$
+            \item[(ii)] 正規化：$\int p_{\phi}(x)dx=1$
+        \end{itemize}
+    \end{block}
+    NNは入力xに対して実数のスカラー$\mathit{E}_{\phi}(x)\in \mathbb{R}$を出力する\\
+    この出力を有効な確率密度として以下の方法で解釈したい\\
+    \begin{itemize}
+        \item[①] 条件(i)(ii)を満たす
+        \item[②] $\mathit{E}_{\phi}:\mathbb{R}^D\to \mathbb{R}$を未正規化密度を定める関数として捉える
+    \end{itemize}
+\end{frame}
+%=======================================================
+\begin{frame}{ステップ1:非負性の保証}
+    NNの未加工の出力$\mathit{E}_{\phi}(x)$に、非負の関数を適用する\\
+    例：$|\mathit{E}_{\phi}(x)|$や$\mathit{E}_{\phi}(x)^{2}$\\
+    ⇒モデルの出力が常に非負になる
+    \begin{exampleblock}{標準的な選択：指数関数}
+        常に正となる未正規化密度$\widetilde{p}_{\phi}(x)$が得られる
+        \[
+            \widetilde{p}_{\phi}(x)=\exp(\mathit{E}_{\phi}(x))
+        \]
+    \end{exampleblock}
+    \small ※指数関数だけでは、積分が有限になることまでは保証されない
+\end{frame}
+%=======================================================
+\begin{frame}{ステップ2:正規化}
+    $\widetilde{p}_{\phi}(x)$は正だが、積分が$1$になるとは限らない\\
+    ⇒空間全体の積分で割って、有効な確率密度にする
+    \[
+        p_{\phi}(x)
+        =\frac{\widetilde{p}_{\phi}(x)}{\int\widetilde{p}_{\phi}(x')\,dx'}
+        =\frac{\exp(\mathit{E}_{\phi}(x))}{\int\exp(\mathit{E}_{\phi}(x'))\,dx'}
+    \]
+    \begin{block}{正規化定数（分配関数）}
+        \[
+            Z(\phi):=\int\exp(\mathit{E}_{\phi}(x'))\,dx'
+        \]
+        有効な確率密度になるのは$0<Z(\phi)<\infty$のとき
+    \end{block}
+\end{frame}
+%=======================================================
+\begin{frame}{正規化定数の計算困難}
+    \begin{alertblock}{計算上の課題}
+        高次元では$Z(\phi)$の積分を現実的な計算量で求められない\\
+        ⇒この困難さが、様々な深層生成モデルのモデル族を生む中心的な問題
+    \end{alertblock}
+    以降の節では、正規化定数の評価を回避するか、\\
+    計算費用を減らすように設計された主要なアプローチを紹介する
+\end{frame}
+%=======================================================
+

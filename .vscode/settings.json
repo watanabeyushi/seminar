@@ -4,9 +4,19 @@
     "*.tex": "latex"
   },
   "files.exclude": {
-    "build": true
+    "**/build": true,
+    "**/tex/*.pdf": true,
+    "**/tex/*.aux": true,
+    "**/tex/*.log": true,
+    "**/tex/*.fls": true,
+    "**/tex/*.fdb_latexmk": true,
+    "**/tex/*.synctex.gz": true,
+    "**/tex/*.nav": true,
+    "**/tex/*.out": true,
+    "**/tex/*.snm": true,
+    "**/tex/*.toc": true
   },
-  "latex-workshop.latex.autoBuild.run": "onFileChange",
+  "latex-workshop.latex.autoBuild.run": "onSave",
   "latex-workshop.latex.outDir": "%DIR%/../pdf",
   "latex-workshop.latex.tools": [
     {
@@ -14,6 +24,7 @@
       "command": "latexmk",
       "args": [
         "-lualatex",
+        "-synctex=1",
         "-interaction=nonstopmode",
         "-file-line-error",
         "-auxdir=..\\build",
@@ -33,5 +44,23 @@
     }
   ],
   "latex-workshop.latex.recipe.default": "first",
-  "latex-workshop.view.pdf.viewer": "tab"
+  "latex-workshop.view.pdf.viewer": "external",
+  "latex-workshop.view.pdf.refreshenabled": true,
+  "latex-workshop.view.pdf.external.viewer.command": "C:\\Users\\gnqkn\\AppData\\Local\\SumatraPDF\\SumatraPDF.exe",
+  "latex-workshop.view.pdf.external.viewer.args": [
+    "-reuse-instance",
+    "-inverse-search",
+    "C:\\Program Files\\cursor\\Cursor.exe -r -g \"%f:%l\"",
+    "%PDF%"
+  ],
+  "latex-workshop.view.pdf.external.synctex.command": "C:\\Users\\gnqkn\\AppData\\Local\\SumatraPDF\\SumatraPDF.exe",
+  "latex-workshop.view.pdf.external.synctex.args": [
+    "-reuse-instance",
+    "-forward-search",
+    "%TEX%",
+    "%LINE%",
+    "-inverse-search",
+    "C:\\Program Files\\cursor\\Cursor.exe -r -g \"%f:%l\"",
+    "%PDF%"
+  ]
 }

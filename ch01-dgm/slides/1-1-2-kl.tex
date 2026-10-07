@@ -1,0 +1,64 @@
+% !TEX root = ../tex/1-1.tex
+% 学習の定式化と順方向KL
+\begin{frame}{1-1-1 Training of DGM}
+\begin{block}{学習}
+モデル族$\{p_{\phi}\}$の中で不一致$\mathcal{D}$を最小化するパラメータを求める\\
+\centering $\phi^{*}\in \argmin_{\phi}\mathcal{D}(p_{data},p_{\phi})$
+\end{block}
+\begin{itemize}
+\item $\boldsymbol{p}_{data}$は、未知であるためi.i.d.サンプルから値を効率的に\\
+推定することによって実用的なDを選ぶ\\
+\item モデルに十分な表現力があれば$\boldsymbol{p}_{data}$と$\boldsymbol{p}_{\phi}$の近似ができる\\
+\end{itemize}
+
+\begin{block}{順方向KL divergenceと最尤推定}
+    MLE(Maximum Likelihood Estimation): 最尤推定\\
+    ⇒訓練データから最も尤もらしいパラメータ$\phi^{*}$を推定する方法\\
+    \small ※モチベーション：モデルの確率密度$p_{\phi}(x)$を評価できる場合、観測されたデータに対してモデルが高い確率密度を与えるパラメータを選ぶ\\
+\end{block}
+
+\end{frame}
+%=======================================================
+\begin{frame}{Forward KL divergence}
+\begin{block}{定義:KL divergence}
+    \begin{align*}
+        D_{KL}(p_{data}\mid\mid p_{\phi})
+        &:= \int p_{data}(\boldsymbol{x})\log\frac{p_{data}(\boldsymbol{x})}{p_{\phi}(\boldsymbol{x})}\,dx \\
+        &= \mathbb{E}_{\boldsymbol{x}\sim p_{data}}
+            [\log p_{data}(\boldsymbol{x})-\log p_{\phi}(\boldsymbol{x})]
+        \end{align*}
+        二つの確率分布の隔たりを測る指標
+\end{block}
+
+\begin{itemize}
+    \item 非対称\footnote{||は二つの確率分布を区別し、慣用的に非対称を表すこともある}:$D_{KL}(p_{data}\mid p_{\phi} )\neq D_{KL}(p_{\phi}\mid\mid p_{data})$
+    \item 非負性:$D_{KL}(p_{data}\mid\mid p_{\phi})\geq 0$
+    \item 一致時に0:$D_{KL}(p_{data}\mid\mid p_{\phi})=0$⇔$p_{data}=p_{\phi}$
+\end{itemize}
+
+\end{frame}
+%=====================================================
+\begin{frame}{さらに分解すると}
+    \begin{block}{}
+        一見すると、データの確率密度 \(p_{\mathrm{data}}(x)\) が未知であるため、\\
+        順方向のKLダイバージェンスは利用できなそうだが
+        \begin{align*}
+            D_{\mathrm{KL}}(p_{\mathrm{data}}\mid\mid p_{\phi})
+            &= \mathbb{E}_{x\sim p_{\mathrm{data}}}
+                \left[
+                    \log\frac{p_{\mathrm{data}}(x)}{p_{\phi}(x)}
+                \right] \\
+            &= -\mathbb{E}_{x\sim p_{\mathrm{data}}}
+                \bigl[\log p_{\phi}(x)\bigr]
+                - H(p_{\mathrm{data}}).
+        \end{align*}
+        ここで
+        \[
+            H(p_{\mathrm{data}})
+            :=
+            -\mathbb{E}_{x\sim p_{\mathrm{data}}}
+            \bigl[\log p_{\mathrm{data}}(x)\bigr].
+        \]
+        \small はデータ分布のエントロピーと呼ばれ、パラメーター$\phi$に依存しない定数
+    \end{block}
+\end{frame}

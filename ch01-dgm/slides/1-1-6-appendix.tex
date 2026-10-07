@@ -1,0 +1,26 @@
+% !TEX root = ../tex/1-1.tex
+% 補足：i.i.d. と大数の法則
+\begin{frame}{補足i.i.d(independent and identically distributed)}
+    \begin{block}{i.i.d(independent and identically distributed)}
+        独立同分布(i.i.d.): 各サンプルが互いに独立で、同じ分布から生成される
+        \begin{itemize}
+            \item 独立とは、あるサンプルの値が他のサンプルの値に影響を与えないこと
+            \item 同分布とは、すべてのサンプルが同じ分布から生成されること（同じ分布$\neq$同じ値）
+        \end{itemize}
+    \end{block}
+    \begin{block}{i.i.d.の例}
+        \[
+            p(x^{(1)},\ldots,x^{(N)})
+            =\prod_{i=1}^{N}p_{\mathrm{data}}(x^{(i)})
+        \]
+    \end{block}
+\end{frame}
+%=======================================================
+\begin{frame}{補足：大数の法則}
+    \begin{block}{大数の法則}
+
+        独立同分布に従う確率変数の平均は、サンプル数を増やすと真の平均に近づく\\
+
+        \centering$\lim_{N\to\infty}P(|\frac{X_{1}+X_{2}+...+X_{N}}{N}-\mu|\geq \epsilon)=0$
+    \end{block}
+\end{frame}

@@ -1,5 +1,5 @@
 # LaTeX の生成物
-build/
+**/build/
 *.aux
 *.fdb_latexmk
 *.fls

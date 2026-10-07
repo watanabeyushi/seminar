@@ -1,52 +1,33 @@
 \documentclass{beamer}
+\usepackage{tikz}
 
 \usepackage{luatexja}
 \usepackage{luatexja-fontspec}
+\usepackage{graphicx}
+% 章フォルダの tex/ からコンパイルすることを想定
+\graphicspath{{../images/}{images/}}
 
-% 配色
+% ---- ブロックの設定（block / alertblock / exampleblock）----
 \definecolor{main}{RGB}{30,70,140}
 \definecolor{alertcol}{RGB}{200,80,40}
 \definecolor{examplecol}{RGB}{30,120,60}
-
-% ブロック
 \setbeamertemplate{blocks}[rounded][shadow=false]
+
 \setbeamercolor{block title}{fg=white,bg=main}
 \setbeamercolor{block body}{fg=black,bg=main!6}
 \setbeamercolor{block title alerted}{fg=white,bg=alertcol}
 \setbeamercolor{block body alerted}{fg=black,bg=alertcol!6}
 \setbeamercolor{block title example}{fg=white,bg=examplecol}
 \setbeamercolor{block body example}{fg=black,bg=examplecol!6}
+
 \setbeamerfont{block title}{series=\bfseries}
 \setbeamerfont{block title alerted}{series=\bfseries}
 \setbeamerfont{block title example}{series=\bfseries}
 
-% 箇条書き
 \setbeamertemplate{itemize items}[circle]
 
-% 数学用コマンド
 \DeclareMathOperator*{\argmax}{arg\,max}
 \DeclareMathOperator*{\argmin}{arg\,min}
 
-\title{The Principles of Diffusion Models 1-2}
 \author{渡邉 有志}
 \date{\today}
-
-\begin{document}
-
-\begin{frame}
-    \titlepage
-\end{frame}
-
-\begin{frame}{目次}
-    \tableofcontents
-\end{frame}
-
-\section{セクション名}
-
-\begin{frame}{スライドタイトル}
-    \begin{itemize}
-        \item 内容を入力
-    \end{itemize}
-\end{frame}
-
-\end{document}
