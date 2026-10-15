@@ -27,6 +27,11 @@
 \end{frame}
 %========================================
 \begin{frame}{}
+    \includegraphics[
+        width=\textwidth,
+        height=0.78\textheight,
+        keepaspectratio
+    ]{figure1-2.png}
     \begin{exampleblock}{}
     エネルギー関数:高次元データxに対して1つの実数$\mathit{E}_{\phi}(x)$を割り当てている
     ($\mathit{E}_{\phi}(x):R^D \rightarrow R$)\\
@@ -34,11 +39,7 @@
     実数全体で$E_{\phi}(x)=0 \implies Z=\int_{-\infty}^{\infty} 1dx=\infty$より正規化できない\\
 \end{exampleblock}
 EBMを通してエネルギー→確率密度の変換を行っている\\
-    \includegraphics[
-        width=\textwidth,
-        height=0.78\textheight,
-        keepaspectratio
-    ]{figure1-2.png}
+    
     EBMの学習ではデータの対数尤度を最大化する\\
     しかし、分配関数が計算困難で対処が必要\\
     ⇒次の章で拡散モデルについて解説
@@ -159,21 +160,101 @@ EBMを通してエネルギー→確率密度の変換を行っている\\
 \begin{frame}{ELBO(Evidence Lower Bound)}
     \begin{block}{ELBO(Evidence Lower Bound)}
         $\mathit{L}_{\mathit{ELBO}}(\theta,\phi;x)=\mathbb{E}_{z\sim q_{\theta}(\mathit{z}\mid\mathit{x})}[\log p_{\phi}(\mathit{x}\mid\mathit{z})]-\mathit{D}_{KL}(q_{\theta}(\mathit{z}\mid\mathit{x})\mid\mid p(\mathit{z}))$\\
+        \vspace{1em}
+        真の対数尤度の代わりに計算可能なエビデンス下界を最大化する\\
+        \vspace{1em}
+        第一項はデータの正確な再構成を促す項\\
+        第二項は潜在変数の分布$p_{perior}(\mathit{z})$を単純な事前分布に近づけ、正則化する項\\
     \end{block}
+    【VAEについて】\\
+    ニューラルネットワークと潜在変数モデルを組み合わせる方法で\\
+    尤度に基づくアプローチとして最も多く使われている一つの手法\\
+    \vspace{1em}
+    生成サンプルの鮮明さが不十分、学習上の問題などの実用上の\\課題がありつつも拡散モデルなどの発展の基礎となっている
+
 \end{frame}
 %======================
+\begin{frame}{ELBOの導出}
+    \begin{exampleblock}{}
+        対数尤度に潜在変数$\mathit{z}$における任意の分布$q(\mathit{z})$を用いて
+            \begin{align*}
+        \log p_{\theta}(\mathbf{x}) &= \log p_{\theta}(\mathbf{z}\mid\mathbf{x})\int q(\mathit{z})d\mathbf{z}\\
+        &=\int q(\mathit{z})\log p_{\theta}(\mathbf{x})d\mathbf{z}\\
+        &=\int q(\mathit{z})\log \frac{q(\mathit{z})p_{\theta}(\mathbf{z}, \mathit{x})p_{\theta}(\mathbf{x})}{q(\mathit{z})p_{\theta}(\mathbf{z}\mid\mathbf{x})}d\mathbf{z}\\
+        &=\int q(\mathit{z})\log \frac{p_{\theta}(\mathbf{z}, \mathit{x})p_{\theta}(\mathbf{x})}{q(\mathit{z})}d\mathbf{z}
+        +\int q(\mathit{z})\log \frac{q(\mathit{z})}{p_{\theta}(\mathbf{z}\mid\mathbf{x})}d\mathbf{z}\\
+        &=\mathit{L}(\theta,\phi;x)+\mathit{D}_{KL}(q(\mathit{z})\mid\mid p_{\theta}(\mathbf{z}\mid\mathbf{x}))
+    \end{align*}
+    ただし$\mathit{L}(\theta,\phi;x)=\int q(\mathit{z})\log \frac{p_{\theta}(\mathbf{z}, \mathit{x})}{q(\mathit{z})}d\mathbf{z}$\\
+    第一項はELBO、第二項はKLダイバージェンス\\
+    第二項は0以上なのでELBOは必ず周辺尤度の下界を与える$log p_{\theta}(\mathbf{x})\geq \mathit{L}(\theta,\phi;x)$
+    \end{exampleblock}
+\end{frame}
 %======================================
 \begin{frame}{Nomalization Flows}
+    \begin{block}{従来の正規化フロー：}
+    正規化フロー(NF)とニューラル常微分方程式(NODE)に基づく\\
+    連続時間のモデル\\
+    ⇒可逆の変換を用いて、単純な潜在変数と複雑なデータの分布を結び付ける全単射を学習\\
+    $\log p_{\phi}(x)=\log p(f_{\phi}(x))+\log\left|\det\frac{\partial f_{\phi}(x)}{\partial x}\right|,$
+    $z=f_{\phi}(x),x=f_{\phi}^{-1}(z)$\\
+    \end{block}
+    概念的には美しいが、実装上の制約が多い\\
+    \begin{itemize}
+        \item 全単射を保証するためネットワーク構造に厳しい制約
+        \item 常微分方程式を解く計算負荷が高く学習効率低下
+        \item 可逆で、ヤコビアンの行列式も効率よく計算できる変換
+    \end{itemize}
+\end{frame}
+%======================================
+\begin{frame}{解釈}
+    \begin{exampleblock}{\small 目的：実際のデータに近い分布を学習し、新しいデータを生成\\}
+        \small 分布から得たサンプル(z)は潜在変数であり高次元のベクトル\\
+        潜在変数を変換して実際のデータに近い形にする\\
+        ※ここで、生成されたxの確率密度が計算できるとは限らない\\
+        ⇒可逆な変換によって潜在変数zの確率密度を使えるようにする\\
+        $z=f_{\phi}(x),x=f_{\phi}^{-1}(z)$\\
+        \vspace{1em}
+        ただし、変換によって空間が伸び、単位体積当たりの確率密度が変わるので対数変換の公式を用いて対策する\\
+        $p_{\phi}(x)=p(f_{\phi}(x))\left|\det\frac{\partial f_{\phi}(x)}{\partial x}\right|,$\\
+        対数をとって
+        $\log p_{\phi}(x)=\log p(f_{\phi}(x))+\log\left|\det\frac{\partial f_{\phi}(x)}{\partial x}\right|$\\
+        \vspace{1em}
+        学習データを大きくするように、パラメータ \(\phi\) を学習可能になる\\
+        ⇒「変数変換の公式によって最尤推定が可能になる」
+    \end{exampleblock}
 \end{frame}
 %======================================
 \begin{frame}{GANs:Generative Advasarial Networks}
+    \begin{block}{GANs:Generative Advasarial Networks}
+        GANs:生成器$\mathit{G}$と判別機$\mathit{D}$が互いに競い合う二つのNN\\
+        \begin{itemize}
+        \item 生成器$\mathit{G}$:ランダムなノイズ$\mathit{z}\sim P_{prior}$から\\現実的なサンプル$\mathit{G}_{\phi}(z)$を作ることを目指す
+        \item 判別機$\mathit{D}$:実サンプル$\mathit{x}$か生成サンプル$\mathit{G}_{\phi}(z)$かを判別する
+        \end{itemize}
+        GANsの目的関数:\\
+        \[\min_{G_\phi}\max_{D_\zeta}\left\{\underbrace{\mathbb{E}_{x\sim p_{\mathrm{data}}}[\log D_\zeta(x)]}_{\text{実サンプル}}+\underbrace{\mathbb{E}_{z\sim p_{\mathrm{prior}}}\left[\log\left(1-D_\zeta(G_\phi(z))\right)\right]}_{\text{生成サンプル}}\right\}.\]
+        \begin{itemize}
+            \item 明示的な確率密度関数を定義しない⇒尤度の推定を回避\\
+            \item 正規化定数を計算せず、よく模倣するサンプルの生成に重点\\
+        \end{itemize}
+    \end{block}
 \end{frame}
 %======================================
-\begin{frame}{}
+\begin{frame}{ダイバージェンスの観点から見ると}
+    \begin{exampleblock}{}
+        \small $\mathit{D_\zeta}$が真の分布 \(p_{\mathrm{data}}\) と生成器の分布 \(p_{G_\phi}\) の間の隔たりを暗黙的に測る\\
+        ※\(p_{G_\phi}\) は、ノイズ \(z\sim p_{\mathrm{prior}}\) から得られる生成サンプル \(G_\phi(z)\) の分布
+        生成器 \(G_\phi\) を固定したとき、最適な識別器は\\
+        \[D^*(x)=\frac{p_{\mathrm{data}}(x)}{p_{\mathrm{data}}(x)+p_{G_\phi}(x)}\]\\
+        この最適な最適な識別機を用いると生成器の最小化問題は\\
+        \[\min_{G_\phi}\left[2D_{\mathrm{JS}}(p_{\mathrm{data}}\|p_{G_\phi})-\log 4\right]\]\\
+        ここで\(D_{\mathrm{JS}}\) は次のように定義される\\
+        \[D_{\mathrm{JS}}(p\|q):=\frac12D_{\mathrm{KL}}\left(p\middle\|\frac{p+q}{2}\right)+\frac12D_{\mathrm{KL}}\left(q\middle\|\frac{p+q}{2}\right).\]
+        GANが暗黙的に \(D_{\mathrm{JS}}(p_{\mathrm{data}}\|p_{G_\phi})\) を最小化していることを示している\\
+    \end{exampleblock}
 \end{frame}
-%======================================
-\begin{frame}{}
-\end{frame}
+
 %======================================
 \begin{frame}{chain rule}
     \begin{block}{chain rule:確率の連鎖律(確率の乗法定理)}
