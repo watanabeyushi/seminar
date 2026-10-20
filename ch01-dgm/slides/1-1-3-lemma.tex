@@ -1,7 +1,7 @@
 % !TEX root = ../tex/1-1.tex
 % KLの意味、最尤推定との同値、Mode Covering
-\begin{frame}{KLダイバージェンスのモチベーション(1)}
-    \small モデルの分布が真の分布をどれだけ適切に表現できているかを測る指標
+\begin{frame}[shrink]{KLダイバージェンスのモチベーション(1)}
+    モデルの分布が真の分布をどれだけ適切に表現できているかを測る指標
     \begin{block}{なぜ確率の比を考えるか}
     あるデータxについて$\log \frac{p_{data}(x)}{p_{\phi}(x)}$を考える\\
     ⇒同じｘに対してどの程度の確率（確率密度）を割り当てているか\\
@@ -88,6 +88,7 @@ $\phi^{*}$が期待対数尤度を最大にすると仮定すると
 \end{frame}
 %=======================================================
 \begin{frame}{順方向のKLダイバージェンス}
+    \small
     \begin{block}{}
     \centering$\mathcal{D}_{KL}(p_{data}\mid\mid p_{\phi})=\mathbb{E}_{x\sim p_{data}}[\log \frac{p_{data}(x)}{p_{\phi}(x)}]$
 

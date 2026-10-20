@@ -1,6 +1,117 @@
 % !TEX root = ../tex/1-3.tex
-\begin{frame}{1.3 Taxonomy of Modelings}
+\begin{frame}{1.3 Taxonomy of Modeling}
+    \begin{block}{分類の軸}
+        DGMには多様な戦略がある。根本的な違いは、データ分布\(p_{\phi}(\boldsymbol{x})\)をどうパラメータ化するかにある。
+    \end{block}
+    \vspace{0.6em}
     \begin{itemize}
-        \item
+        \item \textbf{Explicit}：密度や質量関数として陽に定める
+        \item \textbf{Implicit}：サンプリング手続きだけで陰に定める
     \end{itemize}
+    \vspace{0.4em}
+    この区別は、学習に使う目的関数とは独立である。\\
+    最尤推定か、ELBOか、敵対的学習かでは分類しない。
+\end{frame}
+%========================================
+\begin{frame}{Explicit Models}
+    \begin{block}{定義}
+        確率分布\(p_{\phi}(\boldsymbol{x})\)を、計算可能な、または近似的に計算可能な密度・質量関数として直接パラメータ化する。
+    \end{block}
+    \vspace{0.5em}
+    \(p_{\phi}(\boldsymbol{x})\)の定め方は二通りある。
+    \begin{itemize}
+        \item 厳密に書く\\
+        自己回帰モデル（AR）、正規化フロー（NF）
+        \item 計算可能な下界を通して書く\\
+        変分オートエンコーダ（VAE）、拡散モデル（DM）
+    \end{itemize}
+    \vspace{0.3em}
+    いずれも\(p_{\phi}(\boldsymbol{x})\)自体は定義されている。\\
+    違いは、その値を厳密に評価できるか、下界で代用するかである。
+\end{frame}
+%========================================
+\begin{frame}{Implicit Models}
+    \begin{block}{定義}
+        分布をサンプリング手続きだけで定める。典型的には、ノイズ\(\boldsymbol{z}\sim p_{\mathrm{prior}}\)に対して
+        \[
+            \boldsymbol{x}=\boldsymbol{G}_{\phi}(\boldsymbol{z}).
+        \]
+    \end{block}
+    \vspace{0.4em}
+    このとき\(p_{\phi}(\boldsymbol{x})\)は閉形式で書けない。定義されないこともある。
+    \begin{itemize}
+        \item 例はGAN。生成器はサンプルを返す
+        \item 尤度\(\log p_{\phi}(\boldsymbol{x})\)は学習に使わない
+        \item 目的関数は敵対的学習になる
+    \end{itemize}
+\end{frame}
+%========================================
+\begin{frame}{Table 1.1：Explicit と Implicit}
+    \begin{center}
+    \footnotesize
+    \renewcommand{\arraystretch}{1.45}
+    \begin{tabular}{lccc}
+        \hline
+        & \multicolumn{2}{c}{Explicit} & Implicit \\
+        \cline{2-3}
+        & Exact Likelihood & Approx.\ Likelihood & \\
+        \hline
+        Likelihood & Tractable & Bound / Approx. & Not Directly Modeled \\
+        Objective & MLE & ELBO & Adversarial \\
+        Examples & NFs, ARs & VAEs, DMs & GANs \\
+        \hline
+    \end{tabular}
+    \end{center}
+    \vspace{0.6em}
+    \begin{itemize}
+        \item Exact：密度が計算でき、最尤推定が使える
+        \item Approx.：下界や近似を最大化する
+        \item Implicit：密度を直接は書かず、サンプルの質で学習する
+    \end{itemize}
+\end{frame}
+%========================================
+\begin{frame}{1.2 のモデルの位置}
+    \begin{exampleblock}{ここまでのモデルは表のどこか}
+        \begin{itemize}
+            \item AR：条件付き確率の積で\(\log p_{\phi}(\boldsymbol{x})\)を正確に書ける \(\rightarrow\) Exact
+            \item NF：変数変換の公式で対数密度が計算できる \(\rightarrow\) Exact
+            \item VAE：ELBOは周辺尤度の下界 \(\rightarrow\) Approx.
+            \item GAN：\(\boldsymbol{x}=\boldsymbol{G}_{\phi}(\boldsymbol{z})\)で密度を返さない \(\rightarrow\) Implicit
+        \end{itemize}
+    \end{exampleblock}
+    \vspace{0.4em}
+    EBMはエネルギーから\(p_{\phi}\)を定義するのでExplicitに近い。\\
+    ただし分配関数\(Z(\phi)\)が計算できず、表の三列には入っていない。\\
+    拡散モデルとの接続では、次のスライドで再び現れる。
+\end{frame}
+%========================================
+\begin{frame}{Connection to Diffusion Models}
+    \begin{block}{拡散モデルが引き継ぐもの}
+        古典的な族は、複雑な分布を扱う相補的な戦略である。\\
+        拡散モデルはそのいくつかを組み合わせて使う。
+    \end{block}
+    \vspace{0.6em}
+    \begin{itemize}
+        \item \textbf{VAE}：変分的な学習目標。下界を通して学習する
+        \item \textbf{EBM}：スコアマッチング。対数密度の勾配を学ぶ。\\
+        エネルギー関数の勾配と結びつく
+        \item \textbf{NF}：連続時間の変換。単純な分布をデータの分布へ運ぶ
+    \end{itemize}
+\end{frame}
+%========================================
+\begin{frame}{以降で扱う三つの枠組み}
+    後の章の拡散法に入る前に、次の三つを基礎として見る。
+    \vspace{0.8em}
+    \begin{itemize}
+        \item VAEs \quad 2.1節\\
+        潜在変数と変分下界
+        \item EBMs \quad 3.1節\\
+        エネルギーとスコア
+        \item NFs \quad 5.1節\\
+        可逆変換と連続時間
+    \end{itemize}
+    \vspace{0.6em}
+    \begin{exampleblock}{}
+        この三つが、現代の拡散型生成モデルの原理を読むための土台になる。
+    \end{exampleblock}
 \end{frame}
