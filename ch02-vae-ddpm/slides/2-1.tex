@@ -1,6 +1,1322 @@
 % !TEX root = ../tex/2-1.tex
-\begin{frame}{2.1 Variational Autoencoder}
+\begin{frame}{In this chapter...}
+    \begin{block}{変分法の観点から拡散モデルを見る}
+        VAEは潜在変数でデータを表現し、計算可能な対数尤度の下界
+        （ELBO）を最大化することで学習する。
+    \end{block}
     \begin{itemize}
-        \item
+        \item VAE：学習するエンコーダとデコーダ
+        \[
+            \boldsymbol{x}\longrightarrow\boldsymbol{z}
+            \longrightarrow\boldsymbol{x}'
+        \]
+        \item 階層型VAE：複数の潜在変数層を積み重ねる
+        \item DDPM：順方向のノイズ付加を固定し、
+        逆方向のノイズ除去を学習する
+    \end{itemize}
+\end{frame}
+%=============================================
+\begin{frame}{VAEからDDPMへ}
+    \begin{columns}[T]
+        \begin{column}{0.48\textwidth}
+            \begin{block}{VAE}
+                \begin{itemize}
+                    \item エンコーダを学習
+                    \item デコーダを学習
+                    \item 一つの潜在変数層
+                \end{itemize}
+            \end{block}
+        \end{column}
+        \begin{column}{0.48\textwidth}
+            \begin{exampleblock}{DDPM}
+                \begin{itemize}
+                    \item 順方向過程を固定
+                    \item 逆方向過程を学習
+                    \item 多数のノイズ付き潜在層
+                \end{itemize}
+            \end{exampleblock}
+        \end{column}
+    \end{columns}
+    \vspace{0.8em}
+    \begin{block}{共通する基盤}
+        VAE、階層型VAE、DDPMはいずれも、
+        変分下界によって定義される尤度の代替目的関数を最適化する。
+    \end{block}
+\end{frame}
+%=============================================
+\begin{frame}{この章で理解すること}
+    \begin{itemize}
+        \item 厳密な最尤学習が難しいとき、VAEがなぜELBOを使うのか
+        \item DDPMが潜在変数による見方を、
+        多数のノイズ付き潜在層へどう拡張するのか
+        \item 条件付けによって、逆方向のノイズ除去を
+        計算可能な目標へ変える仕組み
+        \item 平均、元データ、ノイズの予測が、
+        同じ情報を異なる形で表すこと
+        \item DDPMのノイズ除去損失とELBOの関係
+    \end{itemize}
+    \vspace{0.5em}
+    \small
+    ※VAEとELBOに慣れている場合は、2.1節を確認して2.2節へ進んでもよい。
+\end{frame}
+%=============================================
+\begin{frame}{2.1 Variational Autoencoder}
+    \begin{block}{Autoencoder（AE）}
+        \begin{itemize}
+            \item Encoder：入力を低次元の潜在表現へ圧縮する決定論的写像
+            \item Decoder：潜在表現から入力を再構成する決定論的写像
+        \end{itemize}
+        \[
+            \boldsymbol{x}
+            \xrightarrow{\text{Encoder}}
+            \boldsymbol{z}
+            \xrightarrow{\text{Decoder}}
+            \boldsymbol{x}'
+        \]
+        元の入力と再構成された入力の誤差を最小化する。
+    \end{block}
+    \begin{alertblock}{生成モデルとしての限界}
+        正確に再構成できても、潜在空間に生成に適した構造があるとは限らない。
+        任意の潜在表現をサンプリングすると、意味のない出力になり得る。
+    \end{alertblock}
+\end{frame}
+%=============================================
+\begin{frame}{VAE：潜在空間に確率的構造を与える}
+    \begin{block}{Variational Autoencoder}
+        VAEは潜在表現を一つの値ではなく確率分布として扱い、
+        潜在空間に滑らかな構造を与える。
+    \end{block}
+    \vspace{0.5em}
+    \begin{itemize}
+        \item データの再構成だけでなく、新しいデータの生成を目指す
+        \item 事前分布から潜在変数をサンプリングできるようにする
+        \item 潜在空間の近い点が、似たデータへ対応するように学習する
+    \end{itemize}
+    \begin{exampleblock}{決定論的AEとの違い}
+        AEは写像を学習する。VAEは条件付き確率分布を学習する。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\begin{frame}{2.1.1 確率的エンコーダとデコーダ}
+    \centering
+    \begin{tikzpicture}[
+        node distance=4.8cm,
+        box/.style={draw,rounded corners,minimum width=2.4cm,
+                    minimum height=1cm,align=center},
+        >=stealth
+    ]
+        \node[box] (x) {観測データ\\$\boldsymbol{x}$};
+        \node[box, right of=x] (z) {潜在変数\\$\boldsymbol{z}$};
+        \node[box, right of=z] (xp) {再構成\\$\boldsymbol{x}'$};
+        \draw[->,thick] (x) --
+            node[midway,above=3mm]{Encoder}
+            node[midway,below=3mm]
+            {$q_\theta(\boldsymbol{z}\mid\boldsymbol{x})$} (z);
+        \draw[->,thick] (z) --
+            node[midway,above=3mm]{Decoder}
+            node[midway,below=3mm]
+            {$p_\phi(\boldsymbol{x}\mid\boldsymbol{z})$} (xp);
+    \end{tikzpicture}
+    \vspace{0.8em}
+    \begin{itemize}
+        \item エンコーダは$\boldsymbol{x}$から潜在変数の分布を定め、
+        そこから$\boldsymbol{z}$をサンプリングする
+        \item デコーダは$\boldsymbol{z}$からデータの分布を定める
+    \end{itemize}
+    \begin{exampleblock}{「確率的」の意味}
+        一つの値を直接決めるのではなく、
+        値をサンプリングするための分布を定める。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\begin{frame}{デコーダ（生成器）の構成}
+    VAEでは二種類の変数を区別する。
+    \begin{itemize}
+        \item 観測変数$\boldsymbol{x}$：画像など、実際に観測するデータ
+        \item 潜在変数$\boldsymbol{z}$：形・色・スタイルなど、
+        データの変化を生む隠れた要因
+    \end{itemize}
+    \begin{block}{生成モデル}
+        単純な事前分布から潜在変数を生成する。
+        \[
+            \boldsymbol{z}\sim p_{\mathrm{prior}}(\boldsymbol{z})
+            :=\mathcal{N}(\boldsymbol{0},\mathbf{I})
+        \]
+        デコーダ$p_\phi(\boldsymbol{x}\mid\boldsymbol{z})$が、
+        潜在変数をデータ空間へ写す。
+    \end{block}
+\end{frame}
+%=============================================
+\begin{frame}{VAEによる新しいサンプルの生成}
+    \begin{block}{生成手順}
+        \[
+            \boldsymbol{z}\sim p_{\mathrm{prior}}(\boldsymbol{z}),
+            \qquad
+            \boldsymbol{x}\sim p_\phi(\boldsymbol{x}\mid\boldsymbol{z})
+        \]
+        \begin{enumerate}
+            \item 標準正規分布から$\boldsymbol{z}$をサンプリング
+            \item デコーダが定める分布から$\boldsymbol{x}$をサンプリング
+        \end{enumerate}
+    \end{block}
+    \vspace{0.5em}
+    画素を一つずつ直接生成する代わりに、まずコンパクトな潜在表現を生成し、
+    そこから具体的なデータを構成する。
+\end{frame}
+%=============================================
+\begin{frame}{潜在変数を周辺化したモデル分布}
+    VAEが定義する観測データの確率密度は、
+    潜在変数を積分して得られる。
+    \[
+        \boxed{
+        p_\phi(\boldsymbol{x})
+        =
+        \int p_\phi(\boldsymbol{x}\mid\boldsymbol{z})
+        p(\boldsymbol{z})\,d\boldsymbol{z}
+        }
+    \]
+    \begin{exampleblock}{意味}
+        $\boldsymbol{z}$のすべての可能性について、
+        その起こりやすさ$p(\boldsymbol{z})$で重み付けして足し合わせると、
+        $\boldsymbol{x}$の確率密度が得られる。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\begin{frame}{なぜ最尤推定を直接使えないのか}
+    理想的には、周辺尤度$p_\phi(\boldsymbol{x})$を最大化して
+    デコーダのパラメータ$\phi$を学習したい。
+    \[
+        \max_\phi\log p_\phi(\boldsymbol{x})
+        =
+        \max_\phi\log\int
+        p_\phi(\boldsymbol{x}\mid\boldsymbol{z})
+        p(\boldsymbol{z})\,d\boldsymbol{z}
+    \]
+    \begin{alertblock}{計算上の問題}
+        表現力の高い非線形なデコーダでは、
+        $\boldsymbol{z}$の全領域にわたる積分が困難である。
+    \end{alertblock}
+    厳密な対数尤度の代わりに、計算可能な下界を使う。
+\end{frame}
+%=============================================
+\begin{frame}{真の事後分布も計算困難}
+    観測データ$\boldsymbol{x}$を生成した潜在変数$\boldsymbol{z}$を
+    推論するため、ベイズの定理を使う。
+    \[
+        p_\phi(\boldsymbol{z}\mid\boldsymbol{x})
+        =
+        \frac{
+            p_\phi(\boldsymbol{x}\mid\boldsymbol{z})p(\boldsymbol{z})
+        }{
+            p_\phi(\boldsymbol{x})
+        }
+    \]
+    \begin{alertblock}{問題}
+        分母の$p_\phi(\boldsymbol{x})$が計算困難なので、
+        真の事後分布$p_\phi(\boldsymbol{z}\mid\boldsymbol{x})$も
+        一般には計算できない。
+    \end{alertblock}
+\end{frame}
+%=============================================
+\begin{frame}{エンコーダ（推論ネットワーク）}
+    計算困難な真の事後分布を、計算可能な近似分布で置き換える。
+    \[
+        \boxed{
+        q_\theta(\boldsymbol{z}\mid\boldsymbol{x})
+        \approx
+        p_\phi(\boldsymbol{z}\mid\boldsymbol{x})
+        }
+    \]
+    \begin{itemize}
+        \item $q_\theta$はニューラルネットワークでパラメータ化する
+        \item 各データ$\boldsymbol{x}$を潜在空間上の分布へ対応付ける
+        \item $\boldsymbol{x}$から$\boldsymbol{z}$へ戻る、
+        計算可能な経路を与える
+    \end{itemize}
+    \begin{exampleblock}{VAEにおける「変分」}
+        計算困難な事後分布を、扱いやすい分布族の中から近似すること。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\begin{frame}{2.1.2 ELBOによる学習}
+    \begin{block}{定理2.1.1：エビデンス下界}
+        任意のデータ点$\boldsymbol{x}$に対して、
+        \[
+            \log p_\phi(\boldsymbol{x})
+            \geq
+            \mathcal{L}_{\mathrm{ELBO}}(\theta,\phi;\boldsymbol{x})
+        \]
+    \end{block}
+    \small
+    \[
+        \boxed{
+        \mathcal{L}_{\mathrm{ELBO}}
+        =
+        \underbrace{
+        \mathbb{E}_{\boldsymbol{z}\sim q_\theta(\boldsymbol{z}\mid\boldsymbol{x})}
+        [\log p_\phi(\boldsymbol{x}\mid\boldsymbol{z})]
+        }_{\text{再構成項}}
+        -
+        \underbrace{
+        D_{\mathrm{KL}}\!\left(
+        q_\theta(\boldsymbol{z}\mid\boldsymbol{x})
+        \|p(\boldsymbol{z})
+        \right)
+        }_{\text{正則化項}}
+        }
+    \]
+\end{frame}
+%=============================================
+\begin{frame}{ELBOの導出（1）：近似事後を掛ける}
+    \small
+    \begin{align*}
+        \log p_\phi(\boldsymbol{x})
+        &=
+        \log\int
+        p_\phi(\boldsymbol{x},\boldsymbol{z})\,d\boldsymbol{z}\\[4pt]
+        &=
+        \log\int
+        p_\phi(\boldsymbol{x}\mid\boldsymbol{z})
+        p_{\mathrm{prior}}(\boldsymbol{z})\,d\boldsymbol{z}\\[4pt]
+        &=
+        \log\int
+        q_\theta(\boldsymbol{z}\mid\boldsymbol{x})
+        \frac{
+        p_\phi(\boldsymbol{x}\mid\boldsymbol{z})
+        p_{\mathrm{prior}}(\boldsymbol{z})
+        }{
+        q_\theta(\boldsymbol{z}\mid\boldsymbol{x})
+        }
+        \,d\boldsymbol{z}\\[4pt]
+        &=
+        \log
+        \mathbb{E}_{\boldsymbol{z}\sim
+        q_\theta(\boldsymbol{z}\mid\boldsymbol{x})}
+        \left[
+        \frac{
+        p_\phi(\boldsymbol{x}\mid\boldsymbol{z})
+        p_{\mathrm{prior}}(\boldsymbol{z})
+        }{
+        q_\theta(\boldsymbol{z}\mid\boldsymbol{x})
+        }
+        \right].
+    \end{align*}
+    \normalsize
+    3行目では、積分の中に
+    $q_\theta(\boldsymbol{z}\mid\boldsymbol{x})/
+    q_\theta(\boldsymbol{z}\mid\boldsymbol{x})=1$を挿入した。
+\end{frame}
+%=============================================
+\begin{frame}{ELBOの導出（2）：イェンセンの不等式}
+    \small
+    $\log$は凹関数なので、
+    $\log\mathbb{E}[Y]\geq\mathbb{E}[\log Y]$より、
+    \begin{align*}
+        \log p_\phi(\boldsymbol{x})
+        &\geq
+        \mathbb{E}_{\boldsymbol{z}\sim
+        q_\theta(\boldsymbol{z}\mid\boldsymbol{x})}
+        \left[
+        \log
+        \frac{
+        p_\phi(\boldsymbol{x}\mid\boldsymbol{z})
+        p_{\mathrm{prior}}(\boldsymbol{z})
+        }{
+        q_\theta(\boldsymbol{z}\mid\boldsymbol{x})
+        }
+        \right]\\[5pt]
+        &=
+        \mathbb{E}_{\boldsymbol{z}\sim
+        q_\theta(\boldsymbol{z}\mid\boldsymbol{x})}
+        \left[
+        \log p_\phi(\boldsymbol{x}\mid\boldsymbol{z})
+        +\log p_{\mathrm{prior}}(\boldsymbol{z})
+        -\log q_\theta(\boldsymbol{z}\mid\boldsymbol{x})
+        \right].
+    \end{align*}
+    \normalsize
+    この不等式の右辺が、対数尤度の下界となる。
+\end{frame}
+%=============================================
+\begin{frame}{ELBOの導出（3）：二つの項へ分解}
+    \scriptsize
+    \begin{align*}
+        \log p_\phi(\boldsymbol{x})
+        &\geq
+        \mathbb{E}_{q_\theta}
+        [\log p_\phi(\boldsymbol{x}\mid\boldsymbol{z})]
+        +
+        \mathbb{E}_{q_\theta}
+        [\log p_{\mathrm{prior}}(\boldsymbol{z})]\\[-1pt]
+        &\quad-
+        \mathbb{E}_{q_\theta}
+        [\log q_\theta(\boldsymbol{z}\mid\boldsymbol{x})]\\[4pt]
+        &=
+        \mathbb{E}_{q_\theta}
+        [\log p_\phi(\boldsymbol{x}\mid\boldsymbol{z})]
+        -
+        \mathbb{E}_{q_\theta}
+        \left[
+        \log
+        \frac{
+        q_\theta(\boldsymbol{z}\mid\boldsymbol{x})
+        }{
+        p_{\mathrm{prior}}(\boldsymbol{z})
+        }
+        \right]\\[4pt]
+        &=
+        \underbrace{
+        \mathbb{E}_{\boldsymbol{z}\sim
+        q_\theta(\boldsymbol{z}\mid\boldsymbol{x})}
+        [\log p_\phi(\boldsymbol{x}\mid\boldsymbol{z})]
+        }_{\text{再構成項}}\\[-1pt]
+        &\quad-
+        \underbrace{
+        D_{\mathrm{KL}}\!\left(
+        q_\theta(\boldsymbol{z}\mid\boldsymbol{x})
+        \|p_{\mathrm{prior}}(\boldsymbol{z})
+        \right)
+        }_{\text{正則化項}}\\[4pt]
+        &=\mathcal{L}_{\mathrm{ELBO}}
+        (\theta,\phi;\boldsymbol{x}).
+    \end{align*}
+\end{frame}
+%=============================================
+\begin{frame}{ELBOの二つの役割}
+    \begin{block}{再構成項}
+        \[
+            \mathbb{E}_{q_\theta}
+            [\log p_\phi(\boldsymbol{x}\mid\boldsymbol{z})]
+        \]
+        潜在表現から元のデータを正確に復元するよう促す。
+    \end{block}
+    \begin{exampleblock}{潜在変数のKL項}
+        \[
+            D_{\mathrm{KL}}\!\left(
+            q_\theta(\boldsymbol{z}\mid\boldsymbol{x})\|p(\boldsymbol{z})
+            \right)
+        \]
+        エンコーダの分布を事前分布へ近づけ、
+        潜在空間を滑らかで連続的にする。
+    \end{exampleblock}
+    二項の釣り合いにより、再構成とサンプル生成の両立を目指す。
+\end{frame}
+%=============================================
+\begin{frame}{再構成項と二乗誤差の関係}
+    「負の再構成項が二乗誤差になる」ためには条件が必要である。
+    \begin{block}{固定分散のガウスデコーダ}
+        \[
+            p_\phi(\boldsymbol{x}\mid\boldsymbol{z})
+            =
+            \mathcal{N}\!\left(
+            \boldsymbol{\mu}_\phi(\boldsymbol{z}),\tau^2\mathbf{I}
+            \right)
+        \]
+        とすると、
+        \[
+            -\log p_\phi(\boldsymbol{x}\mid\boldsymbol{z})
+            =
+            \frac{\|\boldsymbol{x}-\boldsymbol{\mu}_\phi(\boldsymbol{z})\|_2^2}
+            {2\tau^2}
+            +\text{const.}
+        \]
+    \end{block}
+    \begin{alertblock}{注意}
+        エンコーダがガウス分布であることだけでは成立しない。
+    \end{alertblock}
+\end{frame}
+%=============================================
+\begin{frame}{情報理論的な見方}
+    最尤学習は、次のKLを最小化することに相当する。
+    \[
+        D_{\mathrm{KL}}\!\left(
+        p_{\mathrm{data}}(\boldsymbol{x})
+        \|p_\phi(\boldsymbol{x})
+        \right)
+    \]
+    直接扱う代わりに、潜在変数を含む二つの同時分布を比較する。
+    \begin{align*}
+        \text{生成側：}\quad
+        p_\phi(\boldsymbol{x},\boldsymbol{z})
+        &=p(\boldsymbol{z})p_\phi(\boldsymbol{x}\mid\boldsymbol{z}),\\
+        \text{推論側：}\quad
+        q_\theta(\boldsymbol{x},\boldsymbol{z})
+        &=p_{\mathrm{data}}(\boldsymbol{x})
+        q_\theta(\boldsymbol{z}\mid\boldsymbol{x}).
+    \end{align*}
+\end{frame}
+%=============================================
+\begin{frame}{同時分布のKLは上界になる}
+    \[
+        \boxed{
+        D_{\mathrm{KL}}\!\left(
+        p_{\mathrm{data}}(\boldsymbol{x})\|p_\phi(\boldsymbol{x})
+        \right)
+        \leq
+        D_{\mathrm{KL}}\!\left(
+        q_\theta(\boldsymbol{x},\boldsymbol{z})
+        \|p_\phi(\boldsymbol{x},\boldsymbol{z})
+        \right)
+        }
+    \]
+    \begin{exampleblock}{直感}
+        $\boldsymbol{x}$の周辺分布だけを比較した場合には見えない不一致も、
+        潜在変数とデータの同時分布全体を比較すると現れる。
+    \end{exampleblock}
+    この関係はKLダイバージェンスの連鎖律から導かれる。
+\end{frame}
+%=============================================
+\begin{frame}{KL連鎖律の導出（1）：同時分布を展開}
+    \scriptsize
+    \begin{align*}
+        &D_{\mathrm{KL}}\left(
+        q_\theta(\boldsymbol{x},\boldsymbol{z})
+        \|p_\phi(\boldsymbol{x},\boldsymbol{z})
+        \right)\\[4pt]
+        &=
+        \int\!\!\int q_\theta(\boldsymbol{x},\boldsymbol{z})
+        \log
+        \frac{
+        q_\theta(\boldsymbol{x},\boldsymbol{z})
+        }{
+        p_\phi(\boldsymbol{x},\boldsymbol{z})
+        }
+        \,d\boldsymbol{z}\,d\boldsymbol{x}\\[4pt]
+        &=
+        \mathbb{E}_{q_\theta(\boldsymbol{x},\boldsymbol{z})}
+        \left[
+        \log
+        \frac{
+        q_\theta(\boldsymbol{x},\boldsymbol{z})
+        }{
+        p_\phi(\boldsymbol{x},\boldsymbol{z})
+        }
+        \right]\\[4pt]
+        &=
+        \mathbb{E}_{q_\theta(\boldsymbol{x},\boldsymbol{z})}
+        \left[
+        \log
+        \frac{
+        q_\theta(\boldsymbol{z}\mid\boldsymbol{x})
+        p_{\mathrm{data}}(\boldsymbol{x})
+        }{
+        p_\phi(\boldsymbol{z}\mid\boldsymbol{x})
+        p_\phi(\boldsymbol{x})
+        }
+        \right].
+    \end{align*}
+    \normalsize
+    ここで、
+    $q_\theta(\boldsymbol{x},\boldsymbol{z})
+    =p_{\mathrm{data}}(\boldsymbol{x})
+    q_\theta(\boldsymbol{z}\mid\boldsymbol{x})$を用いた。
+\end{frame}
+%=============================================
+\begin{frame}{KL連鎖律の導出（2）：反復期待値へ}
+    \scriptsize
+    \begin{align*}
+        &=
+        \int\!\!\int
+        p_{\mathrm{data}}(\boldsymbol{x})
+        q_\theta(\boldsymbol{z}\mid\boldsymbol{x})
+        \log
+        \frac{
+        q_\theta(\boldsymbol{z}\mid\boldsymbol{x})
+        p_{\mathrm{data}}(\boldsymbol{x})
+        }{
+        p_\phi(\boldsymbol{z}\mid\boldsymbol{x})
+        p_\phi(\boldsymbol{x})
+        }
+        \,d\boldsymbol{z}\,d\boldsymbol{x}\\[4pt]
+        &=
+        \int p_{\mathrm{data}}(\boldsymbol{x})
+        \left[
+        \int q_\theta(\boldsymbol{z}\mid\boldsymbol{x})
+        \log
+        \frac{
+        q_\theta(\boldsymbol{z}\mid\boldsymbol{x})
+        p_{\mathrm{data}}(\boldsymbol{x})
+        }{
+        p_\phi(\boldsymbol{z}\mid\boldsymbol{x})
+        p_\phi(\boldsymbol{x})
+        }
+        \,d\boldsymbol{z}
+        \right]d\boldsymbol{x}\\[4pt]
+        &=
+        \mathbb{E}_{p_{\mathrm{data}}(\boldsymbol{x})}
+        \left[
+        \mathbb{E}_{q_\theta(\boldsymbol{z}\mid\boldsymbol{x})}
+        \left[
+        \log
+        \frac{
+        q_\theta(\boldsymbol{z}\mid\boldsymbol{x})
+        p_{\mathrm{data}}(\boldsymbol{x})
+        }{
+        p_\phi(\boldsymbol{z}\mid\boldsymbol{x})
+        p_\phi(\boldsymbol{x})
+        }
+        \right]
+        \right].
+    \end{align*}
+\end{frame}
+%=============================================
+\begin{frame}{KL連鎖律の導出（3）：対数を分ける}
+    \scriptsize
+    \begin{align*}
+        &=
+        \mathbb{E}_{p_{\mathrm{data}}(\boldsymbol{x})}
+        \left[
+        \mathbb{E}_{q_\theta(\boldsymbol{z}\mid\boldsymbol{x})}
+        \left[
+        \log
+        \frac{p_{\mathrm{data}}(\boldsymbol{x})}
+        {p_\phi(\boldsymbol{x})}
+        +
+        \log
+        \frac{q_\theta(\boldsymbol{z}\mid\boldsymbol{x})}
+        {p_\phi(\boldsymbol{z}\mid\boldsymbol{x})}
+        \right]
+        \right]\\[4pt]
+        &=
+        \mathbb{E}_{p_{\mathrm{data}}(\boldsymbol{x})}
+        \left[
+        \mathbb{E}_{q_\theta(\boldsymbol{z}\mid\boldsymbol{x})}
+        \left[
+        \log
+        \frac{p_{\mathrm{data}}(\boldsymbol{x})}
+        {p_\phi(\boldsymbol{x})}
+        \right]
+        \right.\\[-2pt]
+        &\hspace{42mm}\left.
+        +
+        \mathbb{E}_{q_\theta(\boldsymbol{z}\mid\boldsymbol{x})}
+        \left[
+        \log
+        \frac{q_\theta(\boldsymbol{z}\mid\boldsymbol{x})}
+        {p_\phi(\boldsymbol{z}\mid\boldsymbol{x})}
+        \right]
+        \right]\\[4pt]
+        &=
+        \mathbb{E}_{p_{\mathrm{data}}(\boldsymbol{x})}
+        \left[
+        \int q_\theta(\boldsymbol{z}\mid\boldsymbol{x})
+        \log
+        \frac{p_{\mathrm{data}}(\boldsymbol{x})}
+        {p_\phi(\boldsymbol{x})}
+        \,d\boldsymbol{z}
+        +
+        D_{\mathrm{KL}}\left(
+        q_\theta(\boldsymbol{z}\mid\boldsymbol{x})
+        \|p_\phi(\boldsymbol{z}\mid\boldsymbol{x})
+        \right)
+        \right].
+    \end{align*}
+\end{frame}
+%=============================================
+\begin{frame}{KL連鎖律の導出（4）：二つの誤差へ}
+    \scriptsize
+    $\log[p_{\mathrm{data}}(\boldsymbol{x})/p_\phi(\boldsymbol{x})]$は
+    $\boldsymbol{z}$に依存しないので、
+    \begin{align*}
+        &=
+        \mathbb{E}_{p_{\mathrm{data}}(\boldsymbol{x})}
+        \left[
+        \log
+        \frac{p_{\mathrm{data}}(\boldsymbol{x})}
+        {p_\phi(\boldsymbol{x})}
+        \underbrace{
+        \int q_\theta(\boldsymbol{z}\mid\boldsymbol{x})
+        \,d\boldsymbol{z}
+        }_{=1}
+        \right.\\[-2pt]
+        &\hspace{38mm}\left.
+        +
+        D_{\mathrm{KL}}\left(
+        q_\theta(\boldsymbol{z}\mid\boldsymbol{x})
+        \|p_\phi(\boldsymbol{z}\mid\boldsymbol{x})
+        \right)
+        \right]\\[5pt]
+        &=
+        D_{\mathrm{KL}}\left(
+        p_{\mathrm{data}}(\boldsymbol{x})
+        \|p_\phi(\boldsymbol{x})
+        \right)\\[-1pt]
+        &\quad+
+        \mathbb{E}_{p_{\mathrm{data}}(\boldsymbol{x})}
+        \left[
+        D_{\mathrm{KL}}\left(
+        q_\theta(\boldsymbol{z}\mid\boldsymbol{x})
+        \|p_\phi(\boldsymbol{z}\mid\boldsymbol{x})
+        \right)
+        \right].
+    \end{align*}
+    \normalsize
+    右辺は、モデル化誤差と推論誤差の和である。
+\end{frame}
+%=============================================
+\begin{frame}{モデル化誤差と推論誤差}
+    \small
+    \begin{align*}
+        &D_{\mathrm{KL}}\!\left(
+        q_\theta(\boldsymbol{x},\boldsymbol{z})
+        \|p_\phi(\boldsymbol{x},\boldsymbol{z})
+        \right)\\
+        &=
+        \underbrace{
+        D_{\mathrm{KL}}\!\left(
+        p_{\mathrm{data}}(\boldsymbol{x})\|p_\phi(\boldsymbol{x})
+        \right)
+        }_{\text{モデル化誤差}}\\
+        &\quad+
+        \underbrace{
+        \mathbb{E}_{p_{\mathrm{data}}(\boldsymbol{x})}
+        \left[
+        D_{\mathrm{KL}}\!\left(
+        q_\theta(\boldsymbol{z}\mid\boldsymbol{x})
+        \|p_\phi(\boldsymbol{z}\mid\boldsymbol{x})
+        \right)
+        \right]
+        }_{\text{推論誤差}}.
+    \end{align*}
+    推論誤差は非負なので、同時分布のKLが周辺分布のKLの上界になる。
+\end{frame}
+%=============================================
+\begin{frame}{対数尤度とELBOの差}
+    各データ点$\boldsymbol{x}$について、次の恒等式が成り立つ。
+    \[
+        \boxed{
+        \log p_\phi(\boldsymbol{x})
+        -
+        \mathcal{L}_{\mathrm{ELBO}}(\theta,\phi;\boldsymbol{x})
+        =
+        D_{\mathrm{KL}}\!\left(
+        q_\theta(\boldsymbol{z}\mid\boldsymbol{x})
+        \|p_\phi(\boldsymbol{z}\mid\boldsymbol{x})
+        \right)
+        }
+    \]
+    \begin{itemize}
+        \item ELBOは必ず対数尤度以下
+        \item 近似事後と真の事後が一致すると、ELBOも対数尤度に一致
+        \item ELBOの緩さは、二つの事後分布の不一致そのもの
+    \end{itemize}
+\end{frame}
+%=============================================
+\begin{frame}{ELBO最大化の正確な意味}
+    \begin{block}{生成モデル$\phi$を固定する場合}
+        $\log p_\phi(\boldsymbol{x})$は$\theta$に依存しない。
+        $\theta$についてELBOを最大化することは、
+        推論誤差を最小化することと同値である。
+    \end{block}
+    \begin{alertblock}{$\theta$と$\phi$を同時に学習する場合}
+        通常のVAEでは対数尤度自体も変化する。
+        ELBO最大化はモデル化誤差と推論誤差の和を小さくするが、
+        各誤差が個別に必ず減るという意味ではない。
+    \end{alertblock}
+\end{frame}
+%=============================================
+\begin{frame}{データ全体で見たELBO}
+    \small
+    \begin{align*}
+        &D_{\mathrm{KL}}\!\left(
+        q_\theta(\boldsymbol{x},\boldsymbol{z})
+        \|p_\phi(\boldsymbol{x},\boldsymbol{z})
+        \right)\\
+        &=
+        \underbrace{
+        \mathbb{E}_{p_{\mathrm{data}}(\boldsymbol{x})}
+        [\log p_{\mathrm{data}}(\boldsymbol{x})]
+        }_{\theta,\phi\text{に依存しない定数}}\\
+        &\quad-
+        \mathbb{E}_{p_{\mathrm{data}}(\boldsymbol{x})}
+        \left[
+        \mathcal{L}_{\mathrm{ELBO}}(\theta,\phi;\boldsymbol{x})
+        \right].
+    \end{align*}
+    \begin{exampleblock}{結論}
+        平均ELBOの最大化は、推論側と生成側の
+        同時分布のKLを最小化することに等しい。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\begin{frame}{2.1.3 ガウス分布を用いたVAE}
+    \begin{block}{エンコーダ}
+        \[
+            q_\theta(\boldsymbol{z}\mid\boldsymbol{x})
+            :=
+            \mathcal{N}\!\left(
+            \boldsymbol{z};
+            \boldsymbol{\mu}_\theta(\boldsymbol{x}),
+            \operatorname{diag}
+            (\boldsymbol{\sigma}_\theta^2(\boldsymbol{x}))
+            \right)
+        \]
+    \end{block}
+    \begin{align*}
+        \boldsymbol{\mu}_\theta &: \mathbb{R}^{D}\to\mathbb{R}^{d},&
+        \boldsymbol{\sigma}_\theta &: \mathbb{R}^{D}\to\mathbb{R}_{+}^{d}.
+    \end{align*}
+    \begin{itemize}
+        \item $D$は観測データ、$d$は潜在変数の次元
+        \item ネットワークは潜在分布の平均と標準偏差を出力
+        \item 対角共分散なので、$\boldsymbol{x}$を条件とした
+        $\boldsymbol{z}$の各次元は独立
+    \end{itemize}
+\end{frame}
+%=============================================
+\begin{frame}{ガウスデコーダ}
+    \begin{block}{固定分散のデコーダ}
+        \[
+            p_\phi(\boldsymbol{x}\mid\boldsymbol{z})
+            :=
+            \mathcal{N}\!\left(
+            \boldsymbol{x};
+            \boldsymbol{\mu}_\phi(\boldsymbol{z}),
+            \sigma^2\mathbf{I}
+            \right)
+        \]
+    \end{block}
+    \[
+        \boldsymbol{\mu}_\phi:\mathbb{R}^{d}\to\mathbb{R}^{D},
+        \qquad \sigma>0
+    \]
+    \begin{itemize}
+        \item デコーダは$\boldsymbol{z}$から
+        データ分布の平均$\boldsymbol{\mu}_\phi(\boldsymbol{z})$を出力
+        \item 共分散は固定された$\sigma^2\mathbf{I}$
+        \item $\boldsymbol{z}$を条件とすると、
+        データの各次元は独立で同じ分散を持つ
+    \end{itemize}
+\end{frame}
+%=============================================
+\begin{frame}{再構成項は二乗誤差になる}
+    固定分散のガウスデコーダでは、
+    \small
+    \[
+        \mathbb{E}_{q_\theta(\boldsymbol{z}\mid\boldsymbol{x})}
+        [\log p_\phi(\boldsymbol{x}\mid\boldsymbol{z})]
+        =
+        -\frac{1}{2\sigma^2}
+        \mathbb{E}_{q_\theta(\boldsymbol{z}\mid\boldsymbol{x})}
+        \left[
+        \|\boldsymbol{x}-\boldsymbol{\mu}_\phi(\boldsymbol{z})\|_2^2
+        \right]+C
+    \]
+    \normalsize
+    ここで$C$は$\theta,\phi$に依存しない。
+    \begin{exampleblock}{意味}
+        再構成項を最大化することは、
+        デコーダの平均と元データの二乗誤差を最小化することに等しい。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\begin{frame}{ガウスVAEの学習目的}
+    \small
+    ELBOの最大化は、次の損失の最小化に帰着する。
+    \[
+        \boxed{
+        \min_{\theta,\phi}
+        \left\{
+        \mathbb{E}_{q_\theta(\boldsymbol{z}\mid\boldsymbol{x})}
+        \left[
+        \frac{
+        \|\boldsymbol{x}-\boldsymbol{\mu}_\phi(\boldsymbol{z})\|_2^2
+        }{2\sigma^2}
+        \right]
+        +
+        D_{\mathrm{KL}}\!\left(
+        q_\theta(\boldsymbol{z}\mid\boldsymbol{x})
+        \|p_{\mathrm{prior}}(\boldsymbol{z})
+        \right)
+        \right\}
+        }
+    \]
+    \begin{itemize}
+        \item 第1項：元データを忠実に再構成
+        \item 第2項：潜在分布を事前分布へ近づける正則化
+        \item 実際の学習では訓練データ全体について平均する
+    \end{itemize}
+\end{frame}
+%=============================================
+\begin{frame}{ガウス分布間のKLは解析的に計算できる}
+    $p_{\mathrm{prior}}(\boldsymbol{z})=\mathcal{N}(\boldsymbol{0},\mathbf{I})$
+    とすると、
+    \small
+    \[
+        \boxed{
+        D_{\mathrm{KL}}\!\left(
+        q_\theta(\boldsymbol{z}\mid\boldsymbol{x})
+        \|\mathcal{N}(\boldsymbol{0},\mathbf{I})
+        \right)
+        =
+        \frac12\sum_{j=1}^{d}
+        \left[
+        \mu_{\theta,j}(\boldsymbol{x})^2
+        +\sigma_{\theta,j}(\boldsymbol{x})^2
+        -1-\log\sigma_{\theta,j}(\boldsymbol{x})^2
+        \right]
+        }
+    \]
+    \normalsize
+    \begin{exampleblock}{ガウスVAEの利点}
+        再構成項はサンプリングで推定でき、
+        KL項は閉形式で計算できるため、学習目的が扱いやすい。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\begin{frame}{2.1.4 標準的なVAEの欠点}
+    \begin{alertblock}{ぼやけた出力}
+        単純なガウスデコーダを用い、
+        二乗再構成誤差に基づいて学習するVAEでは、
+        生成画像がぼやけることがある。
+    \end{alertblock}
+    \vspace{0.6em}
+    \begin{itemize}
+        \item ここで扱うのは、固定分散ガウスデコーダという設定の問題
+        \item すべてのVAEや観測モデルに当てはまるわけではない
+        \item 原因を調べるため、エンコーダ$q_{\mathrm{enc}}$を固定する
+    \end{itemize}
+    \[
+        p_{\mathrm{dec}}(\boldsymbol{x}\mid\boldsymbol{z})
+        =
+        \mathcal{N}\!\left(
+        \boldsymbol{x};
+        \boldsymbol{\mu}(\boldsymbol{z}),\sigma^2\mathbf{I}
+        \right)
+    \]
+\end{frame}
+%=============================================
+\begin{frame}{固定エンコーダでの最適化}
+    エンコーダを固定すると、KL正則化項は
+    $\boldsymbol{\mu}$に依存しない。
+    \[
+        \underset{\boldsymbol{\mu}}{\operatorname{arg\,min}}\;
+        \mathbb{E}_{
+        p_{\mathrm{data}}(\boldsymbol{x})
+        q_{\mathrm{enc}}(\boldsymbol{z}\mid\boldsymbol{x})
+        }
+        \left[
+        \|\boldsymbol{x}-\boldsymbol{\mu}(\boldsymbol{z})\|_2^2
+        \right]
+    \]
+    これは$\boldsymbol{\mu}(\boldsymbol{z})$についての
+    標準的な最小二乗問題である。
+    \begin{block}{最適解}
+        \[
+            \boxed{
+            \boldsymbol{\mu}^{*}(\boldsymbol{z})
+            =
+            \mathbb{E}_{q_{\mathrm{enc}}(
+            \boldsymbol{x}\mid\boldsymbol{z})}
+            [\boldsymbol{x}]
+            }
+        \]
+    \end{block}
+\end{frame}
+%=============================================
+\begin{frame}{エンコーダが定める逆向きの条件付き分布}
+    \small
+    \[
+        q_{\mathrm{enc}}(\boldsymbol{x}\mid\boldsymbol{z})
+        =
+        \frac{
+        q_{\mathrm{enc}}(\boldsymbol{z}\mid\boldsymbol{x})
+        p_{\mathrm{data}}(\boldsymbol{x})
+        }{
+        q_{\mathrm{enc}}(\boldsymbol{z})
+        }
+    \]
+    \[
+        q_{\mathrm{enc}}(\boldsymbol{z})
+        :=
+        \int q_{\mathrm{enc}}(\boldsymbol{z}\mid\boldsymbol{x})
+        p_{\mathrm{data}}(\boldsymbol{x})\,d\boldsymbol{x}
+    \]
+    \normalsize
+    \begin{alertblock}{分布を区別する}
+        $q_{\mathrm{enc}}(\boldsymbol{x}\mid\boldsymbol{z})$は、
+        デコーダの分布
+        $p_{\mathrm{dec}}(\boldsymbol{x}\mid\boldsymbol{z})$とは別物である。
+    \end{alertblock}
+\end{frame}
+%=============================================
+\begin{frame}{最適なデコーダ平均は重み付き平均}
+    ベイズの定理を使うと、
+    \small
+    \begin{align*}
+        \boldsymbol{\mu}^{*}(\boldsymbol{z})
+        &=
+        \frac{
+        \mathbb{E}_{p_{\mathrm{data}}(\boldsymbol{x})}
+        [q_{\mathrm{enc}}(\boldsymbol{z}\mid\boldsymbol{x})
+        \boldsymbol{x}]
+        }{
+        q_{\mathrm{enc}}(\boldsymbol{z})
+        }\\
+        &=
+        \frac{
+        \mathbb{E}_{p_{\mathrm{data}}(\boldsymbol{x})}
+        [q_{\mathrm{enc}}(\boldsymbol{z}\mid\boldsymbol{x})
+        \boldsymbol{x}]
+        }{
+        \mathbb{E}_{p_{\mathrm{data}}(\boldsymbol{x})}
+        [q_{\mathrm{enc}}(\boldsymbol{z}\mid\boldsymbol{x})]
+        }.
+    \end{align*}
+    \normalsize
+    ある$\boldsymbol{z}$に対応しやすい入力ほど大きく重み付けして、
+    複数の入力を平均したものが出力される。
+\end{frame}
+%=============================================
+\begin{frame}{なぜ画像がぼやけるのか}
+    \begin{block}{複数の候補を平均する}
+        同じ$\boldsymbol{z}$に対して、見た目の異なる複数の入力が
+        無視できない条件付き確率を持つと、
+        $\boldsymbol{\mu}^{*}(\boldsymbol{z})$はそれらを平均する。
+    \end{block}
+    \begin{itemize}
+        \item 輪郭の位置が違う画像を画素ごとに平均する
+        \item 複数の輪郭が薄く重なり、不鮮明になる
+        \item 二乗誤差では、一つを選ぶより条件付き平均が最適になる
+    \end{itemize}
+    \begin{alertblock}{厳密な注意}
+        分布の台が重なるだけで必ずぼやけるわけではない。
+        重要なのは、異なる入力が同じ$\boldsymbol{z}$に対して
+        無視できない条件付き確率を持つことである。
+    \end{alertblock}
+\end{frame}
+%=============================================
+\begin{frame}{2.1.5 標準的なVAEから階層型VAEへ}
+    \begin{block}{Hierarchical VAE（HVAE）}
+        複数の潜在変数層を導入し、
+        さまざまな抽象度でデータの特徴を捉える。
+    \end{block}
+    \[
+        \boldsymbol{x}
+        \xrightarrow{q_\theta(\boldsymbol{z}_1\mid\boldsymbol{x})}
+        \boldsymbol{z}_1
+        \xrightarrow{q_\theta(\boldsymbol{z}_2\mid\boldsymbol{z}_1)}
+        \cdots
+        \longrightarrow
+        \boldsymbol{z}_L
+    \]
+    \[
+        \boldsymbol{z}_L
+        \xrightarrow{p_\phi(\boldsymbol{z}_{L-1}\mid\boldsymbol{z}_L)}
+        \cdots
+        \longrightarrow
+        \boldsymbol{z}_1
+        \xrightarrow{p_\phi(\boldsymbol{x}\mid\boldsymbol{z}_1)}
+        \boldsymbol{x}
+    \]
+    増えるのはNNの内部層ではなく、
+    それぞれに分布を持つ潜在変数の層である。
+\end{frame}
+%=============================================
+\begin{frame}{HVAEの生成モデル}
+    上位の潜在変数が、その下の潜在変数の分布を条件付ける。
+    \small
+    \[
+        \boxed{
+        p_\phi(\boldsymbol{x},\boldsymbol{z}_{1:L})
+        =
+        p_\phi(\boldsymbol{x}\mid\boldsymbol{z}_1)
+        \left[
+        \prod_{i=2}^{L}
+        p_\phi(\boldsymbol{z}_{i-1}\mid\boldsymbol{z}_i)
+        \right]
+        p(\boldsymbol{z}_L)
+        }
+    \]
+    \[
+        p_{\mathrm{HVAE}}(\boldsymbol{x})
+        :=
+        \int p_\phi(\boldsymbol{x},\boldsymbol{z}_{1:L})
+        \,d\boldsymbol{z}_{1:L}
+    \]
+    \normalsize
+    $\boldsymbol{z}_{1:L}$は
+    $\boldsymbol{z}_1,\ldots,\boldsymbol{z}_L$をまとめた表記である。
+\end{frame}
+%=============================================
+\begin{frame}{HVAEの生成手順}
+    \begin{enumerate}
+        \item 最上位の潜在変数を事前分布からサンプリング
+        \[
+            \boldsymbol{z}_L\sim p(\boldsymbol{z}_L)
+        \]
+        \item 上位から下位へ潜在変数を順番に生成
+        \[
+            \boldsymbol{z}_{i-1}
+            \sim p_\phi(\boldsymbol{z}_{i-1}\mid\boldsymbol{z}_i),
+            \quad i=L,\ldots,2
+        \]
+        \item 最下位の潜在変数からデータを生成
+        \[
+            \boldsymbol{x}
+            \sim p_\phi(\boldsymbol{x}\mid\boldsymbol{z}_1)
+        \]
+    \end{enumerate}
+\end{frame}
+%=============================================
+\begin{frame}{HVAEの変分エンコーダ}
+    生成側の階層に対応する、構造化された近似事後分布を使う。
+    \[
+        \boxed{
+        q_\theta(\boldsymbol{z}_{1:L}\mid\boldsymbol{x})
+        =
+        q_\theta(\boldsymbol{z}_1\mid\boldsymbol{x})
+        \prod_{i=2}^{L}
+        q_\theta(\boldsymbol{z}_i\mid\boldsymbol{z}_{i-1})
+        }
+    \]
+    \begin{itemize}
+        \item まず$\boldsymbol{x}$から$\boldsymbol{z}_1$を推論
+        \item $\boldsymbol{z}_1$から$\boldsymbol{z}_2$へ進む
+        \item 各層は直前の潜在変数だけに依存する
+    \end{itemize}
+    これは下位から上位へ向かうマルコフ分解の一例である。
+\end{frame}
+%=============================================
+\begin{frame}{HVAEのELBO}
+    \small
+    イェンセンの不等式により、
+    \begin{align*}
+        \log p_{\mathrm{HVAE}}(\boldsymbol{x})
+        &=
+        \log\mathbb{E}_{q_\theta(\boldsymbol{z}_{1:L}\mid\boldsymbol{x})}
+        \left[
+        \frac{
+        p_\phi(\boldsymbol{x},\boldsymbol{z}_{1:L})
+        }{
+        q_\theta(\boldsymbol{z}_{1:L}\mid\boldsymbol{x})
+        }
+        \right]\\
+        &\geq
+        \mathbb{E}_{q_\theta(\boldsymbol{z}_{1:L}\mid\boldsymbol{x})}
+        \left[
+        \log
+        \frac{
+        p_\phi(\boldsymbol{x},\boldsymbol{z}_{1:L})
+        }{
+        q_\theta(\boldsymbol{z}_{1:L}\mid\boldsymbol{x})
+        }
+        \right]\\
+        &=:\mathcal{L}_{\mathrm{ELBO}}(\theta,\phi;\boldsymbol{x}).
+    \end{align*}
+\end{frame}
+%=============================================
+\begin{frame}{因子分解したHVAEのELBO}
+    \scriptsize
+    \[
+        \boxed{
+        \mathcal{L}_{\mathrm{ELBO}}
+        =
+        \mathbb{E}_{q_\theta(\boldsymbol{z}_{1:L}\mid\boldsymbol{x})}
+        \left[
+        \log
+        \frac{
+        p(\boldsymbol{z}_L)
+        \left[\prod_{i=2}^{L}
+        p_\phi(\boldsymbol{z}_{i-1}\mid\boldsymbol{z}_i)\right]
+        p_\phi(\boldsymbol{x}\mid\boldsymbol{z}_1)
+        }{
+        q_\theta(\boldsymbol{z}_1\mid\boldsymbol{x})
+        \left[\prod_{i=2}^{L}
+        q_\theta(\boldsymbol{z}_i\mid\boldsymbol{z}_{i-1})\right]
+        }
+        \right]
+        }
+        \tag{2.1.3}
+    \]
+    \normalsize
+    \begin{itemize}
+        \item データの再構成を促す項
+        \item 隣接する潜在層どうしの整合を促す項
+        \item 最上位の潜在分布を事前分布へ近づける項
+    \end{itemize}
+\end{frame}
+%=============================================
+\begin{frame}{階層構造が与えるもの}
+    \begin{block}{観察2.1.1}
+        層を積み重ねることで、大まかな構造から始め、
+        各段階で細かな情報を加えながらデータを生成できる。
+    \end{block}
+    \begin{itemize}
+        \item 各潜在層が隣接する層と直接情報をやり取りする
+        \item 複数の抽象度を使って高次元データを表現できる
+        \item 同じ階層的発想はスコアモデルやフローにも現れる
+    \end{itemize}
+    \begin{alertblock}{注意}
+        層を積むだけで各層の役割が自動的に
+        「大まか」「細かい」に分かれるとは限らない。
+        実際の役割は設計と学習結果に依存する。
+    \end{alertblock}
+\end{frame}
+%=============================================
+\begin{frame}{NNを深くするだけでは不十分（1）}
+    標準的なVAEでは、
+    \[
+        q_\theta(\boldsymbol{z}\mid\boldsymbol{x})
+        =
+        \mathcal{N}\!\left(
+        \boldsymbol{z};
+        \boldsymbol{\mu}_\theta(\boldsymbol{x}),
+        \operatorname{diag}
+        (\boldsymbol{\sigma}_\theta^2(\boldsymbol{x}))
+        \right).
+    \]
+    \begin{itemize}
+        \item NNを深くすると$\boldsymbol{\mu}_\theta,\boldsymbol{\sigma}_\theta$
+        の表現力は上がる
+        \item しかし出力が単一ガウスという制約は変わらない
+        \item 真の事後分布が多峰性なら、正確に一致できない
+        \item その結果、対数尤度とELBOの隔たりが残る
+    \end{itemize}
+\end{frame}
+%=============================================
+\begin{frame}{NNを深くするだけでは不十分（2）}
+    \begin{alertblock}{事後崩壊}
+        表現力の高いデコーダが潜在変数$\boldsymbol{z}$を使わずに
+        データをモデル化すると、
+        $\boldsymbol{z}$が入力の情報を持たなくなることがある。
+    \end{alertblock}
+    デコーダが
+    \[
+        p_\phi(\boldsymbol{x}\mid\boldsymbol{z})=r(\boldsymbol{x})
+    \]
+    と$\boldsymbol{z}$を無視できる場合、再構成項は
+    $q_\theta(\boldsymbol{z}\mid\boldsymbol{x})$を変えても変化しない。
+    \[
+        q_\theta(\boldsymbol{z}\mid\boldsymbol{x})=p(\boldsymbol{z})
+    \]
+    とすればKL項をゼロにできる。
+\end{frame}
+%=============================================
+\begin{frame}{事後崩壊と相互情報量}
+    \small
+    平均ELBOのKL正則化項は、次のように分解できる。
+    \begin{align*}
+        &\mathbb{E}_{p_{\mathrm{data}}(\boldsymbol{x})}
+        \left[
+        D_{\mathrm{KL}}\!\left(
+        q_\theta(\boldsymbol{z}\mid\boldsymbol{x})\|p(\boldsymbol{z})
+        \right)
+        \right]\\
+        &=
+        I_q(\boldsymbol{x};\boldsymbol{z})
+        +
+        D_{\mathrm{KL}}\!\left(q_\theta(\boldsymbol{z})\|p(\boldsymbol{z})\right),
+    \end{align*}
+    \[
+        q_\theta(\boldsymbol{z})
+        =
+        \int p_{\mathrm{data}}(\boldsymbol{x})
+        q_\theta(\boldsymbol{z}\mid\boldsymbol{x})\,d\boldsymbol{x}.
+    \]
+    事後崩壊では
+    $q_\theta(\boldsymbol{z}\mid\boldsymbol{x})=p(\boldsymbol{z})$なので、
+    \[
+        I_q(\boldsymbol{x};\boldsymbol{z})=0.
+    \]
+    潜在変数は入力と独立になり、生成の制御にも使えなくなる。
+\end{frame}
+%=============================================
+\begin{frame}{事後崩壊についての注意}
+    \begin{block}{事後崩壊した解が大域的最大解となる十分な状況}
+        \begin{itemize}
+            \item デコーダが$r(\boldsymbol{x})=p_{\mathrm{data}}(\boldsymbol{x})$
+            を厳密に実現できる
+            \item エンコーダが
+            $q_\theta(\boldsymbol{z}\mid\boldsymbol{x})=p(\boldsymbol{z})$
+            を実現できる
+        \end{itemize}
+    \end{block}
+    単に「データ分布に近い$r(\boldsymbol{x})$を表現できる」
+    というだけでは、事後崩壊した解が必ず大域的最大解になるとは限らない。
+\end{frame}
+%=============================================
+\begin{frame}{階層構造によって何が変わるか}
+    \begin{columns}[T]
+        \begin{column}{0.48\textwidth}
+            \begin{block}{エンコーダ}
+                \[
+                    q_\theta(\boldsymbol{z}_i
+                    \mid\boldsymbol{z}_{i-1})
+                \]
+                下位から上位へ情報を伝える。
+            \end{block}
+        \end{column}
+        \begin{column}{0.48\textwidth}
+            \begin{exampleblock}{デコーダ}
+                \[
+                    p_\phi(\boldsymbol{z}_{i-1}
+                    \mid\boldsymbol{z}_i)
+                \]
+                上位から下位へ情報を伝える。
+            \end{exampleblock}
+        \end{column}
+    \end{columns}
+    \vspace{0.7em}
+    ELBOは再構成、隣接層の整合、最上位層のKL正則化へ分かれる。
+    これは潜在変数を階層的に結び付けた確率モデルだから得られる構造であり、
+    NNの内部層を深くするだけでは得られない。
+\end{frame}
+%=============================================
+\begin{frame}{HVAEの各整合項について}
+    \begin{alertblock}{個別のKLとは限らない}
+        階層型ELBOを展開したときの「隣接層の整合を促す項」は、
+        そのまま個別のKLダイバージェンスとは限らない。
+    \end{alertblock}
+    \begin{itemize}
+        \item エンコーダ側：
+        $q_\theta(\boldsymbol{z}_i\mid\boldsymbol{z}_{i-1})$
+        \item デコーダ側：
+        $p_\phi(\boldsymbol{z}_i\mid\boldsymbol{z}_{i+1})$
+        \item 二つは異なる変数を条件としている
+        \item したがって、展開後の各項が単独で必ず非負とは限らない
+    \end{itemize}
+\end{frame}
+%=============================================
+\begin{frame}{HVAEの学習上の課題}
+    \begin{itemize}
+        \item エンコーダとデコーダを同時に最適化するため、
+        学習が不安定になり得る
+        \item 下位層だけで再構成できると、
+        上位の潜在変数へ有効な学習信号が届かない
+        \item 深い層へ届く勾配は間接的で弱くなりやすい
+        \item 条件付き分布の表現力が高すぎると、
+        上位の潜在変数を使う必要性が下がる
+    \end{itemize}
+\end{frame}
+%=============================================
+\begin{frame}{HVAEから変分的拡散モデルへ}
+    \begin{block}{2.2節への接続}
+        拡散モデルはHVAEの段階的な構造を引き継ぎながら、
+        主要な弱点を回避する。
+    \end{block}
+    \begin{itemize}
+        \item 符号化に相当する順方向過程を固定する
+        \item その経路を逆向きにたどる生成過程だけを学習する
+        \item 多数のノイズ付き潜在層を用いる
+        \item 学習の安定性とモデル化の柔軟性を高める
+    \end{itemize}
+    \begin{exampleblock}{以降の表記}
+        エンコーダを$q$、生成器を$p$とするVAE固有の慣例から離れ、
+        分布は$p$で表し、役割は添字・上付き文字で区別する。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\begin{frame}{2.1 まとめ}
+    \begin{itemize}
+        \item ガウスVAEでは、再構成項が二乗誤差、
+        KL項が解析的な正則化項になる
+        \item 固定分散ガウスデコーダでは、
+        条件付き平均のため出力がぼやけることがある
+        \item HVAEは確率分布を持つ潜在変数層を積み重ねる
+        \item NNを深くするだけでは、
+        近似事後の分布族の制約や事後崩壊は解消しない
+        \item 階層型ELBOは再構成と潜在層の整合を同時に促す
+        \item DDPMは順方向過程を固定し、逆方向過程だけを学習する
     \end{itemize}
 \end{frame}
