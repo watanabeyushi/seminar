@@ -2,11 +2,23 @@
 \documentclass[aspectratio=169]{beamer}
 \usepackage{tikz}
 
+% 数式はセリフ体（Computer Modern系）に統一し、
+% Beamer既定のサンセリフ数式を使わない
+\usefonttheme{professionalfonts}
+\usefonttheme[onlymath]{serif}
+
 \usepackage{luatexja}
 \usepackage{luatexja-fontspec}
 \usepackage{graphicx}
+\usepackage{bm}
 % 章フォルダの tex/ からコンパイルすることを想定
 \graphicspath{{../images/}{images/}}
+
+% ベクトル・パラメータ表記を共通化
+\newcommand{\vx}{\bm{x}}
+\newcommand{\vu}{\bm{u}}
+\newcommand{\veps}{\bm{\epsilon}}
+\newcommand{\vw}{\bm{w}}
 
 % ---- ブロックの設定（block / alertblock / exampleblock）----
 \definecolor{main}{RGB}{30,70,140}
@@ -26,6 +38,9 @@
 \setbeamerfont{block title example}{series=\bfseries}
 
 \setbeamertemplate{itemize items}[circle]
+\setbeamertemplate{navigation symbols}{}
+\setbeamercolor{page number in head/foot}{fg=black!60}
+\setbeamertemplate{footline}[frame number]
 
 \DeclareMathOperator*{\argmax}{arg\,max}
 \DeclareMathOperator*{\argmin}{arg\,min}

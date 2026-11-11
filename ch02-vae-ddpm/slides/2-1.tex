@@ -302,9 +302,7 @@
         \right].
     \end{align*}
     \normalsize
-    3行目では、積分の中に
-    $q_\theta(\boldsymbol{z}\mid\boldsymbol{x})/
-    q_\theta(\boldsymbol{z}\mid\boldsymbol{x})=1$を挿入した。
+
 \end{frame}
 %=============================================
 \begin{frame}{ELBOの導出（2）：イェンセンの不等式}
@@ -339,18 +337,17 @@
 \end{frame}
 %=============================================
 \begin{frame}{ELBOの導出（3）：二つの項へ分解}
-    \scriptsize
-    \begin{align*}
+    \[
+    \resizebox{0.98\textwidth}{!}{$
+    \begin{aligned}
         \log p_\phi(\boldsymbol{x})
         &\geq
         \mathbb{E}_{q_\theta}
         [\log p_\phi(\boldsymbol{x}\mid\boldsymbol{z})]
-        +
-        \mathbb{E}_{q_\theta}
-        [\log p_{\mathrm{prior}}(\boldsymbol{z})]\\[-1pt]
-        &\quad-
-        \mathbb{E}_{q_\theta}
-        [\log q_\theta(\boldsymbol{z}\mid\boldsymbol{x})]\\[4pt]
+        +\mathbb{E}_{q_\theta}
+        [\log p_{\mathrm{prior}}(\boldsymbol{z})]
+        -\mathbb{E}_{q_\theta}
+        [\log q_\theta(\boldsymbol{z}\mid\boldsymbol{x})]\\[6pt]
         &=
         \mathbb{E}_{q_\theta}
         [\log p_\phi(\boldsymbol{x}\mid\boldsymbol{z})]
@@ -358,28 +355,26 @@
         \mathbb{E}_{q_\theta}
         \left[
         \log
-        \frac{
-        q_\theta(\boldsymbol{z}\mid\boldsymbol{x})
-        }{
-        p_{\mathrm{prior}}(\boldsymbol{z})
-        }
-        \right]\\[4pt]
+        \frac{q_\theta(\boldsymbol{z}\mid\boldsymbol{x})}
+        {p_{\mathrm{prior}}(\boldsymbol{z})}
+        \right]\\[6pt]
         &=
         \underbrace{
         \mathbb{E}_{\boldsymbol{z}\sim
         q_\theta(\boldsymbol{z}\mid\boldsymbol{x})}
         [\log p_\phi(\boldsymbol{x}\mid\boldsymbol{z})]
-        }_{\text{再構成項}}\\[-1pt]
-        &\quad-
+        }_{\text{再構成項}}
+        -
         \underbrace{
         D_{\mathrm{KL}}\!\left(
         q_\theta(\boldsymbol{z}\mid\boldsymbol{x})
         \|p_{\mathrm{prior}}(\boldsymbol{z})
         \right)
-        }_{\text{正則化項}}\\[4pt]
-        &=\mathcal{L}_{\mathrm{ELBO}}
-        (\theta,\phi;\boldsymbol{x}).
-    \end{align*}
+        }_{\text{正則化項}}\\[6pt]
+        &=\mathcal{L}_{\mathrm{ELBO}}(\theta,\phi;\boldsymbol{x}).
+    \end{aligned}
+    $}
+    \]
 \end{frame}
 %=============================================
 \begin{frame}{ELBOの二つの役割}
@@ -435,15 +430,24 @@
         \right)
     \]
     直接扱う代わりに、潜在変数を含む二つの同時分布を比較する。
-    \begin{align*}
-        \text{生成側：}\quad
-        p_\phi(\boldsymbol{x},\boldsymbol{z})
-        &=p(\boldsymbol{z})p_\phi(\boldsymbol{x}\mid\boldsymbol{z}),\\
-        \text{推論側：}\quad
-        q_\theta(\boldsymbol{x},\boldsymbol{z})
-        &=p_{\mathrm{data}}(\boldsymbol{x})
-        q_\theta(\boldsymbol{z}\mid\boldsymbol{x}).
-    \end{align*}
+    \begin{block}{生成側：モデルによるデータ生成}
+        事前分布から潜在変数を選び、データを生成する。
+        \[
+            p_\phi(\boldsymbol{x},\boldsymbol{z})
+            =
+            \underbrace{p(\boldsymbol{z})}_{\text{事前分布}}
+            \underbrace{p_\phi(\boldsymbol{x}\mid\boldsymbol{z})}_{\text{デコーダ}}
+        \]
+    \end{block}
+    \begin{block}{推論側：実データから潜在変数を推論}
+        実データを選び、対応する潜在変数を推論する。
+        \[
+            q_\theta(\boldsymbol{x},\boldsymbol{z})
+            =
+            \underbrace{p_{\mathrm{data}}(\boldsymbol{x})}_{\text{データ分布}}
+            \underbrace{q_\theta(\boldsymbol{z}\mid\boldsymbol{x})}_{\text{エンコーダ}}
+        \]
+    \end{block}
 \end{frame}
 %=============================================
 \begin{frame}{同時分布のKLは上界になる}
@@ -617,8 +621,9 @@
     \scriptsize
     $\log[p_{\mathrm{data}}(\boldsymbol{x})/p_\phi(\boldsymbol{x})]$は
     $\boldsymbol{z}$に依存しないので、
-    \begin{align*}
-        &=
+    \[
+    \resizebox{0.98\textwidth}{!}{$
+        =
         \mathbb{E}_{p_{\mathrm{data}}(\boldsymbol{x})}
         \left[
         \log
@@ -628,46 +633,50 @@
         \int q_\theta(\boldsymbol{z}\mid\boldsymbol{x})
         \,d\boldsymbol{z}
         }_{=1}
-        \right.\\[-2pt]
-        &\hspace{38mm}\left.
         +
         D_{\mathrm{KL}}\left(
         q_\theta(\boldsymbol{z}\mid\boldsymbol{x})
         \|p_\phi(\boldsymbol{z}\mid\boldsymbol{x})
         \right)
-        \right]\\[5pt]
-        &=
+        \right]
+    $}
+    \]
+    \[
+    \resizebox{0.98\textwidth}{!}{$
+        =
         D_{\mathrm{KL}}\left(
         p_{\mathrm{data}}(\boldsymbol{x})
         \|p_\phi(\boldsymbol{x})
-        \right)\\[-1pt]
-        &\quad+
+        \right)
+        +
         \mathbb{E}_{p_{\mathrm{data}}(\boldsymbol{x})}
         \left[
         D_{\mathrm{KL}}\left(
         q_\theta(\boldsymbol{z}\mid\boldsymbol{x})
         \|p_\phi(\boldsymbol{z}\mid\boldsymbol{x})
         \right)
-        \right].
-    \end{align*}
+        \right]
+    $}
+    \]
     \normalsize
     右辺は、モデル化誤差と推論誤差の和である。
 \end{frame}
 %=============================================
 \begin{frame}{モデル化誤差と推論誤差}
     \small
-    \begin{align*}
-        &D_{\mathrm{KL}}\!\left(
+    \[
+    \resizebox{0.98\textwidth}{!}{$
+        D_{\mathrm{KL}}\!\left(
         q_\theta(\boldsymbol{x},\boldsymbol{z})
         \|p_\phi(\boldsymbol{x},\boldsymbol{z})
-        \right)\\
-        &=
+        \right)
+        =
         \underbrace{
         D_{\mathrm{KL}}\!\left(
         p_{\mathrm{data}}(\boldsymbol{x})\|p_\phi(\boldsymbol{x})
         \right)
-        }_{\text{モデル化誤差}}\\
-        &\quad+
+        }_{\text{モデル化誤差}}
+        +
         \underbrace{
         \mathbb{E}_{p_{\mathrm{data}}(\boldsymbol{x})}
         \left[
@@ -677,7 +686,8 @@
         \right)
         \right]
         }_{\text{推論誤差}}.
-    \end{align*}
+    $}
+    \]
     推論誤差は非負なので、同時分布のKLが周辺分布のKLの上界になる。
 \end{frame}
 %=============================================
@@ -717,22 +727,24 @@
 %=============================================
 \begin{frame}{データ全体で見たELBO}
     \small
-    \begin{align*}
-        &D_{\mathrm{KL}}\!\left(
+    \[
+    \resizebox{0.98\textwidth}{!}{$
+        D_{\mathrm{KL}}\!\left(
         q_\theta(\boldsymbol{x},\boldsymbol{z})
         \|p_\phi(\boldsymbol{x},\boldsymbol{z})
-        \right)\\
-        &=
+        \right)
+        =
         \underbrace{
         \mathbb{E}_{p_{\mathrm{data}}(\boldsymbol{x})}
         [\log p_{\mathrm{data}}(\boldsymbol{x})]
-        }_{\theta,\phi\text{に依存しない定数}}\\
-        &\quad-
+        }_{\theta,\phi\text{に依存しない定数}}
+        -
         \mathbb{E}_{p_{\mathrm{data}}(\boldsymbol{x})}
         \left[
         \mathcal{L}_{\mathrm{ELBO}}(\theta,\phi;\boldsymbol{x})
         \right].
-    \end{align*}
+    $}
+    \]
     \begin{exampleblock}{結論}
         平均ELBOの最大化は、推論側と生成側の
         同時分布のKLを最小化することに等しい。
@@ -740,6 +752,7 @@
 \end{frame}
 %=============================================
 \begin{frame}{2.1.3 ガウス分布を用いたVAE}
+    VAEの標準的な定式化では、エンコーダとデコーダの両方にガウス分布を用いる
     \begin{block}{エンコーダ}
         \[
             q_\theta(\boldsymbol{z}\mid\boldsymbol{x})
@@ -808,6 +821,7 @@
         再構成項を最大化することは、
         デコーダの平均と元データの二乗誤差を最小化することに等しい。
     \end{exampleblock}
+    ※多変量正規分布の確率密度関数に、平均 \(\mu_\phi(z)\) と固定共分散行列 \(\sigma^2I\) を代入し、対数を取って期待値を計算することで導出
 \end{frame}
 %=============================================
 \begin{frame}{ガウスVAEの学習目的}
@@ -860,7 +874,7 @@
     \normalsize
     \begin{exampleblock}{ガウスVAEの利点}
         再構成項はサンプリングで推定でき、
-        KL項は閉形式で計算できるため、学習目的が扱いやすい。
+        KL項は閉形式\footnote{閉形式:有限個の「よく知られた関数」だけで解析的に表される式,無限級数・連分数・積分・極限を含まない式}で計算できるため、学習目的が扱いやすい。
     \end{exampleblock}
 \end{frame}
 %=============================================
@@ -1319,4 +1333,173 @@
         \item 階層型ELBOは再構成と潜在層の整合を同時に促す
         \item DDPMは順方向過程を固定し、逆方向過程だけを学習する
     \end{itemize}
+\end{frame}
+%=============================================
+\section*{補足}
+\begin{frame}{補足：再構成項の導出（1）}
+    固定分散のガウスデコーダを仮定する。
+    \[
+        p_\phi(\boldsymbol{x}\mid\boldsymbol{z})
+        =
+        \mathcal{N}\!\left(
+        \boldsymbol{x};
+        \boldsymbol{\mu}_\phi(\boldsymbol{z}),
+        \sigma^2\boldsymbol{I}
+        \right),
+        \qquad
+        \boldsymbol{x}\in\mathbb{R}^{D}
+    \]
+    多変量正規分布の確率密度関数は、
+    \[
+        p(\boldsymbol{x})
+        =
+        \frac{1}
+        {(2\pi)^{D/2}|\boldsymbol{\Sigma}|^{1/2}}
+        \exp\!\left[
+        -\frac12
+        (\boldsymbol{x}-\boldsymbol{\mu})^\top
+        \boldsymbol{\Sigma}^{-1}
+        (\boldsymbol{x}-\boldsymbol{\mu})
+        \right].
+    \]
+    ここで、
+    \[
+        \boldsymbol{\mu}
+        =\boldsymbol{\mu}_\phi(\boldsymbol{z}),
+        \qquad
+        \boldsymbol{\Sigma}=\sigma^2\boldsymbol{I}.
+    \]
+\end{frame}
+%=============================================
+\begin{frame}{補足：再構成項の導出（2）}
+    $\boldsymbol{\Sigma}=\sigma^2\boldsymbol{I}$より、
+    \[
+        |\boldsymbol{\Sigma}|
+        =(\sigma^2)^D,
+        \qquad
+        |\boldsymbol{\Sigma}|^{1/2}
+        =(\sigma^2)^{D/2},
+        \qquad
+        \boldsymbol{\Sigma}^{-1}
+        =\frac{1}{\sigma^2}\boldsymbol{I}.
+    \]
+    また、
+    \[
+        (\boldsymbol{x}-\boldsymbol{\mu})^\top
+        \boldsymbol{I}
+        (\boldsymbol{x}-\boldsymbol{\mu})
+        =
+        \|\boldsymbol{x}-\boldsymbol{\mu}\|_2^2.
+    \]
+    したがって、デコーダの密度は
+    \[
+        \boxed{
+        p_\phi(\boldsymbol{x}\mid\boldsymbol{z})
+        =
+        \frac{1}{(2\pi\sigma^2)^{D/2}}
+        \exp\!\left[
+        -\frac{1}{2\sigma^2}
+        \|\boldsymbol{x}
+        -\boldsymbol{\mu}_\phi(\boldsymbol{z})\|_2^2
+        \right]
+        }.
+    \]
+\end{frame}
+%=============================================
+\begin{frame}{補足：再構成項の導出（3）}
+    両辺の対数を取る。
+    \begin{align*}
+        \log p_\phi(\boldsymbol{x}\mid\boldsymbol{z})
+        &=
+        \log\!\left[
+        \frac{1}{(2\pi\sigma^2)^{D/2}}
+        \exp\!\left(
+        -\frac{\|\boldsymbol{x}
+        -\boldsymbol{\mu}_\phi(\boldsymbol{z})\|_2^2}
+        {2\sigma^2}
+        \right)
+        \right]\\[6pt]
+        &=
+        -\frac{D}{2}\log(2\pi\sigma^2)
+        -
+        \frac{1}{2\sigma^2}
+        \|\boldsymbol{x}
+        -\boldsymbol{\mu}_\phi(\boldsymbol{z})\|_2^2.
+    \end{align*}
+    \begin{block}{使った対数の性質}
+        \[
+            \log(ab)=\log a+\log b,
+            \qquad
+            \log(e^a)=a.
+        \]
+    \end{block}
+\end{frame}
+%=============================================
+\begin{frame}{補足：再構成項の導出（4）}
+    近似事後分布$q_\theta(\boldsymbol{z}\mid\boldsymbol{x})$について
+    期待値を取る。
+    \begin{align*}
+        &\mathbb{E}_{q_\theta(\boldsymbol{z}\mid\boldsymbol{x})}
+        [\log p_\phi(\boldsymbol{x}\mid\boldsymbol{z})]\\[4pt]
+        &=
+        -\frac{1}{2\sigma^2}
+        \mathbb{E}_{q_\theta(\boldsymbol{z}\mid\boldsymbol{x})}
+        \left[
+        \|\boldsymbol{x}
+        -\boldsymbol{\mu}_\phi(\boldsymbol{z})\|_2^2
+        \right]
+        -
+        \frac{D}{2}\log(2\pi\sigma^2).
+    \end{align*}
+    $\sigma^2$を固定すると、最後の項は$\theta,\phi$に依存しない。
+    \[
+        C:=-\frac{D}{2}\log(2\pi\sigma^2)
+    \]
+    と置けば、
+    \[
+        \boxed{
+        \mathbb{E}_{q_\theta}
+        [\log p_\phi(\boldsymbol{x}\mid\boldsymbol{z})]
+        =
+        -\frac{1}{2\sigma^2}
+        \mathbb{E}_{q_\theta}
+        \left[
+        \|\boldsymbol{x}
+        -\boldsymbol{\mu}_\phi(\boldsymbol{z})\|_2^2
+        \right]+C
+        }.
+    \]
+\end{frame}
+%=============================================
+\begin{frame}{補足：再構成項と二乗誤差}
+    二乗ノルムは、各次元の二乗誤差の総和である。
+    \[
+        \|\boldsymbol{x}
+        -\boldsymbol{\mu}_\phi(\boldsymbol{z})\|_2^2
+        =
+        \sum_{i=1}^{D}
+        \left(
+        x_i-\mu_{\phi,i}(\boldsymbol{z})
+        \right)^2.
+    \]
+    固定した$\sigma^2$のもとでは、
+    \[
+        \boxed{
+        \max_{\theta,\phi}
+        \mathbb{E}_{q_\theta}
+        [\log p_\phi(\boldsymbol{x}\mid\boldsymbol{z})]
+        \quad\Longleftrightarrow\quad
+        \min_{\theta,\phi}
+        \mathbb{E}_{q_\theta}
+        \left[
+        \|\boldsymbol{x}
+        -\boldsymbol{\mu}_\phi(\boldsymbol{z})\|_2^2
+        \right]
+        }.
+    \]
+    \begin{alertblock}{注意}
+        これは再構成項だけについての関係である。
+        ELBO全体にはKL正則化項もあり、
+        $\sigma^2$は二つの項の相対的な重みに影響する。
+    \end{alertblock}
 \end{frame}
