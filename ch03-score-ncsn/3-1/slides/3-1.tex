@@ -190,7 +190,7 @@
 \end{frame}
 %=============================================
 \assuppl
-\begin{frame}{補足：図3.1は学習前後の比較}
+\begin{frame}{\supplmark：図3.1は学習前後の比較}
     \begin{columns}[c,onlytextwidth]
         \begin{column}{0.42\textwidth}
             \begin{exampleblock}{学習前}
@@ -243,7 +243,7 @@
 \end{frame}
 %=============================================
 \assuppl
-\begin{frame}{補足：定数シフトで分布が不変になる}
+\begin{frame}{\supplmark：定数シフトで分布が不変になる}
     \begin{columns}[T,onlytextwidth]
         \begin{column}{0.48\textwidth}
             \begin{exampleblock}{和：エネルギーに定数を足す}
@@ -287,7 +287,7 @@
 \end{frame}
 %=============================================
 \assuppl
-\begin{frame}{補足：エネルギーを下げた領域へ質量が移る}
+\begin{frame}{\supplmark：エネルギーを下げた領域へ質量が移る}
     領域$A$とその補集合$A^{c}$について、
     $P_\phi(A)+P_\phi(A^{c})=1$である。
     $A$のエネルギーだけを$\delta>0$だけ下げると、
@@ -341,6 +341,12 @@
         \begin{aligned}
         \mathcal{L}_{\mathrm{MLE}}(\phi)
         &=
+        \mathbb{E}_{p_{\mathrm{data}}(\bm{x})}
+        \left[
+        \log
+        \frac{\exp\!\bigl(-E_\phi(\bm{x})\bigr)}{Z_\phi}
+        \right]\\
+        &=
         \underbrace{
         -\mathbb{E}_{p_{\mathrm{data}}}[E_\phi(\bm{x})]
         }_{\text{実データのエネルギーを下げる}}
@@ -358,23 +364,24 @@
 %=============================================
 \assuppl
 \begin{frame}{補足：式（3.1.1）の導出}
+    最尤推定の定義は
     \[
         \mathcal{L}_{\mathrm{MLE}}(\phi)
         =
         \mathbb{E}_{p_{\mathrm{data}}(\bm{x})}
         [\log p_\phi(\bm{x})]
-\]
-    にEBMの密度を代入する。
-    \begin{align*}
-        \log p_\phi(\bm{x})
-        &=
-        -E_\phi(\bm{x})-\log Z_\phi,\\[
-4pt]
+    \]
+    EBMの密度
+    $p_\phi(\bm{x})=\exp\!\bigl(-E_\phi(\bm{x})\bigr)/Z_\phi$
+    を代入すると
+    \[
+        \begin{aligned}
         \mathcal{L}_{\mathrm{MLE}}(\phi)
-        &=
+        =
         -\mathbb{E}_{p_{\mathrm{data}}}[E_\phi(\bm{x})]
-        -\log Z_\phi.
-    \end{align*}
+        -\log Z_\phi
+        \end{aligned}
+    \]
     \begin{exampleblock}{第2項の意味}
         ここでの正則化は重み減衰ではない。
         確率分布の正規化から出る項である。
@@ -421,7 +428,7 @@
 \end{frame}
 %=============================================
 \assuppl
-\begin{frame}{補足：いつも片方を犠牲にするわけではない}
+\begin{frame}{\supplmark：いつも片方を犠牲にするわけではない}
     $A$のエネルギーを下げながら$B$のエネルギーを上げ、
     全体の重みも減るなら、二つの項はどちらも大きくなり得る。
     \begin{exampleblock}{読み方}
@@ -442,6 +449,7 @@
         =
         -\mathbb{E}_{p_{\mathrm{data}}}[E_\phi(\bm{x})]
         -\log Z_\phi
+        \tag{3.1.1}
 \]
     高次元では$\log Z_\phi$とその$\phi$勾配を、
     一般には計算できない。
@@ -456,6 +464,31 @@
         モデル分布$p_\phi$についての期待値は、
         分布全体の積分または高コストなサンプリングを要する。
     \end{block}
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{補足：最尤勾配は二つの期待値の差}
+    \[
+        \resizebox{0.98\textwidth}{!}{$
+        \nabla_\phi\mathcal{L}_{\mathrm{MLE}}(\phi)
+        =
+        -\mathbb{E}_{p_{\mathrm{data}}}
+        [\nabla_\phi E_\phi(\bm{x})]
+        +
+        \mathbb{E}_{p_\phi}
+        [\nabla_\phi E_\phi(\bm{x})]
+        $}
+\]
+    \begin{exampleblock}{読み方}
+        データ上ではエネルギーを下げる方向へ更新し、
+        モデルが今確率を置いている場所では
+        エネルギーを上げる方向へ更新する。
+    \end{exampleblock}
+    \begin{exampleblock}{回避の方向}
+        コントラスティブ・ダイバージェンスは
+        分配関数の項を近似する。
+        スコアマッチングは、その項の計算自体を避ける。
+    \end{exampleblock}
 \end{frame}
 %=============================================
 \assuppl
@@ -487,7 +520,7 @@
 \end{frame}
 %=============================================
 \assuppl
-\begin{frame}{補足：交換が許される条件}
+\begin{frame}{\supplmark：交換が許される条件}
     $\phi$の近傍で$E_\theta(\bm{x})$が$\theta$について微分可能と仮定する。
     \begin{exampleblock}{十分条件（優収束）}
         近傍のすべての$\theta$に対し、$\theta$に依らない可積分な$g$があり
@@ -504,31 +537,6 @@
         上の条件のもとでは、差分商も同じ$g(\bm{x})$で抑えられるため、
         優収束定理により微分と積分を交換できる。
         また、$\mathbb{E}_{p_\phi}[\|\nabla_\phi E_\phi(\bm{x})\|]<\infty$も従う。
-    \end{exampleblock}
-\end{frame}
-%=============================================
-\assuppl
-\begin{frame}{補足：最尤勾配は二つの期待値の差}
-    \[
-        \resizebox{0.98\textwidth}{!}{$
-        \nabla_\phi\mathcal{L}_{\mathrm{MLE}}(\phi)
-        =
-        -\mathbb{E}_{p_{\mathrm{data}}}
-        [\nabla_\phi E_\phi(\bm{x})]
-        +
-        \mathbb{E}_{p_\phi}
-        [\nabla_\phi E_\phi(\bm{x})]
-        $}
-\]
-    \begin{exampleblock}{読み方}
-        データ上ではエネルギーを下げる方向へ更新し、
-        モデルが今確率を置いている場所では
-        エネルギーを上げる方向へ更新する。
-    \end{exampleblock}
-    \begin{exampleblock}{回避の方向}
-        コントラスティブ・ダイバージェンスは
-        分配関数の項を近似する。
-        スコアマッチングは、その項の計算自体を避ける。
     \end{exampleblock}
 \end{frame}
 %=============================================
@@ -772,17 +780,17 @@
         \,dt
         $}
 \]
-    \begin{block}{同等の表現力}
-        スコアが正確にわかれば、適切な条件のもとで
-        確率密度$p(\bm{x})$も一意に決められる。\\
-        密度そのものをモデル化する方法と、
-        スコアをモデル化する方法は、理論上同じ分布を表現できる。\\
-        学習とサンプリングでは、密度そのものより扱いやすいことが多い。
+    \begin{block}{ここでの意味}
+        確率密度$p(\bm{x})$を直接求めなくてもよい。
+        各点での対数密度の勾配（スコア）を学べば、
+        元の分布を表せ、その分布からサンプルを生成するのにも使える。
     \end{block}
+    ⇒密度の値は要らず、次の更新方向が分かるので、
+    DDPMのノイズ予測や画像生成の各ステップで応用される。
 \end{frame}
 %=============================================
 \assuppl
-\begin{frame}{補足：基準点からの変化量を足す}
+\begin{frame}{\supplmark：基準点からの変化量を足す}
     前の式は、基準点$\bm{x}_0$での$\log p(\bm{x}_0)$に、
     $\bm{x}_0$から$\bm{x}$までの変化量を足すと$\log p(\bm{x})$が求まる、
     ことを表す。
@@ -800,7 +808,7 @@
 \end{frame}
 %=============================================
 \assuppl
-\begin{frame}{補足：積分の中身は$\log p$の$t$微分}
+\begin{frame}{\supplmark：積分の中身は$\log p$の$t$微分}
     合成関数の微分より
     \[
         \frac{d}{dt}\log p(\bm{z}(t))
@@ -824,7 +832,7 @@
 \end{frame}
 %=============================================
 \assuppl
-\begin{frame}{補足：微分を積分すると変化量が求まる}
+\begin{frame}{\supplmark：微分を積分すると変化量が求まる}
     $t=0$から$1$まで積分する。
     \begin{align*}
         \int_0^1
@@ -844,7 +852,7 @@
 \end{frame}
 %=============================================
 \assuppl
-\begin{frame}{補足：積分定数は正規化で決まる}
+\begin{frame}{\supplmark：積分定数は正規化で決まる}
     スコアは$\log p$の微分なので、積分すると
     \[
         \log p(\bm{x})=F(\bm{x})+C
@@ -859,7 +867,7 @@
 \end{frame}
 %=============================================
 \assuppl
-\begin{frame}{補足：正規化で$e^{C}$を決める}
+\begin{frame}{\supplmark：正規化で$e^{C}$を決める}
     正規化条件$\displaystyle\int p(\bm{x})\,d\bm{x}=1$に代入する。
     \[
         \int e^{C}\,e^{F(\bm{x})}\,d\bm{x}=1
@@ -887,19 +895,18 @@
 \end{frame}
 %=============================================
 \assuppl
-\begin{frame}{補足：一意性と同等の表現力}
-    \begin{exampleblock}{一意性と同等の表現力}
+\begin{frame}{\supplmark：一意性と同等の表現力}
+    \begin{exampleblock}{読み方}
+        $p(\bm{x})$を直接求めなくても、
+        各点のスコアがわかれば元の分布を表せる。
+        そのスコアは、あとでランジュバン動力学により
+        サンプル生成にも使える。
+    \end{exampleblock}
+    \begin{exampleblock}{条件つきの一意性}
         連結領域上で正の正規化可能密度があり、
-        スコアが全域で正確なら$p$は一意に定まる。\\
-        密度そのものをモデル化する方法と、
-        スコアをモデル化する方法は、理論上同じ分布を表せる
-        （同等の表現力をもつ）。\\
+        スコアが全域で正確なら$p$は一意に定まる。
         ただし任意のベクトル場がスコアになるわけではなく、
         対数密度の勾配として積分可能である必要がある。
-    \end{exampleblock}
-    \begin{exampleblock}{理論と計算}
-        復元できることと、高次元で正規化積分を
-        効率よく計算できることは別である。
     \end{exampleblock}
 \end{frame}
 %=============================================
@@ -910,8 +917,8 @@
         密度が増える方向を与える
         \item EBMのスコアは$s_\phi=-\nabla_{\bm{x}}E_\phi$となり、
         分配関数$Z_\phi$を含まない
-        \item スコアが正確なら、適切な条件のもとで$p$は一意に決まる
-        （密度モデルと同等の表現力）
+        \item $p$を直接求めなくても、スコアを学べば
+        分布を表せ、サンプリングにも使える
     \end{itemize}
     \begin{block}{次}
         3.1.3では、未知のデータ分布のスコアを
@@ -926,191 +933,326 @@
 \end{frame}
 %=============================================
 \asmain
-\begin{frame}{3.1.3 スコアを合わせてEBMを学習する}
-    モデルのスコアはエネルギーだけで書け、$Z_\phi$に依らない。
-    \[
-        \nabla_{\bm{x}}\log p_\phi(\bm{x})
-        =
-        -\nabla_{\bm{x}}E_\phi(\bm{x})
-\]
-    スコアマッチングは、正規化密度を直接合わせる代わりに、\\
-    モデルのスコアをデータ分布のスコアへ近づける。
-    \[
-        \mathcal{L}_{\mathrm{SM}}(\phi)
-        =
-        \frac12
-        \mathbb{E}_{p_{\mathrm{data}}}
-        \left[
-        \left\|
-        \nabla_{\bm{x}}\log p_\phi
-        -
-        \nabla_{\bm{x}}\log p_{\mathrm{data}}
-        \right\|_2^2
-        \right]
-        \tag{3.1.3}
-\]
+\begin{frame}{3.1.3 スコアマッチングで何を消すか}
+    「モデルとデータのスコアを一致させる」学習目標を、
+    実際のデータとエネルギー関数だけで計算できる形に変える。
+    \begin{block}{中心的な結果}
+        正規化定数$Z_\phi$だけでなく、
+        未知のデータスコア$\nabla_{\bm{x}}\log p_{\mathrm{data}}$も
+        学習計算から取り除ける。
+    \end{block}
     \footnotesize
     Hyv\"{a}rinen and Dayan (2005)
 \end{frame}
 %=============================================
 \asmain
-\begin{frame}{データスコアを消した等価な損失}
-    部分積分により、エネルギーとその導関数だけの形に書ける。
+\begin{frame}{モデルのスコアから$Z_\phi$が消える}
+    EBMでは$p_\phi(\bm{x})=\exp(-E_\phi(\bm{x}))/Z_\phi$なので
     \[
-        \resizebox{0.98\textwidth}{!}{$
+        \log p_\phi(\bm{x})=-E_\phi(\bm{x})-\log Z_\phi.
+    \]
+    \textbf{入力}$\bm{x}$について微分すると
+    \[
+        \nabla_{\bm{x}}\log p_\phi(\bm{x})
+        =
+        -\nabla_{\bm{x}}E_\phi(\bm{x})
+        -
+        \underbrace{\nabla_{\bm{x}}\log Z_\phi}_{=0}
+        =
+        -\nabla_{\bm{x}}E_\phi(\bm{x}).
+    \]
+    \begin{block}{注意：微分する変数が違う}
+        最尤では$\nabla_\phi\log Z_\phi$（パラメータ微分）が残った。\\
+        ここでは$\nabla_{\bm{x}}\log Z_\phi$（入力微分）なので消える。
+    \end{block}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{スコアを合わせる損失}
+    \[
+        s_\phi(\bm{x}):=\nabla_{\bm{x}}\log p_\phi(\bm{x}),
+        \qquad
+        s_{\mathrm{data}}(\bm{x}):=\nabla_{\bm{x}}\log p_{\mathrm{data}}(\bm{x})
+    \]
+    \[
         \mathcal{L}_{\mathrm{SM}}(\phi)
         =
-        \mathbb{E}_{p_{\mathrm{data}}}
-        \left[
-        -\operatorname{Tr}\!\left(\nabla_{\bm{x}}^{2}E_\phi(\bm{x})\right)
-        +
         \frac12
-        \left\|\nabla_{\bm{x}}E_\phi(\bm{x})\right\|_2^2
-        \right]
-        +C
-        $}
-\]
-    $C$は$\phi$に依らない。$\nabla_{\bm{x}}^{2}E_\phi$はヘッセ行列である。
-    \begin{block}{利点と欠点}
-        分配関数も、学習中のモデルからのサンプリングも要らない。
-        代わりに二階微分、正確にはヘッセ行列のトレースが必要で、
-        コストは入力次元$D$とともに増える。
+        \mathbb{E}_{\bm{x}\sim p_{\mathrm{data}}}
+        \bigl[
+        \|s_\phi(\bm{x})-s_{\mathrm{data}}(\bm{x})\|_2^2
+        \bigr]
+        \tag{3.1.3}
+    \]
+    \begin{block}{意味}
+        各位置で、対数密度の各方向への変化をモデルとデータで一致させる。\\
+        期待値は$p_{\mathrm{data}}$なので、データが出やすい位置ほど重みが大きい。\\
+        $\frac12$は微分の係数を簡単にするためのもので、最小化の$\phi$は変わらない。
     \end{block}
 \end{frame}
 %=============================================
 \assuppl
-\begin{frame}{補足：合わせたい二つのスコア}
-    \begin{exampleblock}{モデルとデータ}
-        \[
-            s_\phi(\bm{x})
-            =
-            \nabla_{\bm{x}}\log p_\phi(\bm{x}),
-            \qquad
-            s_{\mathrm{data}}(\bm{x})
-            =
-            \nabla_{\bm{x}}\log p_{\mathrm{data}}(\bm{x})
-\]
-        学習は$s_\phi(\bm{x})\approx s_{\mathrm{data}}(\bm{x})$を目指す。
-    \end{exampleblock}
-    \begin{exampleblock}{直接は使えない}
-        $p_{\mathrm{data}}$は未知なので、
-        $s_{\mathrm{data}}$も計算できない。
-        損失から未知のスコアを消去する必要がある。
-    \end{exampleblock}
-\end{frame}
-%=============================================
-\assuppl
-\begin{frame}{補足：二乗を三つの項に分ける}
+\begin{frame}{補足：ノルムの二乗と、未知の$s_{\mathrm{data}}$}
     \[
         \|s_\phi-s_{\mathrm{data}}\|_2^2
         =
-        \|s_\phi\|_2^2
-        -2s_\phi^{\top}s_{\mathrm{data}}
-        +\|s_{\mathrm{data}}\|_2^2
-\]
-    したがって
-    \[
-        \mathcal{L}_{\mathrm{SM}}
-        =
-        \frac12\mathbb{E}[\|s_\phi\|_2^2]
-        -
-        \mathbb{E}[s_\phi^{\top}s_{\mathrm{data}}]
-        +C.
-\]
-    \begin{exampleblock}{定数}
-        \[
-            C
-            =
-            \frac12
-            \mathbb{E}_{p_{\mathrm{data}}}
-            [\|s_{\mathrm{data}}\|_2^2]
-\]
-        は$\phi$に依らないので、最適化には影響しない。
+        \sum_{j=1}^{D}
+        \bigl(s_{\phi,j}-s_{\mathrm{data},j}\bigr)^2
+    \]
+    適切な条件のもとではスコア一致$\Rightarrow$正規化密度も一致する。
+    \begin{exampleblock}{問題}
+        手元にあるのは観測値だけで、
+        真の$p_{\mathrm{data}}$もそのスコアも通常はわからない。\\
+        そこで、損失から未知の$s_{\mathrm{data}}$を消す式変形が必要になる。
     \end{exampleblock}
 \end{frame}
 %=============================================
 \assuppl
-\begin{frame}{補足：未知のスコアを密度の勾配に書き換える}
-    \[
-        \mathbb{E}[s_\phi^{\top}s_{\mathrm{data}}]
-        =
-        \int
-        p_{\mathrm{data}}(\bm{x})\,
-        s_\phi(\bm{x})^{\top}
-        \nabla_{\bm{x}}\log p_{\mathrm{data}}(\bm{x})
-        \,d\bm{x}
-\]
-    \[
-        \nabla_{\bm{x}}\log p_{\mathrm{data}}
-        =
-        \frac{\nabla_{\bm{x}}p_{\mathrm{data}}}{p_{\mathrm{data}}}
-\]
-    を代入すると$p_{\mathrm{data}}$が約分され、
-    \[
-        \int
-        s_\phi(\bm{x})^{\top}
-        \nabla_{\bm{x}}p_{\mathrm{data}}(\bm{x})
-        \,d\bm{x}.
-\]
-\end{frame}
-%=============================================
-\assuppl
-\begin{frame}{補足：部分積分で発散になる}
-    境界項が消える正則性を仮定すると、
-    \[
-        \int
-        s_\phi^{\top}\nabla_{\bm{x}}p_{\mathrm{data}}
-        \,d\bm{x}
-        =
-        -\int
-        p_{\mathrm{data}}\,
-        \nabla_{\bm{x}}\cdot s_\phi
-        \,d\bm{x}.
-\]
-    発散は各成分の偏微分の和である。
-    \[
-        \nabla_{\bm{x}}\cdot s_\phi(\bm{x})
-        =
-        \sum_{i=1}^{D}
-        \frac{\partial s_{\phi,i}(\bm{x})}{\partial x_i}
-\]
-    \[
-        \mathbb{E}[s_\phi^{\top}s_{\mathrm{data}}]
-        =
-        -\mathbb{E}[\nabla_{\bm{x}}\cdot s_\phi]
-\]
-    未知の$s_{\mathrm{data}}$は、モデルのスコアの発散に置き換わる。
-\end{frame}
-%=============================================
-\assuppl
-\begin{frame}{補足：エネルギーとヘッセ行列のトレース}
-    発散の形に戻すと
+\begin{frame}{\supplmark：一次元で二乗を展開する}
+    仕組みを見やすくするため一次元とし、
+    $p:=p_{\mathrm{data}}$、$s:=s_\phi$と書く。
     \[
         \mathcal{L}_{\mathrm{SM}}
         =
-        \mathbb{E}
-        \left[
-        \nabla_{\bm{x}}\cdot s_\phi
-        +
-        \frac12\|s_\phi\|_2^2
-        \right]
-        +C.
-\]
-    $s_\phi=-\nabla_{\bm{x}}E_\phi$より
-    \[
-        \nabla_{\bm{x}}\cdot s_\phi
-        =
-        -\sum_{i=1}^{D}
-        \frac{\partial^{2}E_\phi}{\partial x_i^{2}}
-        =
-        -\operatorname{Tr}(\nabla_{\bm{x}}^{2}E_\phi).
-\]
-    これが本文の損失である。
-    必要なのはヘッセ行列の全成分ではなく、対角和だけである。
+        \frac12\int p(x)\Bigl(s(x)-\tfrac{d}{dx}\log p(x)\Bigr)^2dx
+    \]
+    展開すると
+    \begin{align*}
+        \mathcal{L}_{\mathrm{SM}}
+        &=
+        \tfrac12\int p\,s^2\,dx
+        -\int p\,s\,\tfrac{d}{dx}\log p\,dx
+        +\tfrac12\int p\Bigl(\tfrac{d}{dx}\log p\Bigr)^2dx.
+    \end{align*}
+    最後の項はデータ分布だけで決まり$\phi$に依らない。これを$C$とおく。
+    \begin{exampleblock}{注意}
+        ここでの$C$は、前に扱った積分定数とは別である。\\
+        損失を展開した結果として出た、学習パラメータに依らない項である。
+    \end{exampleblock}
 \end{frame}
 %=============================================
 \assuppl
-\begin{frame}{補足：ヘッセ行列とトレース}
+\begin{frame}{\supplmark：真ん中の項で$p$が約分される}
+    残る問題は
+    \[
+        -\int p(x)\,s(x)\,\frac{d}{dx}\log p(x)\,dx.
+    \]
+    $\dfrac{d}{dx}\log p=\dfrac{p'}{p}$を代入すると$p$が約分され、
+    \[
+        -\int s(x)\,p'(x)\,dx
+    \]
+    になる。
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：部分積分で微分をモデル側へ移す}
+    部分積分$\int u v'=[uv]-\int u'v$で$u=s$、$v=p$とすると
+    \[
+        -\int s\,p'
+        =
+        -[s\,p]_{-\infty}^{\infty}
+        +\int s'\,p.
+    \]
+    両端で$s(x)p(x)\to0$と仮定すれば境界項が消え、
+    \[
+        -\int p\,s\,\frac{d}{dx}\log p\,dx
+        =
+        \int p\,s'\,dx.
+    \]
+    \begin{exampleblock}{要点}
+        データ密度$p$に掛かっていた微分を、
+        モデルのスコア$s$に移した。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：一次元での等価な損失}
+    元の式に戻すと
+    \[
+        \mathcal{L}_{\mathrm{SM}}(\phi)
+        =
+        \mathbb{E}_{p_{\mathrm{data}}}
+        \Bigl[
+        \tfrac12 s_\phi(x)^2+s_\phi'(x)
+        \Bigr]+C.
+    \]
+    未知のデータスコアが期待値の中から消えた。
+    次で、同じ変形を各座標へ広げる。
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：多次元では座標ごとの和になる}
+    多次元では
+    \[
+        \mathcal{L}_{\mathrm{SM}}(\phi)
+        =
+        \tfrac12
+        \mathbb{E}_{p_{\mathrm{data}}}
+        \bigl[
+        \|s_\phi(\bm{x})-s_{\mathrm{data}}(\bm{x})\|_2^2
+        \bigr]
+    \]
+    である。$\|v\|_2^2=\sum_{j=1}^{D}v_j^2$なので、展開すると
+    \[
+        \mathcal{L}_{\mathrm{SM}}
+        =
+        \tfrac12\mathbb{E}[\|s_\phi\|_2^2]
+        -
+        \mathbb{E}\bigl[s_\phi^{\top}s_{\mathrm{data}}\bigr]
+        +C.
+    \]
+    真ん中の項は座標ごとの和である。
+    \[
+        s_\phi^{\top}s_{\mathrm{data}}
+        =
+        \sum_{j=1}^{D}
+        s_{\phi,j}(\bm{x})\,
+        \partial_{x_j}\log p(\bm{x})
+    \]
+    \begin{exampleblock}{読み方}
+        一次元で扱った交差項が、各座標$j$について一つずつ現れる。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：各座標で同じ部分積分を行う}
+    第$j$成分だけ取り出すと、一次元と同じく
+    \[
+        \int
+        p\,s_{\phi,j}\,\partial_{x_j}\log p
+        \,d\bm{x}
+        =
+        \int
+        s_{\phi,j}\,\partial_{x_j}p
+        \,d\bm{x}.
+    \]
+    $x_j$について部分積分し、境界で$s_{\phi,j}p\to0$とすると
+    \[
+        \int
+        s_{\phi,j}\,\partial_{x_j}p
+        \,d\bm{x}
+        =
+        -
+        \int
+        p\,\partial_{x_j}s_{\phi,j}
+        \,d\bm{x}.
+    \]
+    したがって交差項は
+    \[
+        -
+        \mathbb{E}\bigl[s_\phi^{\top}s_{\mathrm{data}}\bigr]
+        =
+        \mathbb{E}
+        \Bigl[
+        \sum_{j=1}^{D}
+        \partial_{x_j}s_{\phi,j}
+        \Bigr]
+        =
+        \mathbb{E}
+        \bigl[
+        \operatorname{Tr}(\nabla_{\bm{x}}s_\phi)
+        \bigr].
+    \]
+    \begin{exampleblock}{要点}
+        $\sum_j\partial_{x_j}s_{\phi,j}$がヤコビ行列の対角和、すなわちトレースである。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{多次元・EBMでの等価な損失}
+    各座標で同じ部分積分を行うと
+    \[
+        \resizebox{0.98\textwidth}{!}{$
+        \mathcal{L}_{\mathrm{eSM}}(\phi)
+        =
+        \mathbb{E}_{p_{\mathrm{data}}}
+        \Bigl[
+        \operatorname{Tr}(\nabla_{\bm{x}}s_\phi)
+        +
+        \tfrac12\|s_\phi\|_2^2
+        \Bigr]
+        $}
+        \tag{3.2.2}
+    \]
+    $\mathcal{L}_{\mathrm{SM}}=\mathcal{L}_{\mathrm{eSM}}+C$（$C$は$\phi$に依らない）。
+    EBMでは$s_{\phi,j}=-\partial_{x_j}E_\phi$なので
+    \[
+        \resizebox{0.98\textwidth}{!}{$
+        \mathcal{L}_{\mathrm{eSM}}(\phi)
+        =
+        \mathbb{E}_{p_{\mathrm{data}}}
+        \Bigl[
+        -\operatorname{Tr}(\nabla_{\bm{x}}^{2}E_\phi)
+        +
+        \tfrac12\|\nabla_{\bm{x}}E_\phi\|_2^2
+        \Bigr]
+        $}
+    \]
+    $\operatorname{Tr}(\nabla_{\bm{x}}^{2}E_\phi)=\sum_j\partial_{x_j}^{2}E_\phi$
+    （ヘッセの対角和）。全成分は不要である。
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：データ平均でどう計算するか}
+    観測$\bm{x}^{(1)},\ldots,\bm{x}^{(N)}$があれば期待値を平均で近似する。
+    \[
+        \widehat{\mathcal{L}}(\phi)
+        =
+        \frac1N\sum_{n=1}^{N}
+        \Bigl[
+        -\operatorname{Tr}(\nabla_{\bm{x}}^{2}E_\phi(\bm{x}^{(n)}))
+        +
+        \tfrac12\|\nabla_{\bm{x}}E_\phi(\bm{x}^{(n)})\|_2^2
+        \Bigr].
+    \]
+    \begin{exampleblock}{読み方}
+        各データをモデルに入れ、その位置での
+        エネルギーの一階・二階微分を計算して平均する。\\
+        $C$は$\phi$に依らず$\nabla_\phi C=0$なので省略できる。\\
+        損失の数値自体は変わるが、最小化の対象としては同じである。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：$\nabla_{\bm{x}}$と$\nabla_\phi$は別}
+    同じ$\nabla$でも、何について微分するかが違う。
+    \vspace{0.15em}
+    \begin{columns}[T,onlytextwidth]
+        \begin{column}{0.48\textwidth}
+            \begin{exampleblock}{$\nabla_{\bm{x}}$：損失を作る}
+                $\phi$を固定したまま、
+                入力$\bm{x}$での変化を見る。
+                \[
+                    s_\phi=-\nabla_{\bm{x}}E_\phi
+                \]
+                損失の$\operatorname{Tr}(\nabla_{\bm{x}}^{2}E_\phi)$もこちら。
+            \end{exampleblock}
+        \end{column}
+        \begin{column}{0.48\textwidth}
+            \begin{exampleblock}{$\nabla_\phi$：パラメータを更新する}
+                できた損失$\mathcal{L}_{\mathrm{eSM}}(\phi)$を
+                パラメータ$\phi$で微分する。
+                \[
+                    \phi\leftarrow\phi-\alpha\nabla_\phi\mathcal{L}_{\mathrm{eSM}}
+                \]
+                重みを動かすのはこの微分である。
+            \end{exampleblock}
+        \end{column}
+    \end{columns}
+    \vspace{0.2em}
+    \begin{exampleblock}{最尤との違い}
+        最尤で残ったのは$\nabla_\phi\log Z_\phi$（パラメータ微分）。\\
+        スコアで消えるのは$\nabla_{\bm{x}}\log Z_\phi$（入力微分）。
+        だから正規化定数と、学習中のモデル分布からのサンプリングを避けられる。
+    \end{exampleblock}
+    \begin{exampleblock}{残る負担}
+        入力の二階微分が要るため、高次元では計算負荷が問題になる。\\
+        部分積分の境界項が消えるなどの条件も要り、無条件の式変形ではない。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：ヘッセ行列とトレース}
     ヘッセ行列は、スカラー関数の二階偏微分を並べた行列である。
     二次元では
     \[
@@ -1129,10 +1271,12 @@
         +
         \partial_{x_2}^{2}E_\phi.
 \]
-    \begin{exampleblock}{計算上の課題}
+    \begin{exampleblock}{計算上の課題と予告}
         対角和だけでも、各座標の二階微分を集める必要がある。
-        $D$が大きいほど厳密な計算は重くなる。
-        本章の後半で、この二階微分を避ける方法を扱う。
+        $D$が大きいほど厳密な計算は重くなる（3.1.3）。\\
+        のちに、ランダム方向でトレースを推定する
+        スライスド・スコアマッチング（3.3.1）と、
+        ノイズを加えた教師あり損失のDSM（3.3.2）で対処する。
     \end{exampleblock}
 \end{frame}
 %=============================================
@@ -1166,10 +1310,10 @@
 \asmain
 \begin{frame}{3.1.3 のまとめ}
     \begin{itemize}
-        \item スコアマッチングは、密度ではなくスコアを一致させてEBMを学習する
-        \item 部分積分により、未知の$s_{\mathrm{data}}$は
-        エネルギーとその二階微分に置き換わる
-        \item 分配関数は不要だが、ヘッセ行列のトレースが必要になる
+        \item スコアを一致させる損失から、$Z_\phi$と未知の$s_{\mathrm{data}}$を消せる
+        \item 一次元では部分積分で$s_{\mathrm{data}}$が$s_\phi'$に置き換わる
+        \item EBMではエネルギーの勾配とヘッセの対角和だけで学習でき、
+        データ平均で近似できる（二階微分のコストは残る）
     \end{itemize}
     \begin{block}{次}
         3.1.4では、学習したスコアからサンプルを得る
@@ -1187,8 +1331,13 @@
 \begin{frame}{イメージで理解する：ランジュバン動力学}
     式に入る前に、空間上での動きのイメージを見ておくとわかりやすい。
     \begin{exampleblock}{インタラクティブな可視化}
-        スコア（エネルギーの勾配）に沿った移動と、
-        ノイズによるゆらぎが合わさる様子を確認できる。
+        粒子を動かして、次の見方で追う。
+        \begin{itemize}
+            \item 勾配：エネルギーの低い場所へ引き戻す
+            \item ノイズ：その周辺を揺れ続けさせる
+        \end{itemize}
+        両方が合わさると、一点に止まらず、
+        低い領域のあたりを動き続ける。
         \vspace{0.4em}
         \begin{center}
             \href{https://ebm-space-motion.intactspoon4.chatgpt.site/}
@@ -1219,6 +1368,7 @@
         +\sqrt{2\eta}\,\bm{\epsilon}_n
         \tag{3.1.5}
 \]
+この定式化は拡散モデルにおいて中心的な役割を果たすもの、詳細は後の節で説明
 \end{frame}
 %=============================================
 \asmain
@@ -1232,13 +1382,14 @@
         \sqrt{2}\,d\bm{w}(t)
         \tag{3.1.6}
 \]
-    $\bm{w}(t)$は標準ブラウン運動である。
-    式（3.1.4）は、このSDEのオイラー・丸山法による離散化である。
+    $\bm{w}(t)$は標準ブラウン運動である\footnote{ブラウン運動：位置が時間とともに連続的に変わり、変化の向きや大きさがランダムな運動}。
+    式（3.1.4）は、このSDEのオイラー・丸山法による離散化である\footnote{オイラー・丸山法：ブラウン運動を含む連続時間の方程式を、短い時間刻みごとに計算する近似法}。
     \begin{block}{定常分布}
         $E_\phi$が十分滑らかで、サンプルが無限遠へ逃げないとき、
         $t\to\infty$で$\bm{x}(t)$の分布は\\$p_\phi$へ収束する。
         追加条件のもとでは、収束は指数的になり得る。
     \end{block}
+    目標の分布 \(p_\phi\) に従うサンプルを作れることが重要
 \end{frame}
 %=============================================
 \assuppl
@@ -1249,6 +1400,7 @@
         \bm{x}_n
         -\eta\nabla_{\bm{x}}E_\phi(\bm{x}_n)
         +\sqrt{2\eta}\,\bm{\epsilon}_n
+        \tag{3.1.4}
 \]
     \begin{exampleblock}{エネルギーを下げる項}
         $-\eta\nabla_{\bm{x}}E_\phi$は、エネルギーが増える方向の逆へ進む。
@@ -1264,7 +1416,7 @@
 \end{frame}
 %=============================================
 \assuppl
-\begin{frame}{補足：ノイズ係数が$\sqrt{2\eta}$になる理由}
+\begin{frame}{\supplmark：ノイズ係数が$\sqrt{2\eta}$になる理由}
     連続時間の式を幅$\eta$で離散化する。
     \[
         \bm{x}(t+\eta)-\bm{x}(t)
@@ -1295,13 +1447,14 @@
         \underbrace{s_\phi(\bm{x}(t))\,dt}_{\text{ドリフト}}
         +
         \underbrace{\sqrt{2}\,d\bm{w}(t)}_{\text{拡散}}
+        \tag{3.1.6}
 \]
     \begin{exampleblock}{二つの働き}
         ドリフトはスコアに従い、密度が高い方向へ動かす。
         拡散はブラウン運動によるランダムな揺れである。
     \end{exampleblock}
     \begin{exampleblock}{通常の微分との違い}
-        ブラウン運動の経路は、通常の意味ではほとんど確実に微分できない。
+        ブラウン運動の経路は、どの時刻でも微分できない経路が、確率 \(1\) で選ばれる\\
         $d\bm{w}(t)$は普通の微小変化ではなく、確率積分で定義される。
     \end{exampleblock}
 \end{frame}
@@ -1315,7 +1468,7 @@
 \end{frame}
 %=============================================
 \assuppl
-\begin{frame}{補足：目標分布が定常分布になる}
+\begin{frame}{\supplmark：目標分布が定常分布になる}
     時刻$t$の密度を$q_t$とすると、適切な条件で
     \[
         \partial_t q_t
@@ -1356,8 +1509,10 @@
         -\nabla_{\bm{x}}E_\phi(\bm{x}(t))\,dt
         +
         \sqrt{2}\,d\bm{w}(t)
+        \tag{3.1.6}
 \]
-    となる。適切な条件のもとで、定常分布は
+    となる（$s_\phi=-\nabla_{\bm{x}}E_\phi$より式（3.1.6）と同値）。
+    適切な条件のもとで、定常分布は
     $p_\phi(\bm{x})\propto e^{-E_\phi(\bm{x})}$である。
     \begin{block}{EBMでの使い道}
         分配関数を計算せず、エネルギーの勾配だけで
@@ -1366,7 +1521,7 @@
 \end{frame}
 %=============================================
 \assuppl
-\begin{frame}{補足：勾配は力、ただし過減衰の運動}
+\begin{frame}{\supplmark：勾配は力、ただし過減衰の運動}
     力は$F(\bm{x})=-\nabla_{\bm{x}}E(\bm{x})$である。
     $E(x)=\frac12 x^2$なら$F(x)=-x$で、粒子は原点へ向かう。
     \begin{exampleblock}{本文のODEとの違い}
@@ -1386,7 +1541,7 @@
 \end{frame}
 %=============================================
 \assuppl
-\begin{frame}{補足：$\sqrt{2}$は定常性から決まる}
+\begin{frame}{\supplmark：$\sqrt{2}$は定常性から決まる}
     一般のSDE
     $d\bm{x}=b\,dt+\sigma\,d\bm{w}$の密度は
     \[
@@ -1426,6 +1581,7 @@
         \bm{x}_n
         -\eta\nabla_{\bm{x}}E_\phi(\bm{x}_n)
         +\sqrt{2\eta}\,\bm{\epsilon}_n
+        \tag{3.1.4}
 \]
     \begin{exampleblock}{注意}
         有限ステップの離散化には誤差がある。
@@ -1498,7 +1654,7 @@
 \end{frame}
 %=============================================
 \assuppl
-\begin{frame}{補足：混合時間}
+\begin{frame}{\supplmark：混合時間}
     混合時間は、初期状態から定常分布へ十分近づくまでの
     時間または更新回数である。
     \[
@@ -1522,13 +1678,14 @@
 \end{frame}
 %=============================================
 \assuppl
-\begin{frame}{補足：ステップ幅は精度と効率を同時に変える}
+\begin{frame}{\supplmark：ステップ幅は精度と効率を同時に変える}
     \[
         \bm{x}_{n+1}
         =
         \bm{x}_n
         +\eta\,s_\phi(\bm{x}_n)
         +\sqrt{2\eta}\,\bm{\epsilon}_n
+        \tag{3.1.5}
 \]
     \begin{exampleblock}{小さくする}
         連続時間のSDEをより正確に近似しやすい。
@@ -1542,7 +1699,7 @@
 \end{frame}
 %=============================================
 \assuppl
-\begin{frame}{補足：高次元だけで必ず失敗するわけではない}
+\begin{frame}{\supplmark：高次元だけで必ず失敗するわけではない}
     \begin{exampleblock}{難しくなる典型}
         高密度領域が離れており、そのあいだのエネルギー障壁が大きいとき、
         局所的なスコアとガウスノイズだけでは移動が遅い。
@@ -1629,4 +1786,36 @@
         ノイズ条件付きのスコア学習（DSM / NCSN）と、
         連続時間のScore SDEへつながる。
     \end{block}
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{理解のための参考資料}
+    本編のあとで見ると、各概念のイメージが追いやすい。
+    いずれもインタラクティブな補足資料である。
+    \begin{exampleblock}{可視化サイト}
+        \footnotesize
+        \begin{itemize}
+            \item 正規化・分配関数：
+            \href{https://ebm-normalization-lab.intactspoon4.chatgpt.site/}
+            {\texttt{ebm-normalization-lab}}
+            \item 粒子と密度：
+            \href{https://ebm-particles-and-density.intactspoon4.chatgpt.site/}
+            {\texttt{ebm-particles-and-density}}
+            \item 入力勾配とパラメータ勾配：
+            \href{https://ebm-input-vs-parameter.intactspoon4.chatgpt.site/}
+            {\texttt{ebm-input-vs-parameter}}
+            \item スコアからの再構成：
+            \href{https://ebm-score-reconstruction.intactspoon4.chatgpt.site/}
+            {\texttt{ebm-score-reconstruction}}
+            \item スコアマッチング：
+            \href{https://ebm-score-matching-lab.intactspoon4.chatgpt.site/}
+            {\texttt{ebm-score-matching-lab}}
+            \item ステップ幅：
+            \href{https://ebm-step-size-lab.intactspoon4.chatgpt.site/}
+            {\texttt{ebm-step-size-lab}}
+            \item ノイズによる平滑化：
+            \href{https://ebm-noise-smoothing.intactspoon4.chatgpt.site/}
+            {\texttt{ebm-noise-smoothing}}
+        \end{itemize}
+    \end{exampleblock}
 \end{frame}
