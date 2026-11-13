@@ -1,8 +1,230 @@
 ﻿% !TEX root = ../tex/3-5.tex
 \input{../slides/ch03-colors}
-\begin{frame}{3.5 Summary: A Comparative View of NCSN and DDPM}
-    \begin{itemize}
-        \item
-    \end{itemize}
-\end{frame}
 
+%=============================================
+\begin{frame}{3.4から3.5へ}
+    \begin{block}{ここまで}
+        EBMからスコア、DSM、NCSNまでをスコア視点で見てきた。\\
+        第2章では変分視点からDDPMを見た。
+    \end{block}
+    \begin{block}{ここから（3.5）}
+        NCSNとDDPMを並べ、何が違い何が同じかを整理する。\\
+        共通のボトルネック（サンプリングが遅い）も確認する。
+    \end{block}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{3.5 の位置づけ}
+    \begin{block}{この節の役割}
+        二つの離散時間モデルを比較し、第4章の連続時間へ橋を渡す
+    \end{block}
+    \begin{enumerate}
+        \item 図3.7でNCSNの構造を再確認する
+        \item 表3.1で前向き過程・損失・サンプリングを対照する
+        \item 共通の限界（密な時間離散化）と、加速への問いを残す
+    \end{enumerate}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{図3.7：NCSNのグラフィカルモデル（再掲）}
+    \centering
+    \includegraphics[width=\textwidth,height=0.62\textheight,keepaspectratio]{fig-3-7.jpg}
+    \vfill
+    複数ノイズで前向きに崩し、各段のランジュバン出力を次段の初期値にする。\\
+    DDPMは同じ「段階的ノイズ」を、マルコフ連鎖の遷移確率で書く。
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{表3.1：前向き過程の違い}
+    \centering
+    \footnotesize
+    \renewcommand{\arraystretch}{1.35}
+    \begin{tabular}{|p{0.18\textwidth}|p{0.37\textwidth}|p{0.37\textwidth}|}
+        \hline
+        & \textbf{NCSN} & \textbf{DDPM} \\
+        \hline
+        $\bm{x}_{i+1}|\bm{x}_i$
+        &
+        導出：
+        \newline
+        \resizebox{0.95\linewidth}{!}{$
+        \bm{x}_{i+1}=\bm{x}_i+\sqrt{\sigma_{i+1}^{2}-\sigma_i^{2}}\,\bm{\epsilon}
+        $}
+        &
+        定義：
+        \newline
+        \resizebox{0.95\linewidth}{!}{$
+        \bm{x}_{i+1}=\sqrt{1-\beta_i}\,\bm{x}_i+\sqrt{\beta_i}\,\bm{\epsilon}
+        $}
+        \\
+        \hline
+        $\bm{x}_i|\bm{x}$
+        &
+        定義：
+        $\bm{x}_i=\bm{x}+\sigma_i\bm{\epsilon}$
+        &
+        導出：
+        \newline
+        \resizebox{0.95\linewidth}{!}{$
+        \bm{x}_i=\bar{\alpha}_i\bm{x}+\sqrt{1-\bar{\alpha}_i^{2}}\,\bm{\epsilon}
+        $}
+        \\
+        \hline
+        $p_{\mathrm{prior}}$
+        &
+        $\mathcal{N}(\bm{0},\sigma_L^{2}\bm{I})$
+        &
+        $\mathcal{N}(\bm{0},\bm{I})$
+        \\
+        \hline
+    \end{tabular}
+    \normalsize
+    \vfill
+    NCSNは周辺ノイズを直接定義し、DDPMは1ステップ遷移を定義して周辺を導く。
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：「定義」と「導出」の向きが逆}
+    \begin{columns}[T,onlytextwidth]
+        \begin{column}{0.48\textwidth}
+            \begin{exampleblock}{NCSN}
+                まず$\bm{x}_i=\bm{x}+\sigma_i\bm{\epsilon}$を置く。\\
+                隣接ステップの関係は、そこから導かれる。
+            \end{exampleblock}
+        \end{column}
+        \begin{column}{0.48\textwidth}
+            \begin{exampleblock}{DDPM}
+                まず$\bm{x}_{i+1}|\bm{x}_i$のマルコフ遷移を置く。\\
+                任意時刻の周辺$\bm{x}_i|\bm{x}_0$はそこから閉じた形になる。
+            \end{exampleblock}
+        \end{column}
+    \end{columns}
+    \vspace{0.4em}
+    \begin{exampleblock}{読み方}
+        どちらも「データ$\to$ノイズ」の梯子だが、
+        どこを公理にするかが違う。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{表3.1：損失の違い}
+    \begin{columns}[T,onlytextwidth]
+        \begin{column}{0.48\textwidth}
+            \begin{block}{NCSN}
+                \[
+                    \resizebox{0.95\textwidth}{!}{$
+                    \mathbb{E}_{i,\bm{x},\bm{\epsilon}}
+                    \Bigl\|
+                    s_\phi(\bm{x}_i,\sigma_i)
+                    +
+                    \dfrac{\bm{\epsilon}}{\sigma_i}
+                    \Bigr\|_{2}^{2}
+                    $}
+                \]
+                スコアを当てる（DSMの和）。
+            \end{block}
+        \end{column}
+        \begin{column}{0.48\textwidth}
+            \begin{block}{DDPM}
+                \[
+                    \resizebox{0.95\textwidth}{!}{$
+                    \mathbb{E}_{i,\bm{x},\bm{\epsilon}}
+                    \bigl\|
+                    \bm{\epsilon}_\phi(\bm{x}_i,i)
+                    -
+                    \bm{\epsilon}
+                    \bigr\|_{2}^{2}
+                    $}
+                \]
+                加えたノイズ$\bm{\epsilon}$を当てる。
+            \end{block}
+        \end{column}
+    \end{columns}
+    \vfill
+    \begin{block}{対応}
+        最適解は$s^{\star}=-\bm{\epsilon}^{\star}/\sigma$で互いに移る（3.4.2）。\\
+        パラメータ化が違うだけで、同じノイズ付き周辺の情報を見ている。
+    \end{block}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{表3.1：サンプリングの違い}
+    \begin{columns}[T,onlytextwidth]
+        \begin{column}{0.48\textwidth}
+            \begin{block}{NCSN}
+                各ノイズレベルでランジュバンを回す。\\
+                その出力を、次のより低いノイズの初期値にする
+                （Annealed Langevin）。
+            \end{block}
+        \end{column}
+        \begin{column}{0.48\textwidth}
+            \begin{block}{DDPM}
+                学習した逆遷移
+                $p_{\phi^\star}(\bm{x}_{i-1}|\bm{x}_i)$
+                でマルコフ連鎖をたどる。
+            \end{block}
+        \end{column}
+    \end{columns}
+    \vfill
+    どちらも「強いノイズから弱いノイズへ」戻るが、
+    1ステップの手続きがMCMCか、学習した条件付き分布かで分かれる。
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：対照の要約}
+    \centering
+    \footnotesize
+    \renewcommand{\arraystretch}{1.3}
+    \begin{tabular}{|l|p{0.35\textwidth}|p{0.35\textwidth}|}
+        \hline
+        & NCSN & DDPM \\
+        \hline
+        公理 & 周辺ノイズ$\sigma_i$ & 1ステップ遷移$\beta_i$ \\
+        \hline
+        学習対象 & スコア$s_\phi(\bm{x},\sigma)$ & ノイズ$\bm{\epsilon}_\phi(\bm{x},i)$ \\
+        \hline
+        生成 & 段ごとのLangevin & 逆マルコフ連鎖 \\
+        \hline
+        事前分布 & $\mathcal{N}(\bm{0},\sigma_L^{2}\bm{I})$ & $\mathcal{N}(\bm{0},\bm{I})$ \\
+        \hline
+    \end{tabular}
+    \normalsize
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{共通のボトルネック：密な時間離散化}
+    定式化は違っても、NCSNもDDPMも
+    \textbf{時間（ノイズ）を細かく刻む}ことに依存する。
+    \begin{block}{帰結}
+        サンプル生成に数百〜数千回の反復が必要になりやすい。\\
+        生成が遅く、計算コストが大きい。
+    \end{block}
+    \begin{alertblock}{問い 3.5.1}
+        拡散モデルのサンプリングを、どう加速できるか？
+    \end{alertblock}
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：加速は後の章で扱う}
+    \begin{exampleblock}{第9章}
+        より効率的なサンプラ（数値解法の改良）
+    \end{exampleblock}
+    \begin{exampleblock}{第10章}
+        数百ステップの教師モデルを、少ないステップの生徒へ圧縮
+    \end{exampleblock}
+    \begin{exampleblock}{第11章}
+        拡散に触発された原理で、少数ステップ生成器を一から学習
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{3.5 のまとめ}
+    \begin{itemize}
+        \item NCSNとDDPMは、前向きの公理・損失のパラメータ化・逆過程の手続きが違う
+        \item スコア予測とノイズ予測は、スケールを除いて同じ情報である
+        \item 両者とも密な離散化に縛られ、サンプリングが遅い
+    \end{itemize}
+    \begin{block}{次へ}
+        3.6で第3章全体を振り返り、第4章のScore SDE（連続時間）へつなぐ。
+    \end{block}
+\end{frame}

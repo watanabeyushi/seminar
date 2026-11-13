@@ -1,9 +1,113 @@
 ﻿% !TEX root = ../tex/3-6.tex
 \input{../slides/ch03-colors}
 
+%=============================================
 \begin{frame}{3.6 Closing Remarks}
+    \begin{block}{この章でたどった第二の道}
+        変分（第2章）とは別に、
+        EBMに根ざすスコア視点から拡散モデルへ至る道を見た。
+    \end{block}
     \begin{itemize}
-        \item
+        \item 出発点：分配関数が扱いにくい
+        \item 道具：スコア$\nabla_{\bm{x}}\log p(\bm{x})$
+        \item 到達点：複数ノイズのNCSNと、DDPMとの対応
     \end{itemize}
 \end{frame}
-
+%=============================================
+\asmain
+\begin{frame}{第3章の道筋（前半）}
+    \begin{enumerate}
+        \item \textbf{EBM}
+        エネルギーで分布を書く。最尤は$Z_\phi$で行き詰まる。
+        \item \textbf{スコア}
+        $s=\nabla_{\bm{x}}\log p$なら正規化定数が消える。
+        \item \textbf{スコアマッチング}
+        真のスコアなしで場を合わせるが、トレース計算が残る。
+    \end{enumerate}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{第3章の道筋（後半）}
+    \begin{enumerate}
+        \setcounter{enumi}{3}
+        \item \textbf{DSM}
+        ノイズを入れ、条件付きスコアを教師にする。\\
+        Tweedieにより、スコア学習＝ノイズ除去学習になる。
+        \item \textbf{NCSN}
+        複数ノイズで条件付きスコアを学び、
+        アニーリング・ランジュバンで生成する。
+        \item \textbf{DDPMとの比較}
+        公理と手続きは違うが、同じ梯子の別の書き方である。
+    \end{enumerate}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{一本の流れ}
+    \begin{block}{EBM $\to$ スコア $\to$ DSM $\to$ NCSN}
+        分配関数を避ける
+        $\;\to\;$
+        スコアを直接扱う
+        $\;\to\;$
+        ノイズで教師を作る
+        $\;\to\;$
+        複数スケールで粗から細へ戻す
+    \end{block}
+    \begin{block}{核心}
+        密度そのものではなく対数密度の勾配を学び、
+        確率的な流れでデータへ戻す。
+    \end{block}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{離散の梯子から連続へ}
+    NCSNのノイズ列もDDPMのステップも、有限個の段である。\\
+    次章では段のあいだを埋め、ノイズレベルを時間の連続関数にする。
+    \[
+        p_{\mathrm{data}}
+        \xrightarrow{\;\text{forward SDE}\;}
+        p_T\approx p_{\mathrm{prior}},
+        \qquad
+        p_{\mathrm{prior}}
+        \xrightarrow{\;\text{reverse dynamics}\;}
+        p_{\mathrm{data}}
+    \]
+    \begin{itemize}
+        \item 前向きSDE：データを徐々にノイズへ崩す
+        \item 逆ダイナミクス：時間依存スコア$\nabla_{\bm{x}}\log p_t(\bm{x})$で戻す
+    \end{itemize}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{第4章で行うこと}
+    \begin{enumerate}
+        \item \textbf{連続時間へ}
+        DDPMとNCSNを、一つのSDEの異なる離散化として統一する
+        （Score SDE）。
+        \item \textbf{二つの視点をつなぐ}
+        変分視点とスコア視点を、微分方程式を解く生成としてつなぐ。
+    \end{enumerate}
+    \begin{block}{ねらい}
+        理論の見通しを良くし、
+        遅いサンプリングに対する高度な数値法への道を開く。
+    \end{block}
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：この章の到達目標との対応}
+    章頭の「できるようになること」への対応である。
+    \begin{itemize}
+        \item スコアとランジュバンによる生成 $\;\to\;$ 3.1–3.2
+        \item 単一ノイズのDSMとTweedie $\;\to\;$ 3.3
+        \item 複数ノイズのNCSNとDDPMノイズ予測との関係 $\;\to\;$ 3.4–3.5
+    \end{itemize}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{第3章のまとめ}
+    \begin{itemize}
+        \item スコア視点は、EBMの分配関数問題を迂回する第二の入口である
+        \item DSMとTweedieが、学習を単純な回帰とノイズ除去へ落とす
+        \item NCSNは複数スケールへ拡張し、DDPMと同じ情報を別パラメータで持つ
+        \item 残る課題は密な離散化による遅さであり、第4章の連続時間へ進む
+    \end{itemize}
+\end{frame}

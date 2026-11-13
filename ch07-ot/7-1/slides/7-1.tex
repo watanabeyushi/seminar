@@ -1,6 +1,236 @@
 % !TEX root = ../tex/7-1.tex
-\begin{frame}{7.1 Distribution-to-Distribution Translation}
+\input{../slides/ch07-colors}
+
+%=============================================
+\begin{frame}{第6章から第7章へ}
+    \begin{block}{ここまで（第6章）}
+        変分／スコア／フローを統一レンズで整理した。\\
+        生成は主に$p_{\mathrm{prior}}\leftrightarrow p_{\mathrm{data}}$（ノイズ$\leftrightarrow$データ）として扱ってきた。
+    \end{block}
+    \begin{block}{ここから（第7章・任意）}
+        より一般の\textbf{分布間翻訳} $p_{\mathrm{src}}\to p_{\mathrm{tgt}}$へ。\\
+        コスト効率の古典的定式化として OT／EOT／Schrödinger bridge を見る。
+    \end{block}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{この章の位置づけ（任意章）}
+    \begin{block}{中心の問い}
+        拡散モデルは、どの意味で「最適輸送」になっているのか？
+    \end{block}
     \begin{itemize}
-        \item
+        \item 確率過程としての拡散（前向き／逆向きSDE）\\
+        $\;\to\;$エントロピー正則化OT（Schrödinger bridge）と直結しやすい
+        \item 決定過程としてのPF-ODE\\
+        $\;\to\;$一般には既知の輸送目的の最適解とは限らない
     \end{itemize}
+    \begin{exampleblock}{Reader route}
+        主筋だけなら任意。\\
+        「拡散はOTか？」に精密に答えたいときに読む。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{この章の学習目標}
+    読了後にできるようになること：
+    \begin{enumerate}
+        \item カップリング／決定写像／動的フロー／確率的SBを区別し、\\
+        深層生成との概念対応を述べる
+        \item 古典OT・エントロピーOT・SBが何を最適化し、どう関係するか
+        \item 標準の前向き／逆向きSDEが、一般には指定端点のSBを解かない理由
+        \item PF-ODEは決定写像を与えるが、一般には二次コストOT写像と一致しない理由
+    \end{enumerate}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{7.1 の位置づけ}
+    \begin{block}{この節の役割}
+        分布間翻訳の動機を置き、OT／SBへの橋渡しをする序章
+    \end{block}
+    \begin{enumerate}
+        \item \textbf{動機}\\
+        $p_{\mathrm{prior}}\to p_{\mathrm{data}}$を超える翻訳タスク
+        \item \textbf{実務の入り口}\\
+        一端点法・二端点法・Flow Matching
+        \item \textbf{中核の問い}\\
+        Question~7.1.1／7.1.2（効率と「拡散＝OTか」）
+        \item \textbf{先読み}\\
+        7.2で最適性の定義、7.4--7.5で拡散との関係
+    \end{enumerate}
+\end{frame}
+%=============================================
+\section{動機：分布間翻訳}
+\asmain
+\begin{frame}{区切り：動機：分布間翻訳}
+    \tableofcontents[currentsection]
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{標準拡散の端点は固定}
+    通常の拡散モデルでは終端分布を標準ガウスに固定する：
+    \[
+        p_{\mathrm{prior}}
+        \;=\;
+        \mathcal{N}(\bm{0},\bm{I}).
+    \]
+    \begin{itemize}
+        \item 生成：$p_{\mathrm{prior}}\to p_{\mathrm{data}}$
+        \item 多くの応用は、\textbf{別のソース}$p_{\mathrm{src}}$を\textbf{別のターゲット}$p_{\mathrm{tgt}}$へ運ぶ必要がある
+    \end{itemize}
+    \begin{exampleblock}{例}
+        スケッチ$\to$写実画像、画風変換など。\\
+        いずれも「ノイズからデータ」より一般の翻訳。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{実務の入り口（一端点・二端点・FM）}
+    \begin{itemize}
+        \item \textbf{一端点法}（例：SDEdit）\\
+        ソース画像を途中時刻$t$まで拡散し、\\
+        ターゲット領域の学習済み拡散で逆拡散する
+        \item \textbf{二端点法}（例：Dual Diffusion Bridge）\\
+        共有潜在（多くは$t=1$のガウス）を介し、\\
+        ソース側PF-ODEとターゲット側逆ODEをつなぐ
+        \item \textbf{学習ベース}（第5.2節 Flow Matching）\\
+        $p_{\mathrm{src}}\to p_{\mathrm{tgt}}$を運ぶODE速度場を直接学習
+    \end{itemize}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{なぜ「二モデルを別々」では足りないか}
+    分布間の変換は、端点ごとに独立に学習したモデルをつなぐだけではない。
+    \begin{alertblock}{要請}
+        両端の力学を整合させ、しかも「安い」（コスト効率のよい）対応で運ぶ必要がある。
+    \end{alertblock}
+    \begin{block}{この節の方針}
+        応用カタログではなく、\\
+        古典的な分布間問題の数学的定式化（OT／SB）へ焦点を移す。
+    \end{block}
+\end{frame}
+%=============================================
+\section{中核の問い}
+\asmain
+\begin{frame}{区切り：中核の問い}
+    \tableofcontents[currentsection]
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{Question 7.1.1：最も効率的な変換とは}
+    \begin{alertblock}{Question 7.1.1}
+        二つの確率分布が与えられたとき、\\
+        総コストを最小化しつつ一方を他方へ変換する\\
+        最も効率的な方法は何か？
+    \end{alertblock}
+    \begin{itemize}
+        \item コスト$c(\vx,\bm{y})\ge 0$：点$\vx$から$\bm{y}$へ単位質量を動かす罰則
+        \item 典型例：二乗距離 $c(\vx,\bm{y})=\|\vx-\bm{y}\|_2^{2}$
+    \end{itemize}
+    \begin{exampleblock}{意味}
+        「対応の取り方」を最適化する問題が、最適輸送である。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{Question 7.1.2：拡散はOTか}
+    \begin{alertblock}{Question 7.1.2}
+        拡散モデルは、$p_{\mathrm{data}}$と$p_{\mathrm{prior}}$を結ぶ\\
+        一種の最適輸送か？　どのような意味で？
+    \end{alertblock}
+    \begin{itemize}
+        \item Flow Matchingを含む拡散系が、古典／正則化OTとどう接続するか
+        \item 「最適」の定義を先に固定する必要がある
+    \end{itemize}
+    \begin{block}{次（7.2）}
+        静的OT・動的OT・エントロピーOT・SBの分類表を作る。
+    \end{block}
+\end{frame}
+%=============================================
+\section{先読み：7.2以降の地図}
+\asmain
+\begin{frame}{区切り：先読み：7.2以降の地図}
+    \tableofcontents[currentsection]
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{最適性の定義（7.2で整理）}
+    \begin{enumerate}
+        \item \textbf{古典OT}（静的 Monge--Kantorovich）\\
+        式(7.2.1)：許容カップリング上で期待コストを最小化
+        \item \textbf{動的OT}（Benamou--Brenier）\\
+        式(7.2.3)：連続方程式の下で運動エネルギーを最小化
+        \item \textbf{エントロピーOT}（EOT）\\
+        式(7.2.5)：KL正則化。Schrödinger bridge（式7.2.8）と同値
+    \end{enumerate}
+    \begin{exampleblock}{動的な見え方}
+        OT $\Rightarrow$ 連続方程式に従う決定流。\\
+        SB $\Rightarrow$ Fokker--Planckに従う制御拡散。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{拡散との関係（7.4--7.5の予告）}
+    \begin{columns}[T,onlytextwidth]
+        \begin{column}{0.48\textwidth}
+            \begin{block}{7.4：SDE側}
+                固定の前向きノイズSDEは、\\
+                任意の$p_{\mathrm{src}},p_{\mathrm{tgt}}$間のSBそのものではない。\\
+                一端固定の半橋では最適になり得る。
+            \end{block}
+        \end{column}
+        \begin{column}{0.48\textwidth}
+            \begin{block}{7.5：ODE側}
+                PF-ODEは$p_{\mathrm{prior}}\to p_{\mathrm{data}}$の決定写像を与える。\\
+                しかし一般に二次コストのOT写像ではなく、\\
+                Benamou--Brenier作用を最小化しない。
+            \end{block}
+        \end{column}
+    \end{columns}
+    \vspace{0.4em}
+    \begin{exampleblock}{含意}
+        rectified flow（5.4.1）も、一般にはOT写像への理論保証はない。\\
+        PF-ODEとOTの完全対応は未解決に近い。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\section{まとめ}
+\asmain
+\begin{frame}{区切り：7.1のまとめ}
+    \tableofcontents[currentsection]
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{7.1 全体のまとめ}
+    \begin{enumerate}
+        \item \textbf{拡張}
+        ノイズ$\to$データを超え、$p_{\mathrm{src}}\to p_{\mathrm{tgt}}$の翻訳が必要
+        \item \textbf{実務}
+        SDEdit型／二端点ブリッジ／Flow Matchingが入り口
+        \item \textbf{要請}
+        端点整合に加え、コスト効率のよい対応が欲しい
+        \item \textbf{問い}
+        Q7.1.1（最安の変換）とQ7.1.2（拡散＝OTか）
+        \item \textbf{次}
+        7.2でOT／EOT／SBの問題設定を分類する
+    \end{enumerate}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{7.1 全体のまとめ：一本の流れ}
+    \begin{block}{今日の道筋}
+        標準拡散の端点固定
+        $\;\to\;$
+        分布間翻訳の動機
+        $\;\to\;$
+        コスト効率の問い
+        $\;\to\;$
+        OT／SBへの橋
+    \end{block}
+    \begin{block}{核心}
+        「どう運ぶか」を最適化する言語が最適輸送である。\\
+        拡散がその最適解かどうかは、問題設定を分けて問う。
+    \end{block}
+    \begin{block}{次へ（7.2）}
+        カップリング・$W_2$・動的OT・EOT・SBの分類表。
+    \end{block}
 \end{frame}

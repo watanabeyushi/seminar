@@ -1,7 +1,7 @@
-# 第3章 Score-Based Perspective: From EBMs to NCSN
+﻿# 第3章 Score-Based Perspective: From EBMs to NCSN
 
 論文 *The Principles of Diffusion Models* (arXiv:2510.21890) の第3章。
-節ごとにフォルダを分けています（`tex/` `slides/` `images/` `pdf/` `build/`）。
+節ごとに `tex/` `slides/` `images/` `build/` を分け、完成PDFは章直下の `pdf/` にまとめます。
 
 | フォルダ | 節 |
 |----------|------|
@@ -12,8 +12,12 @@
 | `3-5/` | 3.5 Summary: A Comparative View of NCSN and DDPM |
 | `3-6/` | 3.6 Closing Remarks |
 
+完成PDFの場所: `ch03-score-ncsn/pdf/`（例: `pdf/3-1.pdf`）。
+
 コンパイル例（`3-1/tex/` で）:
 
 ```powershell
-latexmk -lualatex -interaction=nonstopmode "-auxdir=..\build" "-outdir=..\pdf" "3-1.tex"
+latexmk -lualatex -interaction=nonstopmode "-auxdir=..\build" "-outdir=..\..\pdf" "3-1.tex"
 ```
+
+Cursor / LaTeX Workshop ではレシピ **latexmk (section)** が既定です（第1・2章のフラット構成は各 `tex/*.tex` 先頭の `% !LW recipe = latexmk (flat)`）。

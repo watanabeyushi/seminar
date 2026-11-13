@@ -1,6 +1,162 @@
 % !TEX root = ../tex/5-5.tex
+\input{../slides/ch05-colors}
+
+%=============================================
 \begin{frame}{5.5 Closing Remarks}
+    \begin{block}{この章で閉じた第三の柱（論文 5.5）}
+        変分・スコアに続く、決定的フローに根ざす拡散モデルの見方。
+    \end{block}
     \begin{itemize}
-        \item
+        \item 出発：Normalizing Flows（変数変換による可逆写像）
+        \item 連続化：Neural ODE（速度場が変換を支配）
+        \item 到達：Flow Matching（シミュレーション不要の速度回帰）
+    \end{itemize}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{第5章の道筋（全体像）}
+    \begin{enumerate}
+        \item \textbf{5.1 NF / Neural ODE}\\
+        離散の可逆変換から、連続時間の速度場へ
+        \item \textbf{5.2 Flow Matching}\\
+        確率経路と連続の式。条件付き速度への回帰
+        \item \textbf{5.3 経路と速度の構成}\\
+        ガウス特殊例、path-first / flow-first
+        \item \textbf{5.4（任意）}\\
+        Canonical affine・Rectify / Reflow
+    \end{enumerate}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{旅程：NF $\to$ NODE $\to$ FM}
+    \begin{block}{Normalizing Flows}
+        変数変換公式で、単純事前とデータ間の正確な可逆写像を学ぶ。
+    \end{block}
+    \begin{block}{Neural ODEs}
+        変換を連続時間ダイナミクスにする。\\
+        代償：訓練ループ内で ODE シミュレーションが必要。
+    \end{block}
+    \begin{block}{Flow Matching}
+        確率経路 $\{p_t\}$ と連続の式を満たす速度を先に定め、\\
+        条件付けトリックで周辺速度マッチを条件付き回帰へ落とす。\\
+        \textbf{シミュレーション不要}の学習。
+    \end{block}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{条件付けトリックという共通パターン}
+    変分・スコアと同様、FM も「条件付け」で学習を手なずける。
+    \begin{itemize}
+        \item 周辺速度 $v_t$ の直接マッチは一般に困難
+        \item 条件付き速度 $u_t(\cdot\mid \cdot)$ は閉じた形で書けることが多い
+        \item 条件付き回帰の平均が、周辺目標を誘導する
+    \end{itemize}
+    \begin{exampleblock}{拡散モデルの位置づけ}
+        ガウス事前をデータへ運ぶ決定的フロー学習の、特別な場合として読める。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{Score SDE との対応}
+    同じ拡散確率経路に対して：
+    \begin{columns}[T,onlytextwidth]
+        \begin{column}{0.48\textwidth}
+            \begin{block}{Score SDE（第4章）}
+                スコア $s_\phi\approx\nabla\log p_t$ を学ぶ。\\
+                そこから PF-ODE の速度を組む。
+            \end{block}
+        \end{column}
+        \begin{column}{0.48\textwidth}
+            \begin{block}{Flow Matching（第5章）}
+                同じ（または一般の）経路の\\
+                速度場 $v_\theta$ を直接当てる。
+            \end{block}
+        \end{column}
+    \end{columns}
+    \vfill
+    \begin{block}{共通点}
+        どちらも、扱いにくい周辺目標を\\
+        扱いやすい条件付き目標へ落とせる。
+    \end{block}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{三本の柱が揃った}
+    \centering
+    \renewcommand{\arraystretch}{1.35}
+    \begin{tabular}{lll}
+        \textbf{視点} & \textbf{起源} & \textbf{学ぶ量の例} \\
+        \hline
+        変分 & VAE / DDPM & ノイズ予測・ELBO \\
+        スコア & EBM / NCSN & $\nabla\log p_t$ \\
+        フロー & NF / NODE / FM & 速度場 $v_t$ \\
+    \end{tabular}
+    \vfill
+    \begin{itemize}
+        \item 出自は違うが、いずれも連続時間の生成過程へ収束
+        \item 学習を可能にする条件付け戦略が繰り返し現れる
+    \end{itemize}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{章頭の到達目標との対応}
+    章頭の ``After this chapter, you will be able to...'' への対応。
+    \begin{itemize}
+        \item NF / NODE / FM を「確率の輸送」でつなぐ
+        \item Score SDE：スコア $\to$ PF-ODE。FM：速度を直接
+        \item 連続の式が、ODE速度と密度発展をつなぐ
+        \item ガウス拡散を超える一般ソース／ターゲット輸送
+        \item 同じ周辺・異なる速度／カップリング／粒子軌道
+        \item path-first と flow-first の二通りの条件付き構成
+    \end{itemize}
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：到達目標チェックリスト}
+    \footnotesize
+    \begin{enumerate}
+        \item 離散可逆変換 $\to$ 連続速度場として輸送を語れるか
+        \item 同じ経路で「スコア経由」と「速度直接」を対比できるか
+        \item 連続の式を、密度レベルでの拘束として説明できるか
+        \item FMが一般分布間でも simulation-free な理由を言えるか
+        \item $\{p_t\}$ と、それを実現する速度・カップリング・軌道を区別できるか
+        \item 条件付き経路から速度、または条件付き流マップから速度、を説明できるか
+    \end{enumerate}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{核心の一文}
+    \begin{block}{Flow Matchingの核心}
+        確率経路を先に定め、連続の式を満たす速度を\\
+        条件付き回帰で当てる。生成は決定的ODEの数値解である。
+    \end{block}
+    \begin{itemize}
+        \item NODEの訓練内シミュレーションを避ける
+        \item 拡散は、ガウス事前$\to$データのフロー学習の一例
+        \item Score SDEのPF-ODEと同じ舞台を、別の学習量で見る
+    \end{itemize}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{第6章へ：統一レンズ}
+    次章では三視点を、ひとつの枠にまとめる。
+    \begin{enumerate}
+        \item 変分・スコア・フローが、根本で数学的に同等であること
+        \item Fokker--Planckが、三視点に共通する密度発展の法則であること
+    \end{enumerate}
+    \begin{block}{共通レシピの予告}
+        前向きの破壊過程で周辺経路を定め、\\
+        その経路を運ぶ時間依存ベクトル場を学ぶ。
+    \end{block}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{第5章のまとめ}
+    \begin{itemize}
+        \item NF $\to$ NODE $\to$ FM で、決定的確率輸送の第三の柱を見た
+        \item FMは条件付き速度回帰により、simulation-free に学習する
+        \item Score SDEと同じ確率流を、速度を直接当てる見方で読む
+        \item （任意）Rectify / Reflow で周辺軌道を真っ直ぐに近づける
+        \item 次は第6章：三視点の統一と Fokker--Planck
     \end{itemize}
 \end{frame}

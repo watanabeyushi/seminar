@@ -1,6 +1,299 @@
 % !TEX root = ../tex/4-5.tex
-\begin{frame}{4.5 (Optional) Fokker-Planck and Reverse SDE}
+\input{../slides/ch04-colors}
+
+%=============================================
+\begin{frame}{4.5 (Optional)：Fokker--Planck と逆時間SDE}
+    \begin{block}{この節の位置づけ（論文 4.6）}
+        周辺分布の時間発展と、逆時間SDEの形がどこから来るか。\\
+        厳密証明ではなく、周辺化とBayesによる直感的導出である。
+    \end{block}
     \begin{itemize}
-        \item
+        \item 遷移核の周辺化 $\;\to\;$ Fokker--Planck（FP）
+        \item Bayesで逆遷移を書く $\;\to\;$ スコア補正つき逆時間SDE
     \end{itemize}
+    \vfill
+    \footnotesize
+    初読ではスキップ可。4.1--4.2の式の形の「なぜ」を後から埋める節。
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{4.5 の道筋}
+    \begin{enumerate}
+        \item \textbf{遷移核の周辺化}\\
+        Chapman--Kolmogorovから、微小$\Delta t$の密度変化を展開する
+        \item \textbf{Fokker--Planckへ}\\
+        ドリフトと拡散が、周辺密度の連続時間発展を決める
+        \item \textbf{逆遷移とBayes}\\
+        $p(x_t\mid x_{t+\Delta t})$にスコアが現れ、逆時間SDEの形になる
+    \end{enumerate}
+    \begin{alertblock}{注意}
+        以下はヒューリスティック。厳密論は付録・文献へ。
+    \end{alertblock}
+\end{frame}
+%=============================================
+\section{4.6.1 Fokker--Planck from Marginalization}
+\assuppl
+\begin{frame}{\supplmark：前向き遷移核（再掲）}
+    式（4.1.2）のガウス遷移：
+    \[
+        p(x_{t+\Delta t}\mid x_t)
+        =
+        \mathcal{N}\!\bigl(
+            x_{t+\Delta t};\;
+            x_t + f(x_t,t)\Delta t,\;
+            g^{2}(t)\Delta t\,I
+        \bigr)
+        \tag{4.1.2}
+    \]
+    \begin{exampleblock}{ねらい}
+        周辺$p_t(x_t)$と$p_{t+\Delta t}(x_{t+\Delta t})$をつなぎ、\\
+        $\Delta t\to 0$で周辺密度のPDE（Fokker--Planck）を得る。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：Chapman--Kolmogorov}
+    マルコフ性より、時刻$t+\Delta t$の周辺は
+    \[
+        p_{t+\Delta t}(x)
+        =
+        \int
+        \mathcal{N}\!\bigl(
+            x;\; y + f(y,t)\Delta t,\;
+            g^{2}(t)\Delta t\,I
+        \bigr)\,
+        p_t(y)\,dy
+    \]
+    \begin{exampleblock}{読み方}
+        「前の状態$y$にドリフトを足し、小さなガウスノイズを載せたもの」を\\
+        前の周辺$p_t$で平均する。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：変数変換 $u=y+f\Delta t$}
+    中心を$u:=y+f(y,t)\Delta t$に移す。微小$\Delta t$では
+    \[
+        y = u - f(u,t)\Delta t + O(\Delta t^{2}),
+        \qquad
+        \det\frac{\partial y}{\partial u}
+        = 1 - (\nabla_u\cdot f)(u,t)\Delta t + O(\Delta t^{2}).
+    \]
+    変数変換のあと、被積分関数は概ね
+    \[
+        \resizebox{0.95\textwidth}{!}{$
+        \mathcal{N}(x;u,g^{2}\Delta t\,I)\,
+        \bigl[
+            p_t(u)
+            - \Delta t\, f\cdot\nabla_u p_t
+            - \Delta t\,(\nabla_u\cdot f)\,p_t
+        \bigr]
+        $}
+    \]
+    （$O(\Delta t^{2})$は省略）。
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：Taylor--ガウス平滑化}
+    $z\sim\mathcal{N}(0,I)$、$\sigma>0$に対し
+    \[
+        \int \mathcal{N}(x;u,\sigma^{2}I)\,\phi(u)\,du
+        =
+        \mathbb{E}[\phi(x+\sigma z)]
+        =
+        \phi(x) + \tfrac{\sigma^{2}}{2}\Delta_x\phi(x) + O(\sigma^{4}).
+    \]
+    $\sigma^{2}=g^{2}(t)\Delta t$とし、$\phi=p_t$、$\phi=f\cdot\nabla p_t$、
+    $\phi=(\nabla\cdot f)p_t$に適用する。
+    \begin{exampleblock}{要点}
+        ガウス畳み込みは、密度にラプラシアン項を足す。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：差分から連続極限へ}
+    整理すると
+    \[
+        \resizebox{0.98\textwidth}{!}{$
+        \dfrac{p_{t+\Delta t}(x)-p_t(x)}{\Delta t}
+        =
+        -\nabla_x\cdot\bigl(f(x,t)p_t(x)\bigr)
+        +
+        \dfrac{g^{2}(t)}{2}\Delta_x p_t(x)
+        + O(\Delta t)
+        $}
+    \]
+    $\Delta t\to 0$で Fokker--Planck 方程式：
+    \[
+        \partial_t p_t(x)
+        =
+        -\nabla_x\cdot\bigl[f(x,t)p_t(x)\bigr]
+        +
+        \tfrac12 g^{2}(t)\Delta_x p_t(x)
+        \tag{4.2.1}
+    \]
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{FPが言っていること（本編への接続）}
+    \begin{block}{周辺の時間発展}
+        ドリフト$f$は確率の流れを運び、\\
+        拡散$g$は密度をラプラシアンでならす。
+    \end{block}
+    continuity方程式の形では
+    \[
+        \partial_t p_t
+        =
+        -\nabla_x\cdot\bigl(v\,p_t\bigr),
+        \qquad
+        v
+        =
+        f - \tfrac12 g^{2}\nabla_x\log p_t
+    \]
+    \begin{itemize}
+        \item 同じ$v$が PF-ODE の速度場になる（4.2）
+        \item 逆時間SDEは、同じ周辺列$\{p_t\}$を確率的にたどる別の力学
+    \end{itemize}
+\end{frame}
+%=============================================
+\section{4.6.2 Why Reverse-Time SDE}
+\asmain
+\begin{frame}{なぜ逆時間SDEはあの形か}
+    \begin{block}{問い}
+        式（4.1.6）のドリフトに、なぜ$-g^{2}\nabla_x\log p_t$が出るか？
+    \end{block}
+    \[
+        \mathrm{d}\bar{x}(t)
+        =
+        \bigl[
+            f(\bar{x},t) - g^{2}(t)\nabla_x\log p_t(\bar{x})
+        \bigr]\mathrm{d}t
+        + g(t)\,\mathrm{d}\bar{w}(t)
+        \tag{4.1.6}
+    \]
+    \begin{itemize}
+        \item 厳密にはFPの性質が要る
+        \item ここでは離散Bayes＋Taylorで、スコア補正の出方を見る
+    \end{itemize}
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：Bayesで逆遷移を書く}
+    離散の逆核$p(x_t\mid x_{t+\Delta t})$をBayesで：
+    \[
+        p(x_t\mid x_{t+\Delta t})
+        =
+        p(x_{t+\Delta t}\mid x_t)\,
+        \frac{p_t(x_t)}{p_{t+\Delta t}(x_{t+\Delta t})}
+        \tag{4.6.1}
+    \]
+    すなわち
+    \[
+        p(x_t\mid x_{t+\Delta t})
+        =
+        p(x_{t+\Delta t}\mid x_t)\,
+        \exp\bigl(\log p_t(x_t)-\log p_{t+\Delta t}(x_{t+\Delta t})\bigr).
+    \]
+    \begin{exampleblock}{直感}
+        前向きガウスに、周辺密度の比（対数差）を掛ける。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：対数密度のTaylor}
+    $(x_t,t)$まわりで展開すると
+    \[
+        \resizebox{0.98\textwidth}{!}{$
+        \log p_t(x_t)-\log p_{t+\Delta t}(x_{t+\Delta t})
+        =
+        -\nabla_x\log p_t(x_t)\cdot(x_{t+\Delta t}-x_t)
+        -\partial_t\log p_t\,\Delta t
+        + O(\|h\|_{2}^{2})
+        $}
+        \tag{4.6.2}
+    \]
+    拡散では$x_{t+\Delta t}-x_t=O_p(\sqrt{\Delta t})$なので、\\
+    空間の2次項は$O_p(\Delta t)$級のヒューリスティックになる。
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：指数部で平方完成}
+    前向きガウスの指数と、スコア項$-\nabla\log p_t\cdot\delta$を合わせる。\\
+    $\delta:=x_{t+\Delta t}-x_t$、$\mu:=f\Delta t$として
+    \[
+        \resizebox{0.95\textwidth}{!}{$
+        \|\delta-\mu\|_{2}^{2}
+        + 2g^{2}\Delta t\,\nabla_x\log p_t\cdot\delta
+        =
+        \bigl\|
+            \delta
+            - \bigl[\mu - g^{2}\Delta t\,\nabla_x\log p_t\bigr]
+        \bigr\|_{2}^{2}
+        + \cdots
+        $}
+    \]
+    \begin{exampleblock}{意味}
+        平均が$f\Delta t$から
+        $f\Delta t - g^{2}\Delta t\,\nabla_x\log p_t$へずれる。\\
+        これがスコア補正である。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：逆核は再びガウス}
+    整理すると（leading order）
+    \[
+        \resizebox{0.98\textwidth}{!}{$
+        p(x_t\mid x_{t+\Delta t})
+        \approx
+        \mathcal{N}\!\Bigl(
+            x_t;\;
+            x_{t+\Delta t}
+            - \bigl[f - g^{2}\nabla_x\log p_t\bigr]\Delta t,\;
+            g^{2}(t)\Delta t\,I
+        \Bigr)
+        $}
+    \]
+    \begin{itemize}
+        \item 分散は前向きと同じ$g^{2}\Delta t\,I$
+        \item 平均だけがスコアで修正される
+        \item $\partial_t\log p_t$項や高次項は$\Delta t\to 0$で消える／誤差に吸収
+    \end{itemize}
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：連続極限で式（4.1.6）へ}
+    $\Delta t\approx 0$では
+    \[
+        f(x_t,t)\approx f(x_{t+\Delta t},t+\Delta t),\quad
+        \nabla_x\log p_t(x_t)
+        \approx
+        \nabla_x\log p_{t+\Delta t}(x_{t+\Delta t})
+    \]
+    と近似でき、逆核の平均・分散から連続時間の逆SDE
+    \[
+        \mathrm{d}\bar{x}
+        =
+        \bigl[f - g^{2}\nabla_x\log p_t\bigr]\mathrm{d}t
+        + g\,\mathrm{d}\bar{w}
+        \tag{4.1.6}
+    \]
+    が「導かれる」。
+    \begin{exampleblock}{一文で}
+        Bayesの密度比が、ドリフトにスコア補正を付ける。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{4.5 のまとめ}
+    \begin{itemize}
+        \item 遷移核の周辺化＋微小展開 $\;\to\;$ Fokker--Planck（4.2.1）
+        \item FPは、周辺密度がドリフトと拡散でどう流れるかを決める
+        \item 逆遷移をBayesで書くと、平均に$-g^{2}\nabla\log p_t$が現れる
+        \item それが逆時間SDE（4.1.6）の形の直感的理由である
+    \end{itemize}
+    \begin{block}{本編との関係}
+        生成は「スコアを学んで微分方程式を解く」ことであり、\\
+        この節はそのベクトル場の形の由来を補う。
+    \end{block}
 \end{frame}

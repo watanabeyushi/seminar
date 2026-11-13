@@ -1,8 +1,541 @@
 ﻿% !TEX root = ../tex/3-3.tex
 \input{../slides/ch03-colors}
-\begin{frame}{3.3 Denoising Score Matching}
+
+%=============================================
+\begin{frame}{3.2から3.3へ}
+    \begin{block}{ここまで（3.2）}
+        スコア$s_\phi$を直接学習し、ランジュバンで生成できる。\\
+        等価形（3.2.2）は真のスコアを消すが、
+        $\operatorname{Tr}(\nabla_{\bm{x}}s_\phi)$が残る。
+    \end{block}
+    \begin{block}{ここから（3.3）}
+        トレース計算を避け、既知ノイズの条件付きスコアを教師にする。\\
+        これがDenoising Score Matching（DSM）である。
+    \end{block}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{3.3 の位置づけ}
+    \begin{block}{この節の役割}
+        古典的スコアマッチングから、ノイズ付きの実用的学習へ進む
+    \end{block}
+    \begin{enumerate}
+        \item \textbf{3.3.1 動機}\\
+        トレースの負担と、スライスドSMからDSMへの流れ
+        \item \textbf{3.3.2 学習}\\
+        条件付けによるDSM損失（3.3.2）（3.3.4）
+        \item \textbf{3.3.3 サンプリング}\\
+        学習したスコアでランジュバンする
+        \item \textbf{3.3.4 Tweedie}\\
+        スコア予測がなぜノイズ除去になるか
+    \end{enumerate}
+    \vfill
+    \footnotesize
+    3.3.5（SURE）と3.3.6（一般化）は補足
+\end{frame}
+%=============================================
+\section{3.3.1 動機}
+\asmain
+\begin{frame}{区切り：3.3.1 動機}
+    \tableofcontents[currentsection]
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{等価形でもトレースが重い}
+    式（3.2.2）
+    \[
+        \mathcal{L}_{\mathrm{eSM}}(\phi)
+        =
+        \mathbb{E}_{p_{\mathrm{data}}}
+        \Bigl[
+        \operatorname{Tr}\bigl(\nabla_{\bm{x}}s_\phi(\bm{x})\bigr)
+        +
+        \tfrac12\|s_\phi(\bm{x})\|_2^2
+        \Bigr]
+    \]
+    は真のスコアを使わないが、ヤコビアンの対角和が要る。
+    \begin{block}{高次元での問題}
+        全ヤコビアンを作らなくても、各座標の微分情報を集める必要がある。\\
+        入力次元$D$が大きいほど、厳密評価は重くなる。
+    \end{block}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{スライスドSM：ランダム方向でトレースを推定}
+    Hutchinsonの恒等式
+    $\operatorname{Tr}(A)=\mathbb{E}_{\bm{u}}[\bm{u}^{\top}A\bm{u}]$
+    （$\mathbb{E}[\bm{u}]=\bm{0}$、$\mathbb{E}[\bm{u}\bm{u}^{\top}]=\bm{I}$）より
+    \[
+        \resizebox{0.98\textwidth}{!}{$
+        \mathcal{L}_{\mathrm{eSM}}(\phi)
+        =
+        \mathbb{E}_{\bm{x},\bm{u}}
+        \Bigl[
+        \bm{u}^{\top}(\nabla_{\bm{x}}s_\phi)\bm{u}
+        +
+        \tfrac12(\bm{u}^{\top}s_\phi)^{2}
+        \Bigr]
+        $}
+    \]
     \begin{itemize}
-        \item
+        \item JVP/VJPで方向微分だけ計算すればよく、巨大行列を明示しなくてよい
+        \item $K$本のプローブ平均で不偏推定（分散は$O(1/K)$）
     \end{itemize}
 \end{frame}
-
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：スライスドSMの限界}
+    トレースは避けられるが、生の$p_{\mathrm{data}}$上で場を合わせる点は同じである。
+    \begin{exampleblock}{脆さ}
+        \begin{itemize}
+            \item 画像など低次元多様体上では、スコアが定義しにくく不安定になり得る
+            \item 観測点だけで場を縛るため、近傍の制御が弱い
+            \item プローブ分散と、繰り返しのJVP/VJPコストが残る
+        \end{itemize}
+    \end{exampleblock}
+    \begin{exampleblock}{次の一手}
+        より頑健でスケールしやすいのが、
+        Denoising Score Matching（Vincent, 2011）である。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{3.3.1 のまとめ}
+    \begin{itemize}
+        \item Hyv\"arinen形は真のスコアを消すが、トレース計算が重い
+        \item スライスドSMはランダム方向でトレースを推定する
+        \item それでも生データ上のスコア合わせは脆いので、DSMへ進む
+    \end{itemize}
+\end{frame}
+%=============================================
+\section{3.3.2 学習}
+\asmain
+\begin{frame}{区切り：3.3.2 学習}
+    \tableofcontents[currentsection]
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{未知の周辺スコアが障害になる}
+    ノイズ付き周辺$p_{\sigma}$に対するスコアマッチングは
+    \[
+        \mathcal{L}_{\mathrm{SM}}(\phi;\sigma)
+        :=
+        \frac12
+        \mathbb{E}_{\tilde{\bm{x}}\sim p_{\sigma}}
+        \bigl\|
+        s_\phi(\tilde{\bm{x}},\sigma)
+        -
+        \nabla_{\tilde{\bm{x}}}\log p_{\sigma}(\tilde{\bm{x}})
+        \bigr\|_{2}^{2}
+        \tag{3.3.1}
+    \]
+    \begin{block}{問題}
+        教師$\nabla_{\tilde{\bm{x}}}\log p_{\sigma}(\tilde{\bm{x}})$は一般に未知である。\\
+        Vincent (2011) は、きれいな$\bm{x}$で条件付けて等価で扱いやすい損失へ移す。
+    \end{block}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{条件付けでDSM損失にする}
+    既知の条件付き分布$p_{\sigma}(\tilde{\bm{x}}|\bm{x})$でノイズを入れ、
+    \[
+        p_{\sigma}(\tilde{\bm{x}})
+        =
+        \int
+        p_{\sigma}(\tilde{\bm{x}}|\bm{x})\,
+        p_{\mathrm{data}}(\bm{x})\,
+        d\bm{x}
+    \]
+    のスコアを学習する。等価なDSM損失は
+    \[
+        \resizebox{0.98\textwidth}{!}{$
+        \mathcal{L}_{\mathrm{DSM}}(\phi;\sigma)
+        :=
+        \dfrac12
+        \mathbb{E}_{\bm{x}\sim p_{\mathrm{data}},\,
+        \tilde{\bm{x}}\sim p_{\sigma}(\cdot|\bm{x})}
+        \bigl\|
+        s_\phi(\tilde{\bm{x}},\sigma)
+        -
+        \nabla_{\tilde{\bm{x}}}\log p_{\sigma}(\tilde{\bm{x}}|\bm{x})
+        \bigr\|_{2}^{2}
+        $}
+        \tag{3.3.2}
+    \]
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{定理3.3.1：$\mathcal{L}_{\mathrm{SM}}$と$\mathcal{L}_{\mathrm{DSM}}$は同じ最小化}
+    任意の固定$\sigma>0$について
+    \[
+        \mathcal{L}_{\mathrm{SM}}(\phi;\sigma)
+        =
+        \mathcal{L}_{\mathrm{DSM}}(\phi;\sigma)+C
+        \tag{3.3.3}
+    \]
+    （$C$は$\phi$に依らない）。両者の最小化子は
+    \[
+        s^{\star}(\tilde{\bm{x}},\sigma)
+        =
+        \nabla_{\tilde{\bm{x}}}\log p_{\sigma}(\tilde{\bm{x}})
+    \]
+    （ほとんどすべての$\tilde{\bm{x}}$）である。
+    \begin{block}{読み方}
+        条件付きスコアを教師にすれば、
+        未知の周辺スコアを直接使わずに同じ最適解へ到達できる。
+    \end{block}
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：条件付けの技法（Insight 3.3.1）}
+    \begin{exampleblock}{共通の原理}
+        データ点$\bm{x}$で条件付けると、
+        扱いにくい損失がモンテカルロ可能な形になる。\\
+        DDPMの変分視点（定理2.2.1）でも同じ発想が出る。
+    \end{exampleblock}
+    \begin{exampleblock}{あとで}
+        Flow Matchingなど、フロー視点でも類似の条件付けが現れる（5.2）。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{図3.5：条件付けで教師が閉じた形になる}
+    \centering
+    \includegraphics[width=\textwidth,height=0.68\textheight,keepaspectratio]{fig-3-5.jpg}
+    \vfill
+    左の真のスコアは未知。右の条件付きスコアはガウスなら閉じた形で書ける。
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：図3.5の読み方}
+    \begin{columns}[T,onlytextwidth]
+        \begin{column}{0.48\textwidth}
+            \begin{exampleblock}{左（×）}
+                $\nabla_{\bm{x}}\log p_{\mathrm{data}}$は通常わからない。\\
+                そのままでは回帰の教師にできない。
+            \end{exampleblock}
+        \end{column}
+        \begin{column}{0.48\textwidth}
+            \begin{exampleblock}{右（✓）}
+                $\tilde{\bm{x}}=\bm{x}+\sigma\bm{\epsilon}$なら
+                $\nabla_{\tilde{\bm{x}}}\log p_{\sigma}(\tilde{\bm{x}}|\bm{x})$
+                は明示できる。
+            \end{exampleblock}
+        \end{column}
+    \end{columns}
+    \vspace{0.35em}
+    \begin{exampleblock}{ポイント}
+        ノイズの入れ方を自分で決めるから、
+        条件付きスコアが計算可能になる。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{ガウスノイズなら教師が明示できる}
+    $\tilde{\bm{x}}=\bm{x}+\sigma\bm{\epsilon}$、
+    $\bm{\epsilon}\sim\mathcal{N}(\bm{0},\bm{I})$とすると
+    \[
+        \nabla_{\tilde{\bm{x}}}\log p_{\sigma}(\tilde{\bm{x}}|\bm{x})
+        =
+        \frac{\bm{x}-\tilde{\bm{x}}}{\sigma^{2}}
+        =
+        -\frac{\bm{\epsilon}}{\sigma}
+    \]
+    よって
+    \[
+        \resizebox{0.98\textwidth}{!}{$
+        \begin{aligned}
+        \mathcal{L}_{\mathrm{DSM}}(\phi;\sigma)
+        &=
+        \dfrac12
+        \mathbb{E}_{\bm{x},\tilde{\bm{x}}}
+        \Bigl\|
+        s_\phi(\tilde{\bm{x}},\sigma)
+        -
+        \dfrac{\bm{x}-\tilde{\bm{x}}}{\sigma^{2}}
+        \Bigr\|_{2}^{2}\\[2pt]
+        &=
+        \dfrac12
+        \mathbb{E}_{\bm{x},\bm{\epsilon}}
+        \Bigl\|
+        s_\phi(\bm{x}+\sigma\bm{\epsilon},\sigma)
+        +
+        \dfrac{\bm{\epsilon}}{\sigma}
+        \Bigr\|_{2}^{2}
+        \end{aligned}
+        $}
+        \tag{3.3.4}
+    \]
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{DSMが学ぶのは平滑化した分布のスコア}
+    固定$\sigma>0$では、$p_{\sigma}=p_{\mathrm{data}}*\mathcal{N}(\bm{0},\sigma^{2}\bm{I})$のスコアを学ぶ。
+    \begin{columns}[T,onlytextwidth]
+        \begin{column}{0.48\textwidth}
+            \begin{block}{$\sigma$が小さい}
+                局所構造が残り、
+                ノイズ付き点をデータ側へ戻す向きが得られる。
+            \end{block}
+        \end{column}
+        \begin{column}{0.48\textwidth}
+            \begin{block}{$\sigma$が大きい}
+                細部が消え、モードが合流し、
+                粗い大域構造のスコアになる。
+            \end{block}
+        \end{column}
+    \end{columns}
+    \vfill
+    3.4では複数ノイズを組み合わせ、粗探索と細部復元を分担させる。
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{3.3.2 のまとめ}
+    \begin{itemize}
+        \item 周辺スコアは未知だが、条件付きスコアなら教師にできる
+        \item $\mathcal{L}_{\mathrm{SM}}$と$\mathcal{L}_{\mathrm{DSM}}$は定数差で同じ最小化（3.3.3）
+        \item ガウスなら教師は$(\bm{x}-\tilde{\bm{x}})/\sigma^{2}$（3.3.4）
+    \end{itemize}
+\end{frame}
+%=============================================
+\section{3.3.3 サンプリング}
+\asmain
+\begin{frame}{区切り：3.3.3 サンプリング}
+    \tableofcontents[currentsection]
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{学習したスコアでランジュバンする}
+    ノイズレベル$\sigma$で学習した$s_{\phi^\star}(\tilde{\bm{x}},\sigma)$を入れ、
+    \[
+        \tilde{\bm{x}}_{n+1}
+        =
+        \tilde{\bm{x}}_n
+        +
+        \eta\,s_{\phi^\star}(\tilde{\bm{x}}_n,\sigma)
+        +
+        \sqrt{2\eta}\,\bm{\epsilon}_n,
+        \qquad
+        \bm{\epsilon}_n\sim\mathcal{N}(\bm{0},\bm{I})
+        \tag{3.3.5}
+    \]
+    \[
+        s_{\phi^\star}(\tilde{\bm{x}}_n,\sigma)
+        \;\approx\;
+        \nabla_{\tilde{\bm{x}}}\log p_{\sigma}(\tilde{\bm{x}}_n)
+    \]
+    $\sigma$が十分小さく、十分反復すれば、
+    $\tilde{\bm{x}}_n$は$p_{\mathrm{data}}$からのサンプルに近づく。
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{ノイズを入れる二つの利点}
+    生のスコアマッチング（3.2.1）と比べ、
+    $p_{\sigma}$を作るガウス摂動には次の利点がある。
+    \begin{block}{勾配が定義しやすい}
+        データが低次元多様体上でも、ノイズで$\mathbb{R}^{D}$全体に広がる。\\
+        だから$\nabla_{\tilde{\bm{x}}}\log p_{\sigma}$が至る所で定義される。
+    \end{block}
+    \begin{block}{被覆が良くなる}
+        モード間の薄い領域が平滑化され、学習信号が安定しやすい。\\
+        ランジュバンも低密度を渡りやすくなる。
+    \end{block}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{3.3.3 のまとめ}
+    \begin{itemize}
+        \item 学習後は式（3.3.5）のランジュバンでサンプルする
+        \item ノイズはスコアの定義域とモード間の被覆を改善する
+        \item 単一$\sigma$だけでは粗さ／細部の両立はまだ難しい（3.4へ）
+    \end{itemize}
+\end{frame}
+%=============================================
+\section{3.3.4 Tweedieの公式}
+\asmain
+\begin{frame}{区切り：3.3.4 Tweedieの公式}
+    \tableofcontents[currentsection]
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{なぜDSMが「ノイズ除去」なのか}
+    Tweedieの公式は、ノイズ付き観測だけから
+    きれいな信号の事後平均をスコアで書ける、という主張である。
+    \begin{block}{直感}
+        ノイズ付き$\tilde{\bm{x}}$を、周辺スコアの向きに
+        ちょうど$\sigma^{2}$だけ動かすと、
+        きれいな$\bm{x}$の条件付き平均（デノイザ）が得られる。
+    \end{block}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{補題3.3.2：Tweedieの公式}
+    $\bm{x}\sim p_{\mathrm{data}}$、
+    $\tilde{\bm{x}}|\bm{x}\sim\mathcal{N}(\cdot;\,\alpha\bm{x},\,\sigma^{2}\bm{I})$
+    （$\alpha\neq 0$）とすると
+    \[
+        \alpha\,\mathbb{E}[\bm{x}|\tilde{\bm{x}}]
+        =
+        \tilde{\bm{x}}
+        +
+        \sigma^{2}\,
+        \nabla_{\tilde{\bm{x}}}\log p_{\sigma}(\tilde{\bm{x}})
+        \tag{3.3.6}
+    \]
+    特に$\alpha=1$なら
+    \[
+        \mathbb{E}[\bm{x}|\tilde{\bm{x}}]
+        =
+        \tilde{\bm{x}}
+        +
+        \sigma^{2}\,
+        \nabla_{\tilde{\bm{x}}}\log p_{\sigma}(\tilde{\bm{x}})
+    \]
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{スコア予測はデノイザを決める}
+    DSMで$s_\phi(\tilde{\bm{x}},\sigma)\approx\nabla_{\tilde{\bm{x}}}\log p_{\sigma}(\tilde{\bm{x}})$なら
+    \[
+        \widehat{\bm{x}}
+        =
+        \frac{1}{\alpha}
+        \Bigl(
+        \tilde{\bm{x}}
+        +
+        \sigma^{2}\,s_\phi(\tilde{\bm{x}},\sigma)
+        \Bigr)
+    \]
+    がデノイザ（事後平均の近似）である。
+    \begin{block}{核心}
+        スコアを学ぶことと、ノイズ除去を学ぶことは、
+        ガウス摂動のもとでは同じ情報の裏表である。
+    \end{block}
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：高次のTweedie（任意）}
+    古典的Tweedieは事後平均を1階のスコアで書く。\\
+    高次では事後共分散などが$\log p_{\sigma}$の高階微分で書ける。
+    \[
+        \operatorname{Cov}[\bm{x}|\tilde{\bm{x}}]
+        =
+        \sigma^{2}\bm{I}
+        +
+        \sigma^{4}\,
+        \nabla_{\tilde{\bm{x}}}^{2}\log p_{\sigma}(\tilde{\bm{x}})
+    \]
+    \begin{exampleblock}{読み方}
+        平均だけでなく不確かさも、ノイズ付き周辺の幾何から読める。\\
+        高次スコアを直接学ぶ研究もあるが、本節の本筋は1階である。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{3.3.4 のまとめ}
+    \begin{itemize}
+        \item Tweedieにより、デノイザはスコアの一次式で書ける
+        \item DSMの最適スコアは、そのまま最適デノイザを与える
+        \item だからDSMは「スコア学習」であると同時に「ノイズ除去学習」である
+    \end{itemize}
+\end{frame}
+%=============================================
+\section{補足：SUREと一般化}
+\assuppl
+\begin{frame}{区切り：補足（SURE / 一般化スコアマッチング）}
+    \tableofcontents[currentsection]
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：SUREはきれいな信号なしでMSEを見積もる}
+    $\tilde{\bm{x}}=\bm{x}+\sigma\bm{\epsilon}$に対するデノイザ$D$について
+    \[
+        \operatorname{SURE}(D;\tilde{\bm{x}})
+        =
+        \|D(\tilde{\bm{x}})-\tilde{\bm{x}}\|_{2}^{2}
+        +
+        2\sigma^{2}\,\nabla_{\tilde{\bm{x}}}\!\cdot D(\tilde{\bm{x}})
+        -D\sigma^{2}
+        \tag{3.3.7}
+    \]
+    （末項の$D$は入力次元。デノイザと同じ記号なので注意。）
+    \begin{exampleblock}{意味}
+        右辺はノイズ付き$\tilde{\bm{x}}$だけで計算できる。\\
+        期待値をとると、未知のきれいな$\bm{x}$に対する真のMSEと一致する。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：SURE最適＝Tweedieのデノイザ}
+    期待SUREを最小化すると、Bayesデノイザ
+    \[
+        D^{\star}(\tilde{\bm{x}})
+        =
+        \mathbb{E}[\bm{x}|\tilde{\bm{x}}]
+        =
+        \tilde{\bm{x}}
+        +
+        \sigma^{2}\,
+        \nabla_{\tilde{\bm{x}}}\log p_{\sigma}(\tilde{\bm{x}})
+        \tag{3.3.8}
+    \]
+    に到達する。
+    $D(\tilde{\bm{x}})=\tilde{\bm{x}}+\sigma^{2}s_\phi(\tilde{\bm{x}},\sigma)$と置くと、
+    SURE最小化は（定数を除き）ノイズレベル$\sigma$でのHyv\"arinen形と一致する。
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：一般化スコアマッチングの見方}
+    古典・DSM・高次はいずれも、ある線形作用素$L$について
+    $Lp/p$を場$s_\phi$で当てる、と統一できる。
+    \[
+        \mathcal{L}_{\mathrm{GSM}}(\phi)
+        =
+        \mathbb{E}_{p}
+        \Bigl[
+        \tfrac12\|s_\phi\|_{2}^{2}
+        -
+        L^{\dagger}s_\phi
+        \Bigr]
+        +\mathrm{const}
+    \]
+    \begin{exampleblock}{例}
+        $L=\nabla$なら古典的スコアマッチング。\\
+        ガウスDSMに対応する$L$では、$Lp_{\sigma}/p_{\sigma}=\mathbb{E}[\bm{x}|\tilde{\bm{x}}]$（Tweedie）。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{3.3 全体のまとめ}
+    \begin{enumerate}
+        \item \textbf{動機}
+        トレース付きSMは高次元で重い。DSMは条件付き教師で避ける。
+        \item \textbf{学習}
+        $\mathcal{L}_{\mathrm{DSM}}$（3.3.2）（3.3.4）で平滑化分布のスコアを学ぶ。
+        \item \textbf{生成}
+        学習スコアをランジュバン（3.3.5）に入れる。
+        \item \textbf{意味}
+        Tweedieにより、スコア学習＝デノイザ学習である。
+    \end{enumerate}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{3.3 全体のまとめ：一本の流れ}
+    \begin{block}{今日の道筋}
+        トレースが重い
+        $\;\to\;$
+        ノイズを入れて条件付ける
+        $\;\to\;$
+        閉じた教師でDSM
+        $\;\to\;$
+        Tweedieでノイズ除去と接続
+    \end{block}
+    \begin{block}{核心}
+        未知の周辺スコアの代わりに、
+        自分で入れたノイズの条件付きスコアを教師にする。
+    \end{block}
+    \begin{block}{次へ}
+        3.4では複数ノイズのNCSNへ拡張し、
+        粗探索と細部復元を段階的に行う。
+    \end{block}
+\end{frame}

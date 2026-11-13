@@ -17,10 +17,25 @@
     "**/tex/*.toc": true
   },
   "latex-workshop.latex.autoBuild.run": "onSave",
-  "latex-workshop.latex.outDir": "%DIR%/../pdf",
+  "latex-workshop.latex.outDir": "%DIR%/../../pdf",
   "latex-workshop.latex.tools": [
     {
-      "name": "latexmk (LuaLaTeX)",
+      "name": "latexmk (section)",
+      "command": "latexmk",
+      "args": [
+        "-lualatex",
+        "-synctex=1",
+        "-interaction=nonstopmode",
+        "-file-line-error",
+        "-auxdir=..\\build",
+        "-outdir=..\\..\\pdf",
+        "%DOCFILE%"
+      ],
+      "env": {},
+      "cwd": "%DIR%"
+    },
+    {
+      "name": "latexmk (flat)",
       "command": "latexmk",
       "args": [
         "-lualatex",
@@ -37,13 +52,19 @@
   ],
   "latex-workshop.latex.recipes": [
     {
-      "name": "latexmk (LuaLaTeX)",
+      "name": "latexmk (section)",
       "tools": [
-        "latexmk (LuaLaTeX)"
+        "latexmk (section)"
+      ]
+    },
+    {
+      "name": "latexmk (flat)",
+      "tools": [
+        "latexmk (flat)"
       ]
     }
   ],
-  "latex-workshop.latex.recipe.default": "first",
+  "latex-workshop.latex.recipe.default": "latexmk (section)",
   "latex-workshop.view.pdf.viewer": "external",
   "latex-workshop.view.pdf.refreshenabled": true,
   "latex-workshop.view.pdf.external.viewer.command": "C:\\Users\\gnqkn\\AppData\\Local\\SumatraPDF\\SumatraPDF.exe",

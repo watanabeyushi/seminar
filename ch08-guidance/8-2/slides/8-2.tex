@@ -1,6 +1,372 @@
 % !TEX root = ../tex/8-2.tex
-\begin{frame}{8.2 Classifier Guidance}
+\input{../slides/ch08-colors}
+
+%=============================================
+\begin{frame}{8.1から8.2へ}
+    \begin{block}{ここまで（8.1）}
+        誘導の共通形
+        $s^{\mathrm{guide}}=\nabla\log p_t+w_t G_t$
+        と、CG／CFG／代理誘導の地図を置いた。
+    \end{block}
+    \begin{block}{ここから（8.2）}
+        最初の具体化：\textbf{Classifier Guidance}。\\
+        ベイズ分解$\to$スケール$\omega\to$学習分類器$\to$推論と限界。
+    \end{block}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{8.2 の位置づけ}
+    \begin{block}{この節の役割}
+        無条件拡散＋時刻条件付き分類器で、\\
+        条件付き生成をサンプリング時に実現する
+    \end{block}
+    \begin{enumerate}
+        \item \textbf{8.2.1 基礎}\\
+        ベイズ分解とオラクル誘導場（スケール$\omega$）
+        \item \textbf{8.2.2 推論}\\
+        学習分類器勾配を無条件スコアへ加算
+        \item \textbf{8.2.3 利点と限界}\\
+        柔軟さ vs ノイズ時刻分類器の負担
+    \end{enumerate}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{目標設定}
+    条件変数$\bm{c}\sim p(\bm{c})$（クラス、キャプション等）に対し、\\
+    $p_0(\vx|\bm{c})$からサンプルしたい。
     \begin{itemize}
-        \item
+        \item 拡散の条件付き生成では、周辺が$p_t(\cdot|\bm{c})$となる\\
+        逆時間力学を走らせる
+        \item そのドリフトは条件付きスコア
+        $\nabla_{\vx_t}\log p_t(\vx_t|\bm{c})$
+        に依存する
     \end{itemize}
+    \begin{exampleblock}{標準ルート}
+        この条件付きスコアを推定する。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\section{8.2.1 基礎：ベイズと誘導場}
+\asmain
+\begin{frame}{区切り：8.2.1 基礎}
+    \tableofcontents[currentsection]
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{ベイズ分解（母集団）}
+    \[
+        \nabla_{\vx_t}\log p_t(\vx_t|\bm{c})
+        =
+        \nabla_{\vx_t}\log
+        \!\left(
+        \frac{p_t(\vx_t)\,p_t(\bm{c}|\vx_t)}{p(\bm{c})}
+        \right)
+    \]
+    $p(\bm{c})$は$\vx_t$に依らないので落として
+    \[
+        \nabla_{\vx_t}\log p_t(\vx_t|\bm{c})
+        =
+        \underbrace{\nabla_{\vx_t}\log p_t(\vx_t)}_{\text{無条件スコア}}
+        +
+        \underbrace{\nabla_{\vx_t}\log p_t(\bm{c}|\vx_t)}_{\text{分類器勾配}}
+        \tag{8.2.1}
+    \]
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：なぜこの分解が有用か}
+    \begin{itemize}
+        \item 無条件スコアは既存の無条件拡散から使える
+        \item 誘導は「$\bm{c}$をノイズ入力$\vx_t$から読む」勾配に分離される
+        \item 棄却／重要度サンプリングでも原理上は可能だが、\\
+        高次元・稀な条件では現実的でないことが多い
+    \end{itemize}
+    \begin{block}{CGの発想}
+        分類器側だけを別途学習し、サンプリング時に足す\\
+        （Dhariwal \& Nichol, 2021）。
+    \end{block}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{オラクル：傾き密度と誘導場}
+    誘導スケール$\omega\ge 0$に対し、各固定$t$で
+    \[
+        \tilde{p}^{\mathrm{CG},\omega}_{t}(\vx_t|\bm{c})
+        \;\propto\;
+        p_t(\vx_t)\,p_t(\bm{c}|\vx_t)^{\omega}
+        \tag{8.2.2}
+    \]
+    そのスコアは
+    \[
+        s^{\mathrm{CG}}(\vx_t,t,\bm{c};\omega)
+        :=
+        \nabla_{\vx_t}\log p_t(\vx_t)
+        +
+        \omega\,\nabla_{\vx_t}\log p_t(\bm{c}|\vx_t)
+        \tag{8.2.3}
+    \]
+    \begin{itemize}
+        \item $\omega=1$：ベイズより$\tilde{p}^{\mathrm{CG},1}_{t}=p_t(\cdot|\bm{c})$（正確な条件付きスコア）
+        \item 一般の$\omega$：固定時刻の温度付き解釈（周辺経路との一致は8.4.2）
+    \end{itemize}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{スケール$\omega$の役割}
+    スカラー$\omega\ge 0$が分類器信号の強さを変調する：
+    \begin{itemize}
+        \item $\omega=1$：真の条件付きスコア$\nabla\log p_t(\vx_t|\bm{c})$を回復
+        \item $\omega>1$：分類器信号を増幅。条件忠実度↑、多様性↓が多い
+        \item $0\le\omega<1$：分類器を弱める。多様性↑、条件付け↓が多い
+    \end{itemize}
+    \begin{exampleblock}{運用}
+        $\omega$はサンプリング時のノブ。\\
+        拡散モデル本体の重みは触らない。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{実践近似：拡散は凍結}
+    CGは（拡散モデルに対しては）\textbf{学習不要}な誘導法：
+    \[
+        s_{\phi^\star}(\vx_t,t)
+        \;\approx\;
+        \nabla_{\vx_t}\log p_t(\vx_t)
+    \]
+    \begin{itemize}
+        \item 事前学習済み無条件拡散をそのまま使う
+        \item 修正はサンプリング時のみ
+        \item 追加で必要なのは、ノイズ入力から$\bm{c}$を読む\\
+        時刻依存分類器$p_\psi(\bm{c}|\vx_t,t)$
+    \end{itemize}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{分類器の学習目標}
+    交差エントロピーをノイズレベル全体で最小化：
+    \[
+        \mathbb{E}_{t\sim\mathcal{U}[0,T],\,(\vx,\bm{c})\sim p_{\mathrm{data}},\,\veps\sim\mathcal{N}(\bm{0},\bm{I})}
+        \bigl[
+        -\log p_\psi(\bm{c}|\vx_t,t)
+        \bigr]
+        \tag{8.2.4}
+    \]
+    ここで$\vx_t=\alpha_t\vx+\sigma_t\veps$。
+    \begin{block}{要件}
+        分類器は全ノイズレベルで動作し、\\
+        $t$（または同等のノイズ表現）を入力に含める。
+    \end{block}
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：何を近似しているか}
+    学習後の入力勾配が、真の尤度勾配の代理になる：
+    \[
+        \nabla_{\vx_t}\log p_{\psi^\star}(\bm{c}|\vx_t,t)
+        \;\approx\;
+        \nabla_{\vx_t}\log p_t(\bm{c}|\vx_t)
+    \]
+    \begin{columns}[T,onlytextwidth]
+        \begin{column}{0.48\textwidth}
+            \begin{exampleblock}{8.1との対応}
+                $G_t\approx\nabla\log p_{\psi^\star}$\\
+                $h_t\approx p_{\psi^\star}$\\
+                $w_t\leftrightarrow\omega$
+            \end{exampleblock}
+        \end{column}
+        \begin{column}{0.48\textwidth}
+            \begin{exampleblock}{損失として}
+                $\ell=-\log p_{\psi^\star}$\\
+                $\tau=1$
+            \end{exampleblock}
+        \end{column}
+    \end{columns}
+\end{frame}
+%=============================================
+\section{8.2.2 推論}
+\asmain
+\begin{frame}{区切り：8.2.2 推論}
+    \tableofcontents[currentsection]
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{学習済み誘導場}
+    推論時は、オラクル場(8.2.3)を次で近似する：
+    \[
+        s^{\mathrm{CG}}_{\mathrm{model}}(\vx_t,t,\bm{c};\omega)
+        :=
+        \underbrace{s_{\phi^\star}(\vx_t,t)}_{\text{無条件方向}}
+        +
+        \omega\,
+        \underbrace{\nabla_{\vx_t}\log p_{\psi^\star}(\bm{c}|\vx_t,t)}_{\text{誘導方向}}
+    \]
+    \[
+        s^{\mathrm{CG}}_{\mathrm{model}}
+        \;\approx\;
+        s^{\mathrm{CG}}(\vx_t,t,\bm{c};\omega)
+    \]
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{逆時間力学への差し替え}
+    逆時間SDEまたはPF-ODE中の無条件スコア推定を\\
+    $s^{\mathrm{CG}}_{\mathrm{model}}(\vx_t,t,\bm{c};\omega)$で置き換える。
+    \begin{itemize}
+        \item 生成軌道が条件$\bm{c}$に整合する方向へ曲がる
+        \item $\omega$を変えるだけで、同じ二モデルから\\
+        忠実度と多様性のトレードオフを調整できる
+    \end{itemize}
+    \begin{block}{手順の骨格}
+        ノイズ$\vx_T$から出発$\to$各$t$で誘導場を評価$\to$逆時間更新。
+    \end{block}
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：実装上のイメージ}
+    \begin{enumerate}
+        \item 無条件スコアネット$s_{\phi^\star}(\vx_t,t)$を評価
+        \item 分類器$\log p_{\psi^\star}(\bm{c}|\vx_t,t)$を$\vx_t$で微分
+        \item $\omega$倍して加算し、SDE／ODEのドリフトへ投入
+    \end{enumerate}
+    \begin{exampleblock}{計算コスト}
+        各ステップで拡散ネットに加え、\\
+        分類器の前向き＋入力勾配が必要。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{8.1テンプレートとの対応表}
+    \begin{center}
+    \renewcommand{\arraystretch}{1.25}
+    \begin{tabular}{ll}
+        \hline
+        8.1の記号 & CGでの実体 \\
+        \hline
+        $\nabla\log p_t(\vx_t)$ & $s_{\phi^\star}(\vx_t,t)$ \\
+        $G_t(\vx_t,\bm{c})$ & $\nabla_{\vx_t}\log p_{\psi^\star}(\bm{c}|\vx_t,t)$ \\
+        $w_t$ & 定数スケール$\omega$（または時刻依存に拡張可） \\
+        $h_t$ & $p_t(\bm{c}|\vx_t)$／$p_{\psi^\star}$ \\
+        \hline
+    \end{tabular}
+    \end{center}
+    \vspace{0.5em}
+    \begin{block}{一文}
+        CGは「分類器対数尤度の勾配」を$G_t$に選んだ誘導である。
+    \end{block}
+\end{frame}
+%=============================================
+\section{8.2.3 利点と限界}
+\asmain
+\begin{frame}{区切り：8.2.3 利点と限界}
+    \tableofcontents[currentsection]
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{利点}
+    \begin{itemize}
+        \item \textbf{単純}：条件付け強度を$\omega$で明示的に制御
+        \item \textbf{柔軟}：任意の事前学習済み無条件拡散に後付け可能
+        \item \textbf{分離}：拡散本体を再学習せず、分類器追加だけで条件付け
+        \item \textbf{解釈}：ベイズ分解に直結し、母集団では$\omega=1$が厳密
+    \end{itemize}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{限界（1）：学習コスト}
+    \begin{alertblock}{Training Cost}
+        分類器を\textbf{すべてのノイズレベル}で動くよう訓練する必要があり、\\
+        計算コストが大きい。
+    \end{alertblock}
+    \begin{itemize}
+        \item $t\sim\mathcal{U}[0,T]$で$\vx_t$を広くカバーする必要がある
+        \item クリーン画像用の分類器をそのまま流用できない
+    \end{itemize}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{限界（2）：頑健性}
+    \begin{alertblock}{Robustness}
+        特に大きい$t$では$\vx_t$が強く壊れており、\\
+        分類器の一般化が難しい。
+    \end{alertblock}
+    \begin{itemize}
+        \item 粗段階での誤った誘導は、後段の細部にも残る
+        \item 誘導スケール$\omega>1$は誤信号も増幅し得る
+    \end{itemize}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{限界（3）：分離学習のずれ}
+    \begin{alertblock}{Separate Training}
+        分類器は拡散と独立に学習されるため、\\
+        学習済みデータ分布と完全には整合しないことがある。
+    \end{alertblock}
+    \begin{exampleblock}{次節への動機}
+        分類器を捨て、条件付き・無条件スコアを\\
+        同一拡散モデル内で学ぶのがCFG（8.3）。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：いつCGを選ぶか}
+    \begin{columns}[T,onlytextwidth]
+        \begin{column}{0.48\textwidth}
+            \begin{block}{向きやすい状況}
+                強い無条件モデルが既にある\\
+                条件は分類器で測りやすい\\
+                $\omega$で強度を触りたい
+            \end{block}
+        \end{column}
+        \begin{column}{0.48\textwidth}
+            \begin{block}{慎重になる状況}
+                強ノイズでの分類が不安定\\
+                分類器学習の予算が乏しい\\
+                拡散分布との整合が重要
+            \end{block}
+        \end{column}
+    \end{columns}
+\end{frame}
+%=============================================
+\section{まとめ}
+\asmain
+\begin{frame}{区切り：8.2のまとめ}
+    \tableofcontents[currentsection]
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{8.2 全体のまとめ}
+    \begin{enumerate}
+        \item \textbf{分解}
+        $\nabla\log p_t(\vx_t|\bm{c})=\nabla\log p_t+\nabla\log p_t(\bm{c}|\vx_t)$
+        \item \textbf{オラクル}
+        $s^{\mathrm{CG}}=\nabla\log p_t+\omega\nabla\log p_t(\bm{c}|\vx_t)$
+        \item \textbf{実践}
+        無条件拡散＋ノイズ時刻分類器；損失は(8.2.4)
+        \item \textbf{推論}
+        $s^{\mathrm{CG}}_{\mathrm{model}}$を逆時間力学へ差し替え
+        \item \textbf{限界}
+        全$t$分類器のコスト・頑健性・分離学習のずれ
+    \end{enumerate}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{8.2 全体のまとめ：一本の流れ}
+    \begin{block}{今日の道筋}
+        ベイズ分解
+        $\;\to\;$
+        $\omega$付き誘導場
+        $\;\to\;$
+        分類器学習
+        $\;\to\;$
+        サンプリング差し替え
+        $\;\to\;$
+        利点／限界
+    \end{block}
+    \begin{block}{核心}
+        CGは「分類器勾配を$\omega$倍して足す」誘導である。\\
+        拡散は凍結でき、代わりにノイズ時刻分類器が要る。
+    \end{block}
+    \begin{block}{次へ（8.3）}
+        Classifier-Free Guidance：分類器なしで同じ母集団場へ。
+    \end{block}
 \end{frame}

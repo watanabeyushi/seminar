@@ -1,6 +1,333 @@
 % !TEX root = ../tex/7-4.tex
-\begin{frame}{7.4 SDE and Schrödinger Bridge}
+\input{../slides/ch07-colors}
+
+%=============================================
+\asmain
+\begin{frame}{7.4 の問い}
+    \begin{block}{節タイトル}
+        Is Diffusion Model's SDE Optimal Solution to SB Problem?
+    \end{block}
     \begin{itemize}
-        \item
+        \item 短答：\textbf{一般には No}（両端点を厳密に結ぶフル SB ではない）
+        \item ただし：ポテンシャル $\Psi\equiv 1$ の極限では SB の特別ケースに見える
+        \item より正確には：\textbf{Schrödinger half-bridge}（片側制約）として読む
+    \end{itemize}
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：7.4 の位置づけ（Optional 章）}
+    \begin{block}{この節の役割（論文 7.4）}
+        7.3 の関係図の上に、標準的なスコアベース拡散を置く。\\
+        「拡散 $=$ フル SB の最適解か？」を Yes/No で切り分ける。
+    \end{block}
+    \begin{enumerate}
+        \item \textbf{7.4.1} 拡散は SB の特別ケース（$\Psi\equiv 1$）
+        \item \textbf{7.4.2} 半橋（half-bridge）と端点制約の差；DSB/IPF
+    \end{enumerate}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{7.4 の道筋}
+    \begin{enumerate}
+        \item SB のポテンシャル分解と制御ドリフト（再掲）
+        \item $\Psi\equiv 1$ で Anderson 逆時間 SDE が出る
+        \item 境界条件が合うとき／合わないとき
+        \item half-bridge：片側だけ $P_0$ または $P_T$ を合わせる
+        \item 拡散：$p_T\approx p_{\mathrm{prior}}$（$T\to\infty$）vs SB：有限 $T$ で厳密一致
+        \item DSB：IPF でフル橋へ近づける
+    \end{enumerate}
+\end{frame}
+%=============================================
+\section{7.4.1 拡散は SB の特別ケース}
+\asmain
+\begin{frame}{区切り：7.4.1 Diffusion as a Special Case of SB}
+    \tableofcontents[currentsection]
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{SB が拡散より広い理由}
+    SB は任意の $p_{\mathrm{src}},p_{\mathrm{tgt}}$ のあいだを、\\
+    参照拡散に\textbf{制御ドリフト}を足して橋渡しする。
+    \begin{block}{ポテンシャル分解（再掲）}
+        \[
+            \nabla\log\Psi(x,t)+\nabla\log\widehat\Psi(x,t)
+            =
+            \nabla\log p_t^{\mathrm{SB}}(x).
+        \]
+        $\Psi,\widehat\Psi$ が式 (7.2.12) の Schrödinger 系を満たす。
+    \end{block}
+    非自明なポテンシャル $\Rightarrow$ ガウス事前以外の端点にも曲がれる。
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{$\Psi\equiv 1$ の還元}
+    ポテンシャルを定数 $\Psi(x,t)\equiv 1$ とすると、\\
+    (7.2.12) の第二式は通常の Fokker--Planck になり
+    \[
+        \widehat\Psi(x,t)=p_t^{\mathrm{SB}}(x).
+        \tag{7.4.1}
+    \]
+    \begin{itemize}
+        \item 前向き SB-SDE $=$ \textbf{無制御}の参照過程
+        \[
+            dx_t=f(x_t,t)\,dt+g(t)\,dw_t
+        \]
+        \item 逆向きはスコア補正のみ（次スライド）
+    \end{itemize}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{Anderson の逆時間 SDE との一致}
+    $\Psi\equiv 1$ のとき逆向き SB-SDE は
+    \[
+        dx_t
+        =
+        \bigl[
+            f(x_t,t)
+            -
+            g^{2}(t)\nabla\log p_t^{\mathrm{SB}}(x_t)
+        \bigr]dt
+        +
+        g(t)\,d\bar w_t.
+    \]
+    \begin{exampleblock}{対応}
+        これは拡散モデルで使う Anderson の reverse-time SDE と同じ形。\\
+        つまり拡散は、\textbf{追加制御なし}（ゼロ制御極限）の SB に見える。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{ただし境界条件が鍵}
+    上の還元は、式 (7.2.12) の境界
+    \[
+        \Psi(\cdot,0)\widehat\Psi(\cdot,0)=p_{\mathrm{src}},
+        \qquad
+        \Psi(\cdot,T)\widehat\Psi(\cdot,T)=p_{\mathrm{tgt}}
+    \]
+    が $\Psi\equiv 1$ と両立するときに限って「フル SB」になる。
+    \begin{alertblock}{一般の $(p_{\mathrm{src}},p_{\mathrm{tgt}})$}
+        $\Psi\equiv 1$ では境界を満たせない。\\
+        フル SB は非自明な $\Psi,\widehat\Psi$ で参照を曲げ、両端を厳密に合わせる。
+    \end{alertblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{拡散モデル側の設計}
+    \begin{columns}[T,onlytextwidth]
+        \begin{column}{0.48\textwidth}
+            \begin{block}{拡散}
+                一端を簡単な事前\\
+                （典型的にはガウス）に固定。\\
+                学習するのは逆時間スコア。
+            \end{block}
+        \end{column}
+        \begin{column}{0.48\textwidth}
+            \begin{block}{フル SB}
+                両端を任意に指定。\\
+                ポテンシャル由来の\\
+                非線形制御ドリフトが必要。
+            \end{block}
+        \end{column}
+    \end{columns}
+    \vfill
+    傘としては SB の方が広い：非自明ポテンシャルで任意端点、\\
+    $\Psi\equiv 1$ で拡散モデルケースへ潰れる。
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{線形拡散での注意}
+    標準の線形（VP など）拡散では
+    \[
+        p_T\approx p_{\mathrm{prior}}
+        \quad\text{は}\quad
+        T\to\infty
+    \]
+    の漸近でしか成り立たないことが多い。
+    \begin{itemize}
+        \item 有限 $T$ では $p_T$ はなお $p_{\mathrm{data}}$ に依存しうる
+        \item したがって「事前への厳密マッチ」は SB ほど強くない
+    \end{itemize}
+\end{frame}
+%=============================================
+\section{7.4.2 Schrödinger half-bridges}
+\asmain
+\begin{frame}{区切り：7.4.2 Diffusion as Schrödinger Half-Bridges}
+    \tableofcontents[currentsection]
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{なぜ「フル橋」ではないか}
+    \begin{block}{結論の先取り}
+        拡散モデルは両端制約の SB 最適解というより、\\
+        \textbf{片側だけ合わせる half-bridge} として理解するのが正確。
+    \end{block}
+    フル SB：参照 $R$ に近く、かつ $P_0=p_{\mathrm{src}}$ かつ $P_T=p_{\mathrm{tgt}}$。\\
+    半橋：どちらか一方だけを課す緩和。
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{half-bridge の定義}
+    参照パス測度を $R$ とする。
+    \begin{itemize}
+        \item \textbf{前向き半橋}：
+        \[
+            \min_{P:\,P_0=p_{\mathrm{src}}}
+            D_{\mathrm{KL}}(P\|R)
+        \]
+        \item \textbf{後ろ向き半橋}：
+        \[
+            \min_{P:\,P_T=p_{\mathrm{tgt}}}
+            D_{\mathrm{KL}}(P\|R)
+        \]
+    \end{itemize}
+    \begin{exampleblock}{言葉}
+        「望む初期（または終端）から出発（到着）する過程のうち、\\
+        参照に一番似ているものは？」
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{反復でフル橋へ}
+    前向き半橋と後ろ向き半橋を交互に解くと、\\
+    Iterative Proportional Fitting (IPF) 的にフル SB を近似できる。
+    \begin{alertblock}{計算の難しさ}
+        両境界を同時に厳密に課すのは重い。\\
+        半橋はその緩和であり、拡散の学習手順とも相性が良い。
+    \end{alertblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{端点マッチの差}
+    標準拡散の前向き SDE は線形で、$T\to\infty$ で
+    \[
+        p_T\approx p_{\mathrm{prior}}.
+    \]
+    有限時刻では $x_T=\alpha_T x_0+\sigma_T\epsilon$ の周辺なので、\\
+    一般に $p_T$ は $p_{\mathrm{data}}$ 依存のまま（付録 C.1.5）。
+    \vfill
+    SB は制御 $g^{2}(t)\nabla_x\log\Psi$ により、有限 $T$ で
+    \[
+        p_T=p_{\mathrm{prior}}
+    \]
+    を\textbf{厳密に}課せる。
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{対比表}
+    \renewcommand{\arraystretch}{1.35}
+    \begin{tabular}{lll}
+        & \textbf{拡散モデル} & \textbf{Schrödinger Bridge} \\
+        \hline
+        終端周辺
+        & $p_T\approx p_{\mathrm{prior}}$（$T\to\infty$）
+        & $p_T=p_{\mathrm{prior}}$（有限 $T$）
+        \\
+        追加制御
+        & 基本なし（参照＋スコア逆過程）
+        & $\Psi,\widehat\Psi$ 由来のドリフト
+        \\
+        制約
+        & 片側に近い／漸近
+        & 両端を厳密指定
+        \\
+    \end{tabular}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{拡散 $=$ 前向き半橋の見方}
+    固定した前向き noising 過程は、\\
+    $p_{\mathrm{data}}$ にアンカーした\textbf{前向き half-bridge} と読める。
+    \begin{itemize}
+        \item $P_0=p_{\mathrm{data}}$ は満たす
+        \item 終端は参照が生む周辺であり、一般に $p_{\mathrm{prior}}$ と厳密一致しない
+        \item よって指定ペア $(p_{\mathrm{data}},p_{\mathrm{prior}})$ のフル橋ではない
+    \end{itemize}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{Diffusion Schrödinger Bridge (DSB)}
+    De Bortoli et al.\ (2021)：IPF の考えで両端を交互に合わせ、\\
+    拡散をフル SB ソルバへ拡張する。
+    \begin{block}{Step 0}
+        $P^{(0)}:=R_{\mathrm{fwd}}$（参照前向き SDE、$x_0\sim p_{\mathrm{data}}$）。\\
+        $P_0^{(0)}=p_{\mathrm{data}}$ だが、通常 $P_T^{(0)}\neq p_{\mathrm{prior}}$。
+    \end{block}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{DSB：後ろ向きパス}
+    \begin{block}{Step 1}
+        \[
+            P^{(1)}
+            =
+            \argmin_{P:\,P_T=p_{\mathrm{prior}}}
+            D_{\mathrm{KL}}(P\|P^{(0)}).
+        \]
+        スコア網 $s_{\phi^\times}$ で逆時間 SDE を近似し、\\
+        $x_T\sim p_{\mathrm{prior}}$ から後ろ向きシミュレート。
+    \end{block}
+    これで $P_T^{(1)}=p_{\mathrm{prior}}$ だが、一般に $P_0^{(1)}\neq p_{\mathrm{data}}$。
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{DSB：交互反復}
+    \begin{enumerate}
+        \item 前向きを学習し直し、$P_0$ を $p_{\mathrm{data}}$ へ戻す
+        \item 再び後ろ向きで $P_T=p_{\mathrm{prior}}$ を課す
+        \item 収束まで繰り返し、両端を満たす $P^*$ へ
+    \end{enumerate}
+    温和な条件で収束が示されている（De Bortoli et al., 2021）。\\
+    枠組み自体は任意の端点ペアに使える。
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：DSB の実務コスト}
+    \begin{itemize}
+        \item IPF の各段で別のスコアマッチングが必要
+        \item 反復を重ねると近似誤差が蓄積しうる
+        \item 安定・スケール改善や、反復依存を減らす SB 手法も多い\\
+        （例：DSBM, GSBM など；本文は文献ポインタに留める）
+    \end{itemize}
+    \begin{exampleblock}{ゼミでの位置}
+        「標準拡散は半橋；フル橋にするには追加の交互投影が要る」\\
+        が本筋。実装詳細は後続文献へ。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\section{タイトルへの答え}
+\asmain
+\begin{frame}{タイトルへの答え（整理）}
+    \begin{block}{いつ Yes に近いか}
+        $\Psi\equiv 1$ で境界が両立し、参照が拡散の前向き過程と一致するとき。\\
+        形式的には「ゼロ制御の SB」＝ Anderson 逆時間 SDE。
+    \end{block}
+    \begin{alertblock}{いつ No か（通常の実務設定）}
+        両端 $(p_{\mathrm{data}},p_{\mathrm{prior}})$ を有限 $T$ で厳密に課すフル SB としては No。\\
+        $p_T\approx p_{\mathrm{prior}}$ は漸近であり、制御ポテンシャルも学習しない。
+    \end{alertblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{答えの一文版}
+    \begin{enumerate}
+        \item \textbf{特別ケースとしては Yes}：\\
+        SB の $\Psi\equiv 1$（無追加制御）極限が拡散 SDE／逆 SDE。
+        \item \textbf{最適フル橋としては No}：\\
+        標準拡散は片側／漸近制約の half-bridge。
+        \item \textbf{フル SB へ行くには}：\\
+        非自明ポテンシャル、または DSB のような IPF 反復が必要。
+    \end{enumerate}
+\end{frame}
+%=============================================
+\section{まとめ}
+\asmain
+\begin{frame}{7.4 のまとめ}
+    \begin{itemize}
+        \item SB は任意端点への制御付き橋；拡散はその傘の下の特殊形
+        \item $\Psi\equiv 1$ $\Rightarrow$ 参照前向き＋Anderson 逆時間 SDE
+        \item 境界非両立ならフル SB にはならない
+        \item half-bridge：一端のみ；拡散の noising はその一例
+        \item 端点：$p_T\approx p_{\mathrm{prior}}$（拡散）vs 有限 $T$ で厳密（SB）
+        \item DSB/IPF：交互投影でフル橋へ
     \end{itemize}
 \end{frame}

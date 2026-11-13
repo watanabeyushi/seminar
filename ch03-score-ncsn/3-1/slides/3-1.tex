@@ -1081,86 +1081,76 @@
 \end{frame}
 %=============================================
 \assuppl
-\begin{frame}{\supplmark：多次元では座標ごとの和になる}
-    多次元では
+\begin{frame}{\supplmark：多次元の場合}
+    一次元の$s_\phi'(x)$は、各座標の偏微分の和になる。
+    期待値は$p_{\mathrm{data}}$で取る。
     \[
         \mathcal{L}_{\mathrm{SM}}(\phi)
         =
-        \tfrac12
         \mathbb{E}_{p_{\mathrm{data}}}
-        \bigl[
-        \|s_\phi(\bm{x})-s_{\mathrm{data}}(\bm{x})\|_2^2
-        \bigr]
-    \]
-    である。$\|v\|_2^2=\sum_{j=1}^{D}v_j^2$なので、展開すると
-    \[
-        \mathcal{L}_{\mathrm{SM}}
-        =
-        \tfrac12\mathbb{E}[\|s_\phi\|_2^2]
-        -
-        \mathbb{E}\bigl[s_\phi^{\top}s_{\mathrm{data}}\bigr]
-        +C.
-    \]
-    真ん中の項は座標ごとの和である。
-    \[
-        s_\phi^{\top}s_{\mathrm{data}}
-        =
+        \Biggl[
+        \tfrac12\|s_\phi(\bm{x})\|_2^2
+        +
         \sum_{j=1}^{D}
-        s_{\phi,j}(\bm{x})\,
-        \partial_{x_j}\log p(\bm{x})
+        \frac{\partial s_{\phi,j}(\bm{x})}{\partial x_j}
+        \Biggr]
+        +C
     \]
     \begin{exampleblock}{読み方}
-        一次元で扱った交差項が、各座標$j$について一つずつ現れる。
+        各座標$j$で一次元と同じ部分積分をすると、
+        $s_\phi'$の代わりに$\partial_{x_j}s_{\phi,j}$が並ぶ。
     \end{exampleblock}
 \end{frame}
 %=============================================
 \assuppl
-\begin{frame}{\supplmark：各座標で同じ部分積分を行う}
-    第$j$成分だけ取り出すと、一次元と同じく
+\begin{frame}{\supplmark：EBMではエネルギーの二階微分になる}
+    EBMでは
     \[
-        \int
-        p\,s_{\phi,j}\,\partial_{x_j}\log p
-        \,d\bm{x}
+        s_{\phi,j}(\bm{x})
         =
-        \int
-        s_{\phi,j}\,\partial_{x_j}p
-        \,d\bm{x}.
+        -\frac{\partial E_\phi(\bm{x})}{\partial x_j}
     \]
-    $x_j$について部分積分し、境界で$s_{\phi,j}p\to0$とすると
+    なので
     \[
-        \int
-        s_{\phi,j}\,\partial_{x_j}p
-        \,d\bm{x}
+        \frac{\partial s_{\phi,j}(\bm{x})}{\partial x_j}
         =
-        -
-        \int
-        p\,\partial_{x_j}s_{\phi,j}
-        \,d\bm{x}.
+        -\frac{\partial^{2}E_\phi(\bm{x})}{\partial x_j^{2}}.
     \]
-    したがって交差項は
+    したがって
     \[
-        -
-        \mathbb{E}\bigl[s_\phi^{\top}s_{\mathrm{data}}\bigr]
+        \resizebox{0.98\textwidth}{!}{$
+        \mathcal{L}_{\mathrm{SM}}(\phi)
         =
-        \mathbb{E}
-        \Bigl[
+        \mathbb{E}_{p_{\mathrm{data}}}
+        \Biggl[
+        -\sum_{j=1}^{D}
+        \dfrac{\partial^{2}E_\phi(\bm{x})}{\partial x_j^{2}}
+        +
+        \dfrac12\|\nabla_{\bm{x}}E_\phi(\bm{x})\|_2^2
+        \Biggr]
+        +C.
+        $}
+    \]
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：対角和がトレースになる}
+    ここで
+    \[
         \sum_{j=1}^{D}
-        \partial_{x_j}s_{\phi,j}
-        \Bigr]
+        \frac{\partial^{2}E_\phi(\bm{x})}{\partial x_j^{2}}
         =
-        \mathbb{E}
-        \bigl[
-        \operatorname{Tr}(\nabla_{\bm{x}}s_\phi)
-        \bigr].
+        \operatorname{Tr}\bigl(\nabla_{\bm{x}}^{2}E_\phi(\bm{x})\bigr).
     \]
-    \begin{exampleblock}{要点}
-        $\sum_j\partial_{x_j}s_{\phi,j}$がヤコビ行列の対角和、すなわちトレースである。
+    \begin{exampleblock}{ヘッセ行列}
+        $\nabla_{\bm{x}}^{2}E_\phi$は二階偏微分を並べた行列である。\\
+        トレースはその対角成分の和なので、全成分は不要である。
     \end{exampleblock}
 \end{frame}
 %=============================================
 \asmain
 \begin{frame}{多次元・EBMでの等価な損失}
-    各座標で同じ部分積分を行うと
+    各座標の和をトレースで書くと
     \[
         \resizebox{0.98\textwidth}{!}{$
         \mathcal{L}_{\mathrm{eSM}}(\phi)
@@ -1188,8 +1178,6 @@
         \Bigr]
         $}
     \]
-    $\operatorname{Tr}(\nabla_{\bm{x}}^{2}E_\phi)=\sum_j\partial_{x_j}^{2}E_\phi$
-    （ヘッセの対角和）。全成分は不要である。
 \end{frame}
 %=============================================
 \assuppl

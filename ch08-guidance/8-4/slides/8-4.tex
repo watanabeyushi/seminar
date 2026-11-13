@@ -1,6 +1,586 @@
 ﻿% !TEX root = ../tex/8-4.tex
-\begin{frame}{8.4 (Optional) Training-Free Guidance}
+\input{../slides/ch08-colors}
+
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：8.4 の位置づけ（Optional）}
+    \begin{block}{この節の役割（論文 8.4）}
+        事前学習済み拡散モデルを\textbf{再学習せず}、\\
+        外部の条件・損失・観測でサンプリング力学だけを曲げる。
+    \end{block}
     \begin{itemize}
-        \item
+        \item 8.4.1：data-space / noise-space の概念枠
+        \item 8.4.2：誘導が作る分布（tilted と実際の周辺）
+        \item 8.4.3：逆問題への例（ILVR、DPS、関連する InDI）
     \end{itemize}
+    \vfill
+    \footnotesize
+    任意節。ゼミでは青で本筋、Fokker--Planck 整合や InDI 詳細は緑。
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{なぜ Training-Free か}
+    \begin{block}{動機}
+        CFG/CG は条件付き学習や分類器学習を要する。\\
+        タスクが変わるたび再訓練するのは重い。
+    \end{block}
+    \begin{itemize}
+        \item 既製の無条件（または条件付き）拡散を\textbf{凍結}
+        \item 推論時に損失・観測 $y$・外部表現（例：CLIP）で補正
+        \item Bayes 分解（式 (8.1.1)/(8.1.3)）がスコア空間での動機付け
+    \end{itemize}
+    \begin{exampleblock}{実務のイメージ}
+        「きれいな画像の事前分布」は拡散が担い、\\
+        「観測に合う／プロンプトに近い」はサンプリング中の補正が担う。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{8.4 の道筋}
+    \begin{enumerate}
+        \item \textbf{設定}：事前学習スコア、$x$-予測、タスク損失 $\ell$
+        \item \textbf{8.4.1} DDIM 更新を data / noise でどう曲げるか
+        \item \textbf{8.4.2} 固定時刻の tilted 密度 $\neq$ 積分後の周辺（一般）
+        \item \textbf{8.4.3} 逆問題：ILVR（投影）と DPS（尤度スコア近似）
+        \item \textbf{補足} InDI と PF-ODE のつながり
+    \end{enumerate}
+\end{frame}
+%=============================================
+\section{Setup}
+\asmain
+\begin{frame}{設定と記号}
+    \begin{itemize}
+        \item 条件変数 $c$（プロンプト、観測、参照など）
+        \item 凍結モデル $s_{\phi^\times}(\vx_t,t)\approx\nabla_{\vx_t}\log p_t(\vx_t)$（スコア形）
+        \item タスク損失 $\ell(\cdot,c):\mathbb{R}^{D}\to\mathbb{R}$（小さいほど条件に合う）
+    \end{itemize}
+    例：参照への知覚距離、CLIP 特徴の負類似度など。
+    \begin{block}{前向き核}
+        $p_t(\cdot|\vx_0)=\mathcal{N}(\cdot;\alpha_t\vx_0,\sigma_t^{2}I)$。
+    \end{block}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{DDIM 更新を具体例に}
+    後の式 (9.2.2) の DDIM 更新を借用すると
+    \[
+        \vx_{t\to t-1}
+        =
+        \alpha_{t-1}\underbrace{\hat{\vx}_0(\vx_t)}_{\text{data space}}
+        -\sigma_{t-1}\sigma_t\underbrace{\hat{s}(\vx_t)}_{\text{noise space}}.
+        \tag{8.4.1}
+    \]
+    \begin{itemize}
+        \item $\hat{\vx}_0(\vx_t):=\vx_{\phi^\times}(\vx_t,t)$：クリーン予測
+        \item $\hat{s}(\vx_t):=s_{\phi^\times}(\vx_t,t)$：スコア予測
+    \end{itemize}
+    \begin{exampleblock}{読み方}
+        1ステップは「きれいに戻す項」と「ノイズ／スコア項」の組。\\
+        Training-free は、どちらか（または両方）を補正する。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{2つの補正場所（概観）}
+    \begin{columns}[T,onlytextwidth]
+        \begin{column}{0.48\textwidth}
+            \begin{block}{A. Data space}
+                $\hat{\vx}_0(\vx_t)$ を\\
+                $+\eta_t^{\mathrm{data}}G_t^{\mathrm{data}}$ で動かす。\\
+                （クリーン推定の修正）
+            \end{block}
+        \end{column}
+        \begin{column}{0.48\textwidth}
+            \begin{block}{B. Noise space}
+                $\hat{s}(\vx_t)$ に\\
+                $+\eta_t^{\mathrm{latent}}G_t$ を足す。\\
+                （スコア項の修正）
+            \end{block}
+        \end{column}
+    \end{columns}
+    \vfill
+    どちらも DDIM 更新 (8.4.1) の部品を曲げる操作。\\
+    強さは $\eta_t^{\mathrm{data}},\,\eta_t^{\mathrm{latent}}\ge 0$ で制御する。
+\end{frame}
+%=============================================
+\section{8.4.1 Conceptual Framework}
+\asmain
+\begin{frame}{区切り：8.4.1 Conceptual Framework}
+    \tableofcontents[currentsection]
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{誘導方向の定義}
+    data-space 方向：
+    \[
+        G_t^{\mathrm{data}}(\vx_t,c)
+        :=
+        -\nabla_{\vx_0}\ell(\vx_0,c)\big|_{\vx_0=\hat{\vx}_0(\vx_t)}.
+    \]
+    noise-space では Prologue の誘導方向を再利用：
+    \[
+        G_t(\vx_t,c)
+        :=
+        \nabla_{\vx_t}\log h_t(\vx_t;c)
+    \]
+    （正値ポテンシャル $h_t$ は後で損失から構成）。
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{統一更新（8.4.2）}
+    DDIM 形に両補正を書くと
+    \begin{align*}
+        \vx_{t\to t-1}
+        &=
+        \alpha_{t-1}\Bigl(
+            \hat{\vx}_0(\vx_t)+\eta_t^{\mathrm{data}}G_t^{\mathrm{data}}(\vx_t,c)
+        \Bigr) \\
+        &\quad
+        -\sigma_{t-1}\sigma_t\Bigl(
+            \hat{s}(\vx_t)+\eta_t^{\mathrm{latent}}G_t(\vx_t,c)
+        \Bigr).
+        \tag{8.4.2}
+    \end{align*}
+    \begin{itemize}
+        \item $\eta_t^{\mathrm{data}}\ge 0$：data-space の強さ
+        \item $\eta_t^{\mathrm{latent}}\ge 0$：noise-space の強さ
+    \end{itemize}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{A. Guidance in Data Space}
+    クリーン推定を局所的に損失減少させる：
+    \[
+        \hat{\vx}_0(\vx_t)
+        \;\longmapsto\;
+        \hat{\vx}_0(\vx_t)+\eta_t^{\mathrm{data}}G_t^{\mathrm{data}}(\vx_t,c).
+    \]
+    \begin{itemize}
+        \item 条件に合う方向へ $\hat{\vx}_0$ を動かしてから更新に使う
+        \item 必要なら同じ補正を複数回繰り返せる
+        \item 代表例：MGPD (He et al., 2023)、UGD (Bansal et al., 2023)
+    \end{itemize}
+    \begin{exampleblock}{直感}
+        「まずきれいな画像の推定を直してから、次のノイズ段へ進む」。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{B. Guidance in Noise Space}
+    スコア側へ直接誘導を足す。損失をクリーン推定上で評価し
+    \[
+        h_t(\vx_t;c)
+        :=
+        \exp\bigl(-\tau\,\ell(\hat{\vx}_0(\vx_t),c)\bigr),
+        \qquad \tau>0
+    \]
+    とすると
+    \[
+        G_t(\vx_t,c)
+        =
+        -\tau\nabla_{\vx_t}\ell\bigl(\hat{\vx}_0(\vx_t),c\bigr).
+    \]
+    スコア項は $\hat{s}(\vx_t)+\eta_t^{\mathrm{latent}}G_t(\vx_t,c)$。
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{ポテンシャル観との対応}
+    人口レベル構成（式 (8.1.3)）と比べると：
+    \begin{itemize}
+        \item $\eta_t^{\mathrm{latent}}$ $\leftrightarrow$ 一般の誘導強度 $w_t$
+        \item $\hat{s}(\vx_t)$ $\leftrightarrow$ 正確な無条件スコアの学習近似
+    \end{itemize}
+    \begin{block}{いつ真の Bayes 方向になるか}
+        $h_t\propto p_t(c|\vx_t)$（$\vx_t$ に依らない因子を除く）なら、\\
+        $G_t$ は $\nabla_{\vx_t}\log p_t(c|\vx_t)$ を回復する。\\
+        一般のタスク損失では\textbf{代理（surrogate）}誘導になる。
+    \end{block}
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：$G_t$ の計算コスト}
+    $G_t$ は $x$-予測を通した微分を要する：
+    \[
+        G_t(\vx_t,c)
+        =
+        -\tau
+        \bigl[\nabla_{\vx_t}\hat{\vx}_0(\vx_t)\bigr]^{\top}
+        \nabla_{\vx_0}\ell(\vx_0,c)\big|_{\vx_0=\hat{\vx}_0(\vx_t)}.
+    \]
+    \begin{itemize}
+        \item ネットの Jacobian--vector が必要で計算が重い場合がある
+        \item 代表例：Yu et al.\ (2023)、Chung et al.\ (2022)、Bansal et al.\ (2023)
+    \end{itemize}
+    \begin{alertblock}{本稿の線引き}
+        ここまでは「1ステップをどう曲げるか」。\\
+        「曲げた力学が最終的にどの分布を出すか」は次節。
+    \end{alertblock}
+\end{frame}
+%=============================================
+\section{8.4.2 What Distribution}
+\asmain
+\begin{frame}{区切り：8.4.2 What Distribution?}
+    \tableofcontents[currentsection]
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{固定時刻の tilted 密度}
+    学習スコアを正確なスコアに置き換えると、\\
+    正値ポテンシャル $h_t$ と強度 $w_t\ge 0$ は理想誘導場
+    \[
+        \nabla_{\vx}\log p_t(\vx)+w_t\nabla_{\vx}\log h_t(\vx;c)
+    \]
+    を定める。これは（正規化可能なら）次のスコアである：
+    \[
+        \tilde p_t^{\mathrm{tilt}}(\vx|c)
+        =
+        \frac{1}{Z_t(c)}\,p_t(\vx)\,h_t(\vx;c)^{w_t}.
+        \tag{8.4.3}
+    \]
+    損失ベースでは $h_t=\exp(-\tau\ell(\hat{\vx}_0,c))$、$\eta_t^{\mathrm{latent}}\leftrightarrow w_t$。
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{重要な区別}
+    \begin{alertblock}{固定時刻の解釈 $\neq$ 生成分布}
+        誘導付き PF-ODE を $T\to 0$ で解いても、\\
+        一般には $\tilde p_0^{\mathrm{tilt}}(\cdot|c)$ からのサンプルには\textbf{ならない}。
+    \end{alertblock}
+    理由は\textbf{時刻横断の整合性}：\\
+    各 $t$ の密度を独立に好きに選べない。
+    \begin{itemize}
+        \item $\{\tilde p_t^{\mathrm{tilt}}\}_t$ が同じ前向き拡散の周辺パスなら、\\
+        対応する Fokker--Planck を満たす必要がある
+        \item 汎用の損失・スケジュールでは、この条件は保証されない
+    \end{itemize}
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：Fokker--Planck 整合}
+    $\{\tilde p_t^{\mathrm{tilt}}\}$ が周辺パスなら
+    \[
+        \partial_t\tilde p_t^{\mathrm{tilt}}
+        +\nabla_{\vx}\cdot\bigl(f(t)\vx\,\tilde p_t^{\mathrm{tilt}}\bigr)
+        -\tfrac12 g^{2}(t)\Delta_{\vx}\tilde p_t^{\mathrm{tilt}}
+        =0.
+    \]
+    このとき PF-ODE
+    \[
+        \frac{d\vx}{dt}
+        =
+        f(t)\vx-\tfrac12 g^{2}(t)\nabla_{\vx}\log\tilde p_t^{\mathrm{tilt}}(\vx|c)
+    \]
+    は、終端 $\tilde p_T^{\mathrm{tilt}}$ から出発すればその周辺を保つ。
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：整合条件の中身}
+    (8.4.3) を FP に代入し、$p_t$ 自身が同じ FP を満たすことを使うと、\\
+    余剰項（括弧内）が残る：
+    \[
+        \partial_t\log(h_t^{w_t})
+        +f(t)\vx\cdot\nabla\log(h_t^{w_t})
+        -g^{2}(t)\nabla\log p_t\cdot\nabla\log(h_t^{w_t})
+        -\cdots.
+    \]
+    \begin{block}{結論}
+        括弧が消えるときだけ tilted 族は正当な周辺パス。\\
+        汎用タスク損失では消えるとは限らない。\\
+        不一致は離散化誤差ではなく、\textbf{誘導力学そのもの}に由来しうる\\
+        （Lai et al., 2023a の FP 整合の一例）。
+    \end{block}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{わかりやすい特別ケース}
+    \begin{itemize}
+        \item $w_t\equiv 0$：tilt なし。元の無条件パス $p_t$ に戻る
+        \item 正確な分類器誘導で $h_t=p_t(c|\vx)$、$w_t\equiv 1$：\\
+        Bayes より $\tilde p_t^{\mathrm{tilt}}(\vx|c)=p_t(\vx|c)$。\\
+        tilted 族は条件付き周辺パスそのもの
+    \end{itemize}
+    \begin{exampleblock}{なぜ $\omega=1$ が特別か}
+        オラクル分類器尤度では、固定時刻解釈と条件付き周辺が一致する。\\
+        これが「誘導重み1」の特別な位置づけ。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{一般の $\omega$ では？}
+    例えば $p_t(\vx)\,p_t(c|\vx)^{\omega}$ は、正規化できれば\\
+    \textbf{固定時刻の tilted 密度}としては常に意味を持つ。
+    \begin{itemize}
+        \item しかし誘導サンプラーの周辺を記述する保証は一般にない
+        \item 特殊な選び方では整合条件を満たしうる
+        \item したがって $\omega\neq 1$ だけで直ちに不整合、とは限らない
+    \end{itemize}
+    \begin{alertblock}{実務への含意}
+        「場の式を tilted 密度のスコアだと思い込む」ことと、\\
+        「最終サンプルがその密度から来たと思う」ことを分けて扱う。
+    \end{alertblock}
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：Feynman--Kac Correctors}
+    あらかじめ指定した tilted 列により忠実に従いたい場合、\\
+    時刻横断のずれを明示的に補正する手法がある\\
+    （Feynman--Kac Correctors; skreta2025feynman）。
+    \begin{itemize}
+        \item 単なる surrogate 勾配の加算を超える補正層
+        \item 「作りたい周辺列」と「実際の誘導力学」のギャップを意識した設計
+    \end{itemize}
+    \vfill
+    \footnotesize
+    詳細は論文参照。ゼミ本筋では「ずれがあり得る」ことだけ押さえる。
+\end{frame}
+%=============================================
+\section{8.4.3 Inverse Problems}
+\asmain
+\begin{frame}{区切り：8.4.3 Inverse Problems}
+    \tableofcontents[currentsection]
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{逆問題の背景}
+    既知の前向き作用素 $A$（非線形でも可）と観測
+    \[
+        \bm{y}=A(\vx_0)+\sigma_y\bm{z},
+        \qquad \bm{z}\sim\mathcal{N}(0,I).
+        \tag{8.4.4}
+    \]
+    目標は事後 $p_0(\vx_0|\bm{y})$ の特徴付け（事前分布＋計測モデル）。
+    \begin{itemize}
+        \item 古典：データ忠実度 $+$ 手設計事前分布（変分／Bayes）
+        \item 教師あり復元：計測$\to$クリーンの直接写像を学習
+        \item \textbf{第3の道}：事前学習拡散を事前分布として再利用し、\\
+        計測情報は推論時だけ入れる
+    \end{itemize}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{拡散事前分布 $+$ 計測誘導}
+    Bayes より
+    \[
+        \nabla_{\vx_t}\log p_t(\vx_t|\bm{y})
+        =
+        \underbrace{\nabla_{\vx_t}\log p_t(\vx_t)}_{\text{data score}}
+        +
+        \underbrace{\nabla_{\vx_t}\log p_t(\bm{y}|\vx_t)}_{\text{measurement guidance}}.
+        \tag{8.4.5}
+    \]
+    \begin{itemize}
+        \item data score：事前学習拡散が供給
+        \item 計測項：一般に閉形式なし → 推論時に近似／強制
+    \end{itemize}
+    \begin{block}{2つの戦略}
+        (i) 中間サンプルを計測整合へ修正・投影する\\
+        (ii) $\nabla\log p_t(\bm{y}|\vx_t)$ を近似して (8.4.5) に加算する
+    \end{block}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{ILVR：サンプル空間の整合}
+    ILVR (Choi et al., 2021) は戦略 (i) の単純例。\\
+    $\phi_N$ を線形ローパスとする。
+    \begin{enumerate}
+        \item 無条件提案 $\vx'_{t-1}\sim p_\theta(\vx'_{t-1}|\vx_t)$
+        \item 参照画像を同レベルへノイズ：$ \bm{y}_{t-1}\sim p_{t-1}(\bm{y}_{t-1}|\bm{y})$
+        \item 低周波を参照から、補空間を提案から：
+        \[
+            \vx_{t-1}=\phi_N(\bm{y}_{t-1})+(I-\phi_N)\vx'_{t-1}
+        \]
+    \end{enumerate}
+    \begin{exampleblock}{位置づけ}
+        尤度スコアの明示近似ではなく、\\
+        \textbf{サンプル空間の一貫性補正}である。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{DPS：尤度のプラグイン近似}
+    DPS (Chung et al., 2022)：既知の（非線形可）$A$ と $\sigma_y>0$ に対し
+    \[
+        \nabla_{\vx_t}\log p_t(\bm{y}|\vx_t)
+        \approx
+        \nabla_{\vx_t}\log p\bigl(\bm{y}\,\big|\,X_0=\hat{\vx}_0(\vx_t)\bigr).
+        \tag{8.4.6}
+    \]
+    $\hat{\vx}_0(\vx_t)\approx\mathbb{E}[\vx_0|\vx_t]$（Tweedie；式 (3.3.6)）。
+    \begin{alertblock}{近似の中身}
+        事後 $p(\vx_0|\vx_t)$ での尤度平均を、\\
+        事後平均の一点評価で置き換える（ピークが鋭いとき妥当）。
+    \end{alertblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{DPS の導出スケッチ}
+    $y$ は $x_0$ 経由にだけ依るので
+    \[
+        p_t(\bm{y}|\vx_t)
+        =
+        \int p_t(\bm{y}|\vx_0)\,p(\vx_0|\vx_t)\,d\vx_0
+        \approx
+        p_t\bigl(\bm{y}|X_0=\hat{\vx}_0(\vx_t)\bigr).
+    \]
+    ガウス計測なら
+    \[
+        p_t\bigl(\bm{y}|X_0=\hat{\vx}_0\bigr)
+        =
+        \mathcal{N}\bigl(\bm{y};A(\hat{\vx}_0),\sigma_y^{2}I\bigr).
+    \]
+    勾配は
+    \[
+        \nabla_{\vx_t}\log p_t(\bm{y}|\vx_t)
+        \approx
+        \frac{1}{\sigma_y^{2}}
+        \Bigl[
+            J_A(\hat{\vx}_0)\cdot\nabla_{\vx_t}\hat{\vx}_0
+        \Bigr]^{\top}
+        \bigl(\bm{y}-A(\hat{\vx}_0)\bigr).
+    \]
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{線形逆問題での簡略形}
+    $A$ が線形なら
+    \[
+        \nabla_{\vx_t}\log p_t(\bm{y}|\vx_t)
+        \approx
+        \frac{1}{\sigma_y^{2}}
+        \bigl[A\cdot\nabla_{\vx_t}\hat{\vx}_0(\vx_t)\bigr]^{\top}
+        \bigl(\bm{y}-A(\hat{\vx}_0(\vx_t))\bigr).
+    \]
+    \begin{itemize}
+        \item 計測残差 $\bm{y}-A(\hat{\vx}_0)$ を、Jacobian 経由で $\vx_t$ へ戻す
+        \item 8.4.1 の noise-space 補正（損失 $=\|y-A(\hat x_0)\|^2$ 型）と相性が良い
+        \item 様々な $\nabla\log p_t(y|\vx_t)$ 近似が提案されている\\
+        （概観：Daras et al., 2024）
+    \end{itemize}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{ILVR と DPS の対比}
+    \renewcommand{\arraystretch}{1.2}
+    \footnotesize
+    \begin{tabular}{lll}
+        & \textbf{ILVR} & \textbf{DPS} \\
+        \hline
+        戦略 & サンプル修正・投影 & 尤度スコア近似＋加算 \\
+        典型操作 & 低周波を参照で置換 & $\hat{\vx}_0$ 経由の $\nabla\log p(y|\cdot)$ \\
+        数式の姿 & 整合制約 & 式 (8.4.5) の第2項 \\
+        仮定 & ローパス整合が有用 & 計測モデル $A,\sigma_y$ が既知 \\
+    \end{tabular}
+    \normalsize
+    \vfill
+    どちらも「拡散事前分布は固定、計測は推論時」という training-free の型。
+\end{frame}
+%=============================================
+\section{Related: InDI}
+\assuppl
+\begin{frame}{\supplmark：教師あり反復復元の視点}
+    上の方法は Bayes 分解 (8.4.5) で事前分布スコア＋計測を合成する。\\
+    別路線として、\textbf{壊れた入力を多段で直す}教師あり復元がある。
+    \begin{block}{InDI (delbracio2023inversion)}
+        ペア $(y,x_0)$ から直接、洗練手続きを学習。\\
+        一般に腐敗過程が解析的／ガウスである必要はない。
+    \end{block}
+    補間経路
+    \[
+        \vx_t=(1-t)\vx_0+t\bm{y},
+        \qquad t\in[0,1]
+    \]
+    は「クリーン$\leftrightarrow$観測」を結ぶ便利な軌跡（一般のガウス拡散とは限らない）。
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：InDI の学習目標}
+    時間条件付き予測器 $F_\phi(\vx_t,t)$ を
+    \[
+        \min_\phi\,
+        \mathbb{E}
+        \bigl\|
+            F_\phi\bigl((1-t)\vx_0+t\bm{y},\,t\bigr)-\vx_0
+        \bigr\|_2^{2}
+    \]
+    で学習する。二乗損失の Bayes 最適は $F^*(\vx_t,t)=\mathbb{E}[\vx_0|\vx_t]$。
+    \begin{itemize}
+        \item 精神は拡散の「中間状態$\to$よりクリーン」回帰に近い
+        \item 違いは、端点ペア $(y,x_0)$ が教師あり復元データから来ること
+    \end{itemize}
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：推論と residual-flow ODE}
+    $\hat{\vx}_1=\bm{y}$ から反復：
+    \[
+        \hat{\vx}_{t-\Delta t}
+        =
+        \frac{\Delta t}{t}F_\phi(\hat{\vx}_t,t)
+        +\Bigl(1-\frac{\Delta t}{t}\Bigr)\hat{\vx}_t.
+    \]
+    連続極限は
+    \[
+        \frac{d\vx_t}{dt}
+        =
+        \frac{\vx_t-F_\phi(\vx_t,t)}{t}.
+    \]
+    \begin{exampleblock}{メッセージ}
+        一発予測ではなく、段階的洗練で最終再構成を得る。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：ガウス特殊化 $\Rightarrow$ PF-ODE}
+    腐敗が $y=\vx_0+\sigma\veps$ のとき、補間は
+    \[
+        \vx_t=\vx_0+t\sigma\veps
+        \quad(\alpha_t=1,\;\sigma_t=t\sigma)
+    \]
+    となり、標準的拡散形に一致する。Tweedie より
+    \[
+        \frac{d\vx_t}{dt}
+        =
+        \frac{\vx_t-\mathbb{E}[\vx_0|\vx_t]}{t}
+        =
+        -\dot\sigma_t\sigma_t\nabla_{\vx_t}\log p_t(\vx_t),
+    \]
+    すなわちこの経路の\textbf{PF-ODE}そのもの。
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：解釈のまとめ（InDI）}
+    ガウス denoising 特殊化の下では、InDI は
+    \begin{itemize}
+        \item ガウス腐敗データ上の教師あり denoiser 学習
+        \item その連続極限として PF-ODE
+    \end{itemize}
+    という拡散モデルの別解釈を示唆する。
+    \begin{block}{8.4.3 本体との関係}
+        Bayes＋事前学習スコアの路線（DPS 等）とは出発点が違うが、\\
+        「多段の小さな更新で壊れた入力を直す」という高水準戦略は共有。
+    \end{block}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{8.4 のまとめ}
+    \begin{itemize}
+        \item Training-free：凍結拡散 $+$ 推論時の外部損失／観測
+        \item 補正は data-space（$\hat{\vx}_0$）と noise-space（スコア）の2系統
+        \item 固定時刻 tilted 解釈と、積分後の周辺は一般に別物
+        \item 逆問題：ILVR（投影）と DPS（尤度プラグイン）が代表
+        \item （補足）InDI は教師あり反復復元と PF-ODE の橋
+    \end{itemize}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{次節へ：8.5 Alignment（DPO）}
+    条件に合っても、人の好みから外れる生成がありうる。
+    \begin{enumerate}
+        \item 好みで条件付き分布を tilt する（alignment）
+        \item RLHF の複雑さを避け、Diffusion-DPO へ
+        \item 「制御」から「選好への整合」へ焦点が移る
+    \end{enumerate}
+    \vfill
+    \footnotesize
+    8.4 は任意節。本筋の誘導三態（CG / CFG / training-free）はここまで。
 \end{frame}

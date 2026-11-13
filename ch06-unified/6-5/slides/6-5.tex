@@ -1,6 +1,202 @@
 % !TEX root = ../tex/6-5.tex
+\input{../slides/ch06-colors}
+
+%=============================================
 \begin{frame}{6.5 Closing Remarks}
+    \begin{block}{この章で閉じたこと（論文 6.5）}
+        変分・スコア・フローを、\\
+        一つの原理的な枠組みに統合する\textbf{要石（keystone）}の章。
+    \end{block}
     \begin{itemize}
-        \item
+        \item 共通の「条件付けトリック」
+        \item 四つの予測型のオラクル同等性
+        \item Fokker--Planck が密度発展の万能法則であること
+    \end{itemize}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{第6章の道筋（全体像）}
+    \begin{enumerate}
+        \item \textbf{6.1 条件付け}\\
+        扱いにくい周辺目標 $\to$ 扱いやすい条件付き目標
+        \item \textbf{6.2 学習目標}\\
+        スケジュール・予測型・時間重み・サンプリング分布
+        \item \textbf{6.3 同等性}\\
+        アフィン経路の再パラメータ化と予測型の変換
+        \item \textbf{6.4 Fokker--Planck}\\
+        三視点を密度レベルでつなぐ万能拘束
+    \end{enumerate}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{二つの核心インサイト}
+    \begin{block}{1. 条件付けトリック}
+        変分・スコア・フローのいずれも、\\
+         intractable な周辺目標を tractable な条件付き目標へ落とす。\\
+        これが安定で効率的な学習の「秘伝のタレ」。
+    \end{block}
+    \begin{block}{2. Fokker--Planck}
+        確率密度の時間発展を支配する万能法則。\\
+        三視点は、この動力学を尊重する生成過程を、\\
+        それぞれ別の言葉で構成している。
+    \end{block}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{四つの予測型は同じ情報を持つ}
+    オラクル水準では、次は代数的に変換し合える。
+    \begin{center}
+        クリーンデータ $x_0$
+        \;$\leftrightarrow\;$
+        ノイズ $\epsilon$
+        \;$\leftrightarrow\;$
+        スコア $\nabla\log p_t$
+        \;$\leftrightarrow\;$
+        速度 $v$
+    \end{center}
+    \begin{alertblock}{ただし「見た目の差」ではない}
+        有限容量ネット・誤差の時間重み・有限ステップ数値解では、\\
+        どの量を当てるかで最適化とサンプリングの挙動が変わりうる。
+    \end{alertblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{「同等」を区別する}
+    章の中心的な教訓は、変換公式の暗記ではなく、\\
+    \textbf{どの意味の同等性か}を問うこと。
+    \begin{enumerate}
+        \item 同じオラクル情報を表す（代数的変換）
+        \item 母集団目的が、重みや定数差を除いて同じ
+        \item 同じ周辺密度経路 $\{p_t\}$ をたどる
+        \item 実務の学習・サンプリングアルゴリズムとして同じ挙動
+    \end{enumerate}
+    \begin{exampleblock}{注意}
+        (1)--(3) が成り立っても、(4) は自動では保証されない。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{設計選択の整理}
+    拡散の学習で触る主なレバー：
+    \begin{itemize}
+        \item 前向きノイズスケジュール $(\alpha_t,\sigma_t)$
+        \item 予測ターゲット（$x_0$ / $\epsilon$ / score / velocity）
+        \item 時間のサンプリング分布
+        \item 時間方向の損失重み
+    \end{itemize}
+    \begin{block}{見分け方}
+        数学的な再パラメータ化で消える差と、\\
+        有限モデル・有限計算では残る差を分けて考える。
+    \end{block}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{アフィン経路と密度の共通原理}
+    形 $x_t=\alpha_t x_0+\sigma_t\epsilon$ は、時間の再パラメータ化と空間のリスケールで
+    \[
+        x_t=(1-t)x_0+t\epsilon
+    \]
+    へ写せる（6.3）。周辺経路の構造は保たれ、時間重みや数値解の都合は変わりうる。
+    \begin{block}{密度レベルの標語}
+        単純な事前をデータへ運ぶ力学を構成し、\\
+        その周辺が所定の確率経路に沿って輸送されるようにする。\\
+        FP / 連続の式が、変分・ODE・SDE をつなぐ。
+    \end{block}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{章頭の到達目標との対応}
+    章頭の ``After this chapter, you will be able to...'' への対応。
+    \begin{itemize}
+        \item 条件付け原理（周辺 $\to$ 条件付き）を三視点で説明できる
+        \item 四つの予測型を変換し、オラクル情報の同一性を言える
+        \item 設計レバーのうち、再パラメータ化と実務差を切り分けられる
+        \item 「同等」の複数の意味を区別できる
+        \item アフィン経路の時間・空間変換の保存／非保存を追える
+        \item 連続の式 / FP が三記述をつなぐ密度原理だと説明できる
+    \end{itemize}
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：到達目標チェックリスト}
+    \footnotesize
+    \begin{enumerate}
+        \item 変分・スコア・フローで、同じ条件付けパターンを指摘できるか
+        \item $x_0$/$\epsilon$/score/$v$ のオラクル変換を、非退化スケジュールで書けるか
+        \item スケジュール・予測型・時間分布・重みの役割を分けて言えるか
+        \item 「情報同等」「目的同等」「周辺同等」「アルゴリズム同等」を区別できるか
+        \item $\alpha_t,\sigma_t$ 経路を線形スケジュールへ写すとき、何が変わるか説明できるか
+        \item Continuity / FP を、三視点の共通拘束として一文で言えるか
+    \end{enumerate}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{Reader route（初読の指針）}
+    この章は本全体の概念的な要石である。初読では次に集中する。
+    \begin{enumerate}
+        \item 条件付け原理
+        \item 四つの予測型の関係
+        \item 連続の式 / Fokker--Planck による三視点の接続
+    \end{enumerate}
+    \begin{block}{中心的な教訓}
+        変換公式を暗記することではなく、\\
+        「どの同等性か／何が保たれるか」を問う習慣である。
+    \end{block}
+    \vfill
+    \footnotesize
+    重み・スケジュール・パラメータ化の細部は、後から実務差の理解のために再訪する。
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{核心の一文}
+    \begin{block}{第6章の核心}
+        拡散の三視点は、同じ確率経路の周辺を運ぶ生成子の別表現である。\\
+        学習は条件付き目標への回帰、密度の法則は Fokker--Planck である。
+    \end{block}
+    \begin{itemize}
+        \item オラクルでは予測型もスケジュールも大きく変換できる
+        \item 実務では有限性のため、表現の選びが効きうる
+        \item 生成 $=$ 微分方程式を解く、という土台が次パートへ続く
+    \end{itemize}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{この先の地図（Part C / D）}
+    「何を・なぜ」を統一したので、次は「どう使う・どう速くする」。
+    \begin{enumerate}
+        \item \textbf{Part C（推論時）}\\
+        軌跡の制御（第8章）、高速な数値ソルバ（第9章）
+        \item \textbf{Part D（少数ステップ）}\\
+        蒸留（第10章）、スクラッチの高速生成器（第11章）
+    \end{enumerate}
+    \begin{exampleblock}{共通の足場}
+        生成 $=$ 微分方程式を解くこと。\\
+        統一理解がその制御と加速のプラットフォームになる。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{第7章へ：Optimal Transport}
+    分布から分布への写像（生成はその特別な場合）が次の主題。
+    \begin{itemize}
+        \item Flow Matching：ソース$\to$ターゲットの速度場学習
+        \item 古典 OT / エントロピー OT / Schr\"odinger bridge
+        \item 確率的視点（SDE）はエントロピー OT と親和的
+        \item PF-ODE は既知の輸送目的と一般には一致しない
+    \end{itemize}
+    \begin{block}{つなぎ}
+        第6章の「同じ周辺・異なる力学」が、\\
+        「どの輸送を実現しているか」という第7章の問いに直結する。
+    \end{block}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{第6章のまとめ}
+    \begin{itemize}
+        \item 条件付けが、三視点に共通する学習の仕組みである
+        \item 四予測型はオラクル同等だが、実務挙動は異なりうる
+        \item 設計選択は、再パラメータ化と真の自由度を分けて読む
+        \item Continuity / FP が変分・ODE・SDE を密度で統一する
+        \item 次は第7章：Optimal Transport との関係を問う
     \end{itemize}
 \end{frame}

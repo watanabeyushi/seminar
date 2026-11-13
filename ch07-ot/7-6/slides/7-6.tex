@@ -1,0 +1,216 @@
+﻿% !TEX root = ../tex/7-6.tex
+\input{../slides/ch07-colors}
+
+%=============================================
+\begin{frame}{7.6 Closing Remarks}
+    \begin{block}{この章で閉じたこと（論文 7.6）}
+        分布から分布への輸送を、古典 OT・エントロピー OT・\\
+        Schr\"odinger bridge と、拡散の SDE / ODE の関係から整理した。
+    \end{block}
+    \begin{itemize}
+        \item 静的 Monge--Kantorovich と動的 Benamou--Brenier
+        \item EOT / SB：決定的輸送から制御拡散へ
+        \item 拡散は SB 視点に近く、PF-ODE は決定的マップを与えるが、\\
+        一般に二次コスト OT の最小化子ではない
+    \end{itemize}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{第7章の道筋（全体像）}
+    \begin{enumerate}
+        \item \textbf{7.1 プロローグ}\\
+        分布間翻訳と「最も効率的な変換」という問い
+        \item \textbf{7.2--7.3 定式化の地図}\\
+        OT / EOT / SB と、静的・動的の対応
+        \item \textbf{7.4 SDE 側}\\
+        標準拡散 SDE は一般に指定端点の SB を解かない
+        \item \textbf{7.5 ODE 側}\\
+        PF-ODE は決定的マップだが、一般に OT マップではない
+    \end{enumerate}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{章の核心：何が「最適」か}
+    \begin{columns}[T,onlytextwidth]
+        \begin{column}{0.48\textwidth}
+            \begin{block}{古典 OT}
+                二次コスト（など）を最小にする\\
+                カップリング／マップ／流れ
+            \end{block}
+            \begin{block}{EOT / SB}
+                参照過程に対する\\
+                最尤の制御拡散
+            \end{block}
+        \end{column}
+        \begin{column}{0.48\textwidth}
+            \begin{block}{拡散 SDE}
+                固定の前向きノイズ過程。\\
+                一般に二端点 SB ではない
+            \end{block}
+            \begin{block}{PF-ODE}
+                周辺を運ぶ決定的フロー。\\
+                一般に $W_2$-OT ではない
+            \end{block}
+        \end{column}
+    \end{columns}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{SDE 側と ODE 側の対比}
+    \renewcommand{\arraystretch}{1.3}
+    \begin{tabular}{lll}
+        & \textbf{確率的（SDE）} & \textbf{決定的（ODE）} \\
+        \hline
+        古典の相手 & EOT / Schr\"odinger bridge & OT / Benamou--Brenier \\
+        拡散の実装 & 前向き・逆向き SDE & PF-ODE / Flow Matching \\
+        一般の関係 & 半ブリッジ等を除き SB ではない & OT マップではない \\
+    \end{tabular}
+    \vfill
+    \begin{exampleblock}{共通メッセージ}
+        「周辺を結ぶ生成力学」と「所定コストの最適輸送」は切り分ける。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{より基本的な問い：決定的マップはいつ存在するか}
+    最適性の前に、そもそも決定的写像で結べるか？
+    \begin{itemize}
+        \item 穏やかな正則性の下では、\\
+        可測写像 $T$ で $T_\# p_{\mathrm{src}}=p_{\mathrm{tgt}}$ はしばしば存在する
+        \item 難しさは存在そのものより、\\
+        \textbf{明示的で実務に耐える構成}が多次元では少ないこと
+    \end{itemize}
+    \begin{block}{1次元}
+        単調再配列（分位点マッチング）が単純な答えを与える。
+    \end{block}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{古典的な決定的輸送の構成}
+    高次元でも知られた構成がある：
+    \begin{enumerate}
+        \item \textbf{Brenier（Thm.\ 7.1）}\\
+        二次コスト最適マップ（適当な正則性の下）
+        \item \textbf{Knothe--Rosenblatt}\\
+        条件付き分布の反復から三角写像を作る
+        \item \textbf{Dacorogna--Moser}\\
+        発散方程式を解く速度場から滑らかな微分同相を構成
+    \end{enumerate}
+    \begin{exampleblock}{限界}
+        いずれも構造仮定や解析的な道具に依存し、\\
+        高次元での計算はしばしば難しい。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{拡散フローの位置づけ}
+    拡散・Flow Matching は、閉じた形の輸送マップを処方する代わりに、\\
+    ソースをターゲットへ押す時間依存ベクトル場を\textbf{学習}する。
+    \begin{itemize}
+        \item 誘導されるマップは Brenier マップと一致する必要はない
+        \item 所定の OT 問題を解くとも限らない
+        \item それでも高次元のマップ型サンプリングへの実用的経路を与える
+    \end{itemize}
+    \begin{alertblock}{正しい見方}
+        古典 OT の置換ではなく、\\
+        OT・三角再配列・PDE 構成と並ぶ\textbf{学習ベースの輸送機構}。
+    \end{alertblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{章頭の到達目標との対応}
+    章頭の ``After this chapter, you will be able to...'' への対応。
+    \begin{itemize}
+        \item 輸送カップリング／決定的マップ／動的フロー／SB を区別し、\\
+        深層生成と概念的につなげられる
+        \item 古典 OT・EOT・SB が何を最適化し、どう関係するかを説明できる
+        \item 標準の拡散前向き／逆向き SDE が、一般に指定二端点 SB を\\
+        解かない理由を言える
+        \item PF-ODE が決定的マップを定める一方、\\
+        一般に二次コスト OT と一致しない理由を言える
+    \end{itemize}
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：到達目標チェックリスト}
+    \footnotesize
+    \begin{enumerate}
+        \item カップリング・マップ・動的フロー・SB を一文ずつ区別できるか
+        \item Monge / Benamou--Brenier / EOT / SB の最適化対象を言えるか
+        \item 「拡散 SDE $=$ SB」が一般に偽である理由を説明できるか
+        \item 「PF-ODE $=$ Brenier マップ」が一般に偽である理由を説明できるか
+        \item 線形 FM・Reflow が OT 上界／直線化の道具であり、\\
+        OT 求解保証ではないことを言えるか
+        \item 拡散フローを、古典構成と並ぶ学習ベース輸送として位置づけられるか
+    \end{enumerate}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{Reader route（初読の指針）}
+    この章は本編ストーリーに対して\textbf{任意（optional）}である。
+    \begin{block}{読む目的}
+        「拡散は、どの意味で最適輸送なのか／でないのか」への\\
+        精確な答えを得るため。
+    \end{block}
+    \begin{enumerate}
+        \item まず 7.2--7.3 の地図で用語を揃える
+        \item 7.4 で SDE $\leftrightarrow$ SB、7.5 で ODE $\leftrightarrow$ OT を読む
+        \item 細部の反例は、結論の sharpness を確認したいときに再訪
+    \end{enumerate}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{核心の一文}
+    \begin{block}{第7章の核心}
+        拡散モデルは分布間輸送の強力な学習機構である。\\
+        確率側は SB／EOT に近く、決定側は OT に近いが、\\
+        標準実装は一般にそれらの厳密な最適解ではない。
+    \end{block}
+    \begin{itemize}
+        \item 同じ周辺を結んでも、コスト最適とは限らない
+        \item 直線化・整流は実務に効きうるが、OT 同定ではない
+        \item 価値は「古典理論の置換」ではなく「並置できる現代の道具」にある
+    \end{itemize}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{この先：Part C --- Sampling}
+    「何を・なぜ」から、「どう解く・どう操る」へ。
+    \begin{enumerate}
+        \item \textbf{第8章 Guidance}\\
+        生成軌跡の制御・条件付け・誘導
+        \item \textbf{第9章 Numerical Solvers}\\
+        ODE / SDE の高速・高精度な数値解法
+        \item \textbf{その先（Part D）}\\
+        蒸留・少数ステップ生成器
+    \end{enumerate}
+    \begin{exampleblock}{共通の足場}
+        生成 $=$ 学習したベクトル場の微分方程式を解くこと。\\
+        第7章は、その力学が「どの輸送か」を見極める座標を与えた。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{第8章へ：Guidance}
+    Part C の入口は、推論時に生成を操ること。
+    \begin{itemize}
+        \item 条件付き生成、分類器／分類器なし誘導
+        \item 同じ基礎力学の上で、軌跡を望ましい方向へ曲げる
+        \item OT 最適性とは別軸の、実用的な制御の話
+    \end{itemize}
+    \begin{block}{つなぎ}
+        第7章で「最適とは限らない輸送」と分かったうえで、\\
+        第8章は「望みのサンプルへ舵を取る」へ進む。
+    \end{block}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{第7章のまとめ}
+    \begin{itemize}
+        \item OT / EOT / SB と拡散 SDE・ODE の関係を整理した
+        \item 標準拡散 SDE は一般に二端点 SB を解かない（7.4）
+        \item PF-ODE は決定的マップだが、一般に二次コスト OT ではない（7.5）
+        \item 拡散フローは古典構成と並ぶ、高次元の学習ベース輸送である
+        \item 次は Part C：Guidance から始まるサンプリング編
+    \end{itemize}
+\end{frame}

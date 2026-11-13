@@ -13,4 +13,10 @@
     \setbeamercolor{itemize subitem}{fg=examplecol}%
     \setbeamercolor{enumerate item}{fg=examplecol}%
 }
+% フレームタイトルの「補足」だけを□で囲む
+\newcommand{\supplmark}{%
+    \setlength{\fboxsep}{1.5pt}%
+    \setlength{\fboxrule}{0.7pt}%
+    \fbox{\textbf{補足}}%
+}
 \asmain

@@ -1,6 +1,687 @@
 % !TEX root = ../tex/8-5.tex
-\begin{frame}{8.5 RL to DPO for Alignment}
+\input{../slides/ch08-colors}
+
+%=============================================
+\begin{frame}{8.5 From RL to DPO for Model Alignment}
+    \begin{block}{この節の主題（論文 8.5）}
+        人間の好みに合わせて生成モデルを揃える（alignment）。\\
+        主流の RLHF は強力だが多段で不安定。\\
+        \textbf{DPO} は同じ目標を、明示的報酬モデルと RL なしで狙う。
+    \end{block}
     \begin{itemize}
-        \item
+        \item 言語モデル向け DPO（Rafailov et al., 2023）
+        \item 拡散への拡張：\textbf{Diffusion-DPO}（Wallace et al., 2024）
+        \item ゼミでは直観と鍵式を中心に追う（細部の導出は補足）
     \end{itemize}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{8.5 の道筋}
+    \begin{enumerate}
+        \item \textbf{8.5.1 動機}\\
+        RLHF の落とし穴と「直接好みで最適化できないか」
+        \item \textbf{8.5.2 RLHF（Bradley--Terry 視点）}\\
+        報酬モデルと KL 正則化付き方策最適化
+        \item \textbf{8.5.3 DPO 枠組み}\\
+        RLHF 目的の閉形式解 $\to$ 暗黙報酬 $\to$ ロジスティック損失
+        \item \textbf{8.5.4 Diffusion-DPO}\\
+        軌跡／逆過程への持ち上げと実用的代理損失
+    \end{enumerate}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{前回までとの接続}
+    \begin{itemize}
+        \item \textbf{8.1--8.3}：条件付きスコアの分解と CG / CFG
+        \item \textbf{8.4}：学習なし誘導（タスク損失から誘導方向）
+        \item \textbf{ここ（8.5）}：条件を満たしても好みから外れる問題へ\\
+        \emph{control}（条件適合）と \emph{alignment}（人間好み）を区別
+    \end{itemize}
+    \begin{exampleblock}{好みによる傾き（プロローグのイメージ）}
+        \[
+            \tilde p_0(\vx_0\mid c)
+            \propto
+            p_0(\vx_0\mid c)\,
+            \exp\!\bigl(\lambda_{\mathrm{pref}}\, r(\vx_0,c)\bigr)
+        \]
+        大きい $r$ ほど好ましいクリーン出力。KL 正則化では $\lambda_{\mathrm{pref}}=1/\beta$。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\section{8.5.1 Motivation}
+\asmain
+\begin{frame}{区切り：8.5.1 RLHF の落とし穴を避ける}
+    \tableofcontents[currentsection]
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{Alignment の目標}
+    ベース（例：SFT 済み）モデルを、\\
+    人間が好む出力へ舵取りすること。
+    \begin{block}{RLHF の三段パイプライン}
+        \begin{enumerate}
+            \item \textbf{SFT}：プロンプト--応答ペアで教師あり微調整
+            \item \textbf{報酬モデリング（RM）}：好みペア $(c,\vx^w,\vx^l)$ から\\
+            スカラー $r(c,\vx)$ を学習（勝者が敗者より高得点）
+            \item \textbf{RL 微調整}：PPO 等で期待報酬を最大化しつつ、\\
+            参照（SFT）分布への KL ペナルティで離れすぎを防ぐ
+        \end{enumerate}
+    \end{block}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{RLHF が抱える実務上の欠点}
+    \begin{itemize}
+        \item \textbf{不安定・高コスト}：on-policy。各更新で現行方策から\\
+        新しいサンプルを生成し直す必要がある
+        \item \textbf{多モデル運用}：SFT・報酬・（しばしば）価値モデルを\\
+        同時に学習・ホストする
+        \item \textbf{代理目的}：最適化しているのは人間好みそのものではなく\\
+        学習した報酬の代理。報酬の欠陥を突く（reward hacking）余地
+    \end{itemize}
+    \begin{alertblock}{Question 8.5.1}
+        明示的報酬モデリングと不安定な RL 段階をやめ、\\
+        好みデータ上でモデルを\textbf{直接}最適化できるか？
+    \end{alertblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{DPO の一言答え}
+    \begin{block}{Direct Preference Optimization}
+        多段 RLHF を、\textbf{単一の教師あり風ステップ}に置き換える。\\
+        別報酬モデルも PPO も使わず、\\
+        固定参照モデルに近づきつつ、好みペアへロジスティック損失で適合。
+    \end{block}
+    \begin{itemize}
+        \item 鍵：KL 正則化付き RLHF 目的を書き換えると、\\
+        方策と参照の\textbf{対数尤度比}が暗黙の報酬になる
+        \item 同じ「参照への正則化」を保ちつつ、\\
+        高価なロールアウトと明示的 RM を避けられる
+    \end{itemize}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{この節の残りでやること}
+    \begin{enumerate}
+        \item \textbf{8.5.2}：RLHF パイプラインと大規模報酬モデルへの依存を短く復習
+        \item \textbf{8.5.3}：言語モデル向け DPO --- RM と RL を迂回する仕組み
+        \item \textbf{8.5.4}：拡散への拡張（Diffusion-DPO）---\\
+        生成モデリング設定での実用的・安定な alignment
+    \end{enumerate}
+    \vfill
+    \footnotesize
+    脚注の「方策」：プロンプト／履歴（状態）を応答／行動の分布へ写す写像。
+\end{frame}
+%=============================================
+\section{8.5.2 RLHF: Bradley--Terry View}
+\asmain
+\begin{frame}{区切り：8.5.2 RLHF（Bradley--Terry 視点）}
+    \tableofcontents[currentsection]
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{報酬モデル：好みの「審判」を学ぶ}
+    同じプロンプト $c$ に対する候補応答へ、スカラー好み得点を付ける $r_{\bm{\psi}}$。
+    \begin{itemize}
+        \item データ $\mathcal{D}$：組 $(\tilde{\vx},\vx)$ とラベル $y$\\
+        （$\tilde{\vx}$ が $\vx$ より好まれるか）
+        \item $y\in\{0,1\}$（二値）または複数評価者の集約 $y\in[0,1]$（ソフト）
+    \end{itemize}
+    \begin{block}{ロジスティック損失（一般形）}
+        \[
+            \mathcal{L}_{\mathrm{RM}}(\bm{\psi})
+            =
+            -\mathbb{E}
+            \Bigl[
+            y\log\sigma\!\bigl(\Delta r\bigr)
+            +(1-y)\log\bigl(1-\sigma(\Delta r)\bigr)
+            \Bigr]
+        \]
+        ただし $\Delta r:=r_{\bm{\psi}}(c,\tilde{\vx})-r_{\bm{\psi}}(c,\vx)$，
+        $\sigma(u)=1/(1+e^{-u})$。
+    \end{block}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{勝者・敗者の順序付け表記}
+    実務では好みペアを $(\vx^w,\vx^l,c)$ の順序付きで保存することが多い。
+    \begin{itemize}
+        \item この慣例では常に $y=1$（勝者が先）
+        \item $\tilde{\vx}=\vx^w$，$\vx=\vx^l$ と置けば一般形は次に退化：
+    \end{itemize}
+    \begin{block}{順序付き RM 損失（式 8.5.2）}
+        \[
+            \mathcal{L}_{\mathrm{RM}}(\bm{\psi})
+            =
+            -\mathbb{E}_{(\,c,\vx^w,\vx^l)\sim\mathcal{D}}
+            \log\sigma\!\bigl(
+            r_{\bm{\psi}}(c,\vx^w)-r_{\bm{\psi}}(c,\vx^l)
+            \bigr)
+        \]
+    \end{block}
+    \begin{exampleblock}{データの出どころ}
+        人手キュレーション、異なるチェックポイント、\\
+        事前学習済み条件付き拡散の生成、など。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{Bradley--Terry：スコア差 $\to$ 勝率}
+    \[
+        p_{r_{\bm{\psi}}}(\tilde{\vx}\succ\vx\mid c)
+        :=
+        \sigma\!\bigl(r_{\bm{\psi}}(c,\tilde{\vx})-r_{\bm{\psi}}(c,\vx)\bigr)
+    \]
+    \begin{itemize}
+        \item \textbf{差だけが効く}：$r_{\bm{\psi}}(c,\cdot)$ は定数シフト不変
+        \item 損失は「予測勝率」を人間ラベルに合わせ、\\
+        勝者のスコアを敗者より高く押し上げる
+    \end{itemize}
+    \begin{alertblock}{直感（勾配）}
+        $\Delta r\leftarrow\Delta r-\eta\bigl(\sigma(\Delta r)-y\bigr)$。\\
+        $y=1$ なら $\Delta r$ が増える（勝者↑・敗者↓）。
+    \end{alertblock}
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：RM 損失 $=$ ベルヌーイ KL}
+    1 サンプルのロジスティック損失は、観測ラベルと予測勝率の交差エントロピー：
+    \[
+        -\bigl[y\log p+(1-y)\log(1-p)\bigr]
+        =
+        D_{\mathrm{KL}}\!\bigl(\mathrm{Bern}(y)\,\|\,\mathrm{Bern}(p)\bigr)
+        +H\!\bigl(\mathrm{Bern}(y)\bigr).
+    \]
+    \begin{block}{データ平均（式 8.5.3）}
+        \[
+            \mathcal{L}_{\mathrm{RM}}
+            =
+            \mathbb{E}_{\mathcal{D}}
+            D_{\mathrm{KL}}\!\bigl(\mathrm{Bern}(y)\,\|\,\mathrm{Bern}(p_{r})\bigr)
+            +
+            \underbrace{\mathbb{E}_{\mathcal{D}} H(\mathrm{Bern}(y))}_{\bm{\psi}\text{に非依存}}
+        \]
+    \end{block}
+    最小化 $=$ 人間の経験的勝率に予測勝率を合わせること（ソフトラベルでは定数オフセット差）。
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{固定報酬のもとでの KL 正則化方策最適化}
+    フィット済み報酬 $r:=r_{\bm{\psi}^\star}$ と、参照 $\pi_{\mathrm{ref}}(\vx\mid c):=p_{\bm{\phi}^\star}(\vx\mid c)$（事前学習条件付き拡散）を固定。
+    \begin{block}{RLHF 目的（式 8.5.4）}
+        \[
+            \max_{\bm{\theta}}
+            \mathbb{E}_{c}
+            \Bigl[
+            \mathbb{E}_{\vx\sim\pi_{\bm{\theta}}(\cdot\mid c)}
+            r(c,\vx)
+            -
+            \beta\,
+            D_{\mathrm{KL}}\!\bigl(
+            \pi_{\bm{\theta}}(\cdot\mid c)\,\|\,\pi_{\mathrm{ref}}(\cdot\mid c)
+            \bigr)
+            \Bigr]
+        \]
+    \end{block}
+    \begin{itemize}
+        \item 審判が高得点を付けるサンプルを増やす
+        \item ただし参照（事前学習）から離れすぎない
+    \end{itemize}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{RLHF の二段まとめ}
+    \begin{enumerate}
+        \item 式 8.5.2（＝二値 KL の期待）を最小化して報酬 $r^\star$ をフィット
+        \item 式 8.5.4 を解いて方策 $\pi^\star$ を最適化
+    \end{enumerate}
+    \begin{exampleblock}{補足}
+        RM は\textbf{参照モデルが生成したペア}を必須としない。\\
+        ただし、使う領域に近いモデルから集めると分布シフトが減り、\\
+        報酬の信頼性が上がりやすい。
+    \end{exampleblock}
+    \begin{alertblock}{次へ}
+        この KL 正則化目的には閉形式解があり、\\
+        それを逆に読むと「明示的 $r$ なし」の DPO に到達する。
+    \end{alertblock}
+\end{frame}
+%=============================================
+\section{8.5.3 DPO Framework}
+\asmain
+\begin{frame}{区切り：8.5.3 DPO 枠組み}
+    \tableofcontents[currentsection]
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{RLHF から DPO への橋：閉形式解}
+    各プロンプト $c$ について、式 8.5.4 の最適方策はエネルギー型（式 8.5.5）：
+    \[
+        \pi^\star(\vx\mid c)
+        =
+        \frac{1}{Z(c)}\,
+        \pi_{\mathrm{ref}}(\vx\mid c)\,
+        \exp\!\bigl(r(c,\vx)/\beta\bigr).
+    \]
+    \begin{columns}[T,onlytextwidth]
+        \begin{column}{0.48\textwidth}
+            \begin{block}{小さい $\beta$}
+                $\exp(r/\beta)$ が尖る\\
+                $\to$ 高報酬に集中\\
+                参照から遠く、多様性↓\\
+                不安定・hack のリスク↑
+            \end{block}
+        \end{column}
+        \begin{column}{0.48\textwidth}
+            \begin{block}{大きい $\beta$}
+                $\exp(r/\beta)$ が平坦\\
+                $\to$ 参照に近い\\
+                更新は保守的、多様性は参照寄り\\
+                報酬の伸びは限定的
+            \end{block}
+        \end{column}
+    \end{columns}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{暗黙報酬：式 8.5.5 の反転}
+    任意の方策 $\pi$（サポートが $\pi_{\mathrm{ref}}$ に含まれる）に対し
+    \[
+        r_{\pi}(c,\vx)
+        =
+        \beta\log\frac{\pi(\vx\mid c)}{\pi_{\mathrm{ref}}(\vx\mid c)}
+        +\beta\log Z(c)
+        \qquad\text{（式 8.5.6）}
+    \]
+    と置けば、その $\pi$ は「報酬 $r_{\pi}$ に対する」式 8.5.4 の最適解になる。
+    \begin{itemize}
+        \item $r_{\pi}$ は方策が誘起する\textbf{暗黙報酬}
+        \item 定数 $\beta\log Z(c)$ はプロンプト依存だが、\\
+        ペア比較（BT）では\textbf{打ち消される}
+    \end{itemize}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{ペアでは正規化定数が消える}
+    \[
+        r_{\pi}(c,\vx^w)-r_{\pi}(c,\vx^l)
+        =
+        \beta\log\frac{\pi(\vx^w\mid c)}{\pi_{\mathrm{ref}}(\vx^w\mid c)}
+        -
+        \beta\log\frac{\pi(\vx^l\mid c)}{\pi_{\mathrm{ref}}(\vx^l\mid c)}
+    \]
+    \begin{exampleblock}{要点}
+        好み学習に必要なのは絶対スコアではなく、\\
+        「参照に対する対数尤度の改善」の勝者--敗者差だけ。\\
+        これが DPO 損失へ直結する。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{DPO の学習損失}
+    暗黙報酬を BT（式 8.5.2）へ代入すると、$Z(c)$ が消え、
+    \begin{block}{DPO 損失}
+        \[
+            \mathcal{L}_{\mathrm{DPO}}(\bm{\theta};\pi_{\mathrm{ref}})
+            =
+            -\mathbb{E}
+            \log\sigma\!\Biggl(
+            \beta\log\frac{\pi_{\bm{\theta}}(\vx^w\mid c)}{\pi_{\mathrm{ref}}(\vx^w\mid c)}
+            -
+            \beta\log\frac{\pi_{\bm{\theta}}(\vx^l\mid c)}{\pi_{\mathrm{ref}}(\vx^l\mid c)}
+            \Biggr)
+        \]
+    \end{block}
+    \begin{itemize}
+        \item 勝者の（温度付き）優位を、参照からの対数比改善の差として押し上げる
+        \item \textbf{単一の分類風微調整}で RLHF の目標に到達
+        \item 明示的報酬モデルも、不安定な RL ロールアウトも不要
+    \end{itemize}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{DPO の読み方（一文）}
+    \[
+        -\log\sigma\!\Bigl(
+        \beta\cdot
+        \underbrace{
+        \bigl[\text{log-ratio of }\pi_{\bm{\theta}}/\pi_{\mathrm{ref}}\bigr]_{\vx^w}
+        -
+        \bigl[\text{log-ratio}\bigr]_{\vx^l}
+        }_{\text{winner--loser margin}}
+        \Bigr)
+    \]
+    \begin{alertblock}{標語}
+        「好みペア上のロジスティック回帰」として、\\
+        方策の参照相対対数尤度を直接動かす。
+    \end{alertblock}
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：RLHF と DPO の対応表}
+    \renewcommand{\arraystretch}{1.25}
+    \footnotesize
+    \begin{tabular}{lll}
+        & \textbf{RLHF} & \textbf{DPO} \\
+        \hline
+        報酬 & 明示的 $r_{\bm{\psi}}$ を学習 & 方策の対数比が暗黙報酬 \\
+        最適化 & PPO 等の RL（on-policy） & 単一の教師あり風損失 \\
+        正則化 & $\beta$ KL を明示 & 同じ $\beta$ が温度として残る \\
+        データ & 好みペア（＋ロールアウト） & 好みペアのみ \\
+        狙い & 式 8.5.4 の解 & 同じ解クラスを直接フィット \\
+    \end{tabular}
+    \vfill
+    \begin{exampleblock}{注意}
+        DPO は「RL が不要」であって「好みデータが不要」ではない。\\
+        参照モデルの選択と $\beta$ は、依然として重要な設計レバー。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\section{8.5.4 Diffusion-DPO}
+\asmain
+\begin{frame}{区切り：8.5.4 Diffusion-DPO}
+    \tableofcontents[currentsection]
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{拡散では素朴な DPO がつらい}
+    表記は 8.5.3 を引き継ぐ：$\pi_{\bm{\theta}}$ / $\pi_{\mathrm{ref}}$ は学習・参照の拡散方策\\
+    （経路・遷移分布を含む）。前向きノイズ $p_t(\vx_t\mid\vx_0)$ は固定。
+    \begin{alertblock}{なぜそのままではダメか}
+        \begin{itemize}
+            \item サンプル尤度 $\pi_{\bm{\theta}}(\vx\mid c)$ の評価には、\\
+            ODE の瞬間的変数変換（ドリフトの発散）等が必要で重い
+            \item サンプリング軌跡全体を通した微分は、\\
+            勾配の消失・爆発のリスク
+        \end{itemize}
+    \end{alertblock}
+    $\Rightarrow$ Diffusion-DPO は\textbf{経路レベル}で議論する\\
+    （離散時間 DDPM を例に；連続時間も同様）。
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{経路と端点報酬}
+    軌跡 $\vx_{0:T}:=(\vx_T,\ldots,\vx_0)$。\\
+    逆時間マルコフ鎖の条件付き $\pi(\vx_{t-1}\mid\vx_t,c)$。\\
+    $\vx_T$ は最高ノイズ、$\vx_0$ はクリーン出力。
+    \begin{itemize}
+        \item 人間の好みは最終出力上の $r(c,\vx_0)$ で定義される
+        \item $\vx_0$ はどの軌跡にも含まれるので、\\
+        「報酬の定義」自体を経路空間で変える必要はない
+        \item 有用なのは、\textbf{逆過程全体}を正則化すること
+    \end{itemize}
+    \begin{exampleblock}{KL の連鎖則}
+        経路分布の KL $\ge$ 端点周辺の KL。\\
+        $\Rightarrow$ 潜在の denoising 軌跡の逸脱も制御する動機。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{経路版の KL 正則化目的}
+    \[
+        \max_{\bm{\theta}}
+        \mathbb{E}_{c}
+        \Bigl[
+        \mathbb{E}_{\vx_{0:T}\sim\pi_{\bm{\theta}}(\cdot\mid c)}
+        r(c,\vx_0)
+        -
+        \beta\,
+        D_{\mathrm{KL}}\!\bigl(
+        \pi_{\bm{\theta}}(\cdot\mid c)\,\|\,\pi_{\mathrm{ref}}(\cdot\mid c)
+        \bigr)
+        \Bigr]
+    \]
+    \begin{itemize}
+        \item 報酬項は端点のまま
+        \item KL は経路分布どうし（潜在軌跡のずれも含む）
+        \item $\pi_{\bm{\theta}}(\cdot\mid c)$，$\pi_{\mathrm{ref}}(\cdot\mid c)$ は対応する\textbf{経路分布}
+    \end{itemize}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{経路の最適解と暗黙経路報酬}
+    正規化定数が有限なら、各 $c$ で（式 8.5.7）
+    \[
+        \pi^\star(\vx_{0:T}\mid c)
+        =
+        \frac{1}{Z(c)}\,
+        \pi_{\mathrm{ref}}(\vx_{0:T}\mid c)\,
+        \exp\!\bigl(r(c,\vx_0)/\beta\bigr).
+    \]
+    反転して任意の $\pi$ に暗黙経路報酬を定義：
+    \[
+        R_{\pi}(c,\vx_{0:T})
+        :=
+        \beta\log\frac{\pi(\vx_{0:T}\mid c)}{\pi_{\mathrm{ref}}(\vx_{0:T}\mid c)}
+        +\beta\log Z(c).
+    \]
+    \begin{itemize}
+        \item 経路最適では $R_{\pi^\star}(c,\vx_{0:T})=r(c,\vx_0)$
+        \item 一般の $\pi$ では潜在軌跡にも依存しうる
+        \item 好みデータはクリーン端点だけを比較 $\Rightarrow$\\
+        端点ごとに軌跡平均を取る
+    \end{itemize}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{端点ペアから Diff-DPO マージンへ}
+    ラベル付き端点対 $(\vx_0^w,\vx_0^l)$ に対し、暗黙経路報酬の条件付き平均を比較：
+    \[
+        \mathcal{L}_{\mathrm{Diff\text{-}DPO}}
+        =
+        -\mathbb{E}
+        \log\sigma\!\bigl(\Delta R(c;\bm{\theta})\bigr)
+    \]
+    \[
+        \Delta R
+        :=
+        \mathbb{E}_{\vx_{1:T}^w\sim\pi_{\bm{\theta}}(\cdot\mid\vx_0^w,c)}
+        \bigl[R_{\pi_{\bm{\theta}}}\bigr]
+        -
+        \mathbb{E}_{\vx_{1:T}^l\sim\pi_{\bm{\theta}}(\cdot\mid\vx_0^l,c)}
+        \bigl[R_{\pi_{\bm{\theta}}}\bigr]
+    \]
+    \begin{exampleblock}{条件付き経路の意味}
+        固定端点 $\vx_0$ のもと、その $\vx_0$ を生みうる逆時間軌跡の\\
+        モデル誘導事後（拡散ブリッジ的）で平均する。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{式 8.5.8 が実務でつらい三理由}
+    \begin{enumerate}
+        \item \textbf{端点条件付き経路事後が intractable}\\
+        サンプラは $\vx_T\to\cdots\to\vx_0$（無制約）。\\
+        端点固定は一般に閉形式がなく、サンプリングも高価
+        \item \textbf{入れ子で $\bm{\theta}$ 結合の期待}\\
+        経路分布も被積分関数 $R$ も $\bm{\theta}$ 依存\\
+        $\Rightarrow$ REINFORCE / pathwise 結合、高分散勾配
+        \item \textbf{長い鎖と重い逆伝播}\\
+        経路対数密度は $O(T)$ ステップ（$T\sim 10^2$--$10^3$）。\\
+        winner/loser・policy/ref の両方で計算し、予算を超えやすい
+    \end{enumerate}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{Jensen で上界：経路尤度比へ}
+    $-\log\sigma(\cdot)$ は凸。内側期待を外へ出すと上界：
+    \[
+        \mathcal{L}_{\mathrm{Diff\text{-}DPO}}
+        \le
+        -\mathbb{E}
+        \log\sigma\!\Bigl(
+        R_{\pi_{\bm{\theta}}}(c,\vx_{0:T}^w)
+        -
+        R_{\pi_{\bm{\theta}}}(c,\vx_{0:T}^l)
+        \Bigr)
+    \]
+    暗黙報酬の恒等式と定数打ち消しのあと（式 8.5.9）：
+    \[
+        \le
+        -\mathbb{E}
+        \log\sigma\!\Biggl(
+        \beta\log\frac{\pi_{\bm{\theta}}(\vx_{0:T}^w\mid c)}{\pi_{\mathrm{ref}}(\vx_{0:T}^w\mid c)}
+        -
+        \beta\log\frac{\pi_{\bm{\theta}}(\vx_{0:T}^l\mid c)}{\pi_{\mathrm{ref}}(\vx_{0:T}^l\mid c)}
+        \Biggr).
+    \]
+    \begin{alertblock}{まだ}
+        経路全体の尤度比が残る $\Rightarrow$ マルコフ分解で一歩ずつへ。
+    \end{alertblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{マルコフ分解：経路比 $\to$ ステップ和}
+    \[
+        \pi_{\bm{\theta}}(\vx_{0:T}\mid c)
+        =
+        \pi_{\bm{\theta}}(\vx_T\mid c)
+        \prod_{t=1}^{T}
+        \pi_{\bm{\theta}}(\vx_{t-1}\mid\vx_t,c)
+    \]
+    参照も同様。時刻 $T$ の事前が共通なら先頭比は 1 で、
+    \[
+        \log\frac{\pi_{\bm{\theta}}(\vx_{0:T}\mid c)}{\pi_{\mathrm{ref}}(\vx_{0:T}\mid c)}
+        =
+        \sum_{t=1}^{T}
+        \log\frac{\pi_{\bm{\theta}}(\vx_{t-1}\mid\vx_t,c)}{\pi_{\mathrm{ref}}(\vx_{t-1}\mid\vx_t,c)}.
+    \]
+    したがって上界は
+    \[
+        -\mathbb{E}
+        \log\sigma\!\Bigl(
+        \beta\sum_{t=1}^{T}\Delta_t
+        \Bigr)
+    \]
+    の形（各 $\Delta_t$ は winner/loser の 1 ステップ対数比差）。
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{時刻の一様サンプルとさらなる Jensen}
+    $\beta\sum_s\Delta_s=\mathbb{E}_{t\sim\mathrm{Unif}\{1,\ldots,T\}}[\beta T\,\Delta_t]$。\\
+    再び $-\log\sigma$ の凸性より
+    \[
+        \mathcal{L}_{\mathrm{Diff\text{-}DPO}}
+        \le
+        -\mathbb{E}
+        \log\sigma\!\bigl(\beta T\,\Delta_t\bigr).
+    \]
+    \begin{itemize}
+        \item 期待は $(c,\vx_0^w,\vx_0^l)$、$t$、および端点条件付き遷移対の上
+        \item \textbf{1 遷移}だけに依存するが、\\
+        端点条件付き遷移のサンプリングは依然 intractable
+    \end{itemize}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{前向きノイズによる実用近似}
+    Diffusion-DPO では、モデル誘導の条件付き経路を\\
+    \textbf{固定の前向きノイズ過程}で近似する。
+    \begin{enumerate}
+        \item クリーン端点 $\vx_0$ から $\vx_t\sim p_t(\vx_t\mid\vx_0)$ をサンプル
+        \item $(\vx_0,\vx_t)$ 条件下の前向き事後 $p(\vx_{t-1}\mid\vx_t,\vx_0)$ は tractable
+        \item その事後で逆遷移の対数比を平均
+    \end{enumerate}
+    \[
+        \mathbb{E}_{p(\vx_{t-1}\mid\vx_t,\vx_0)}
+        \log\frac{\pi_{\bm{\theta}}(\vx_{t-1}\mid\vx_t,c)}{\pi_{\mathrm{ref}}(\vx_{t-1}\mid\vx_t,c)}
+        =
+        -D_{\mathrm{KL}}(p\|\pi_{\bm{\theta}})
+        +D_{\mathrm{KL}}(p\|\pi_{\mathrm{ref}}).
+    \]
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{ガウス逆核 $\to$ DSM 風 MSE 差}
+    逆分散が共通のガウス核では、KL は重み付き denoising 回帰誤差へ退化。\\
+    $\epsilon$-予測では（式 8.5.10）
+    \[
+        \mathbb{E}
+        \log\frac{\pi_{\bm{\theta}}}{\pi_{\mathrm{ref}}}
+        =
+        -\lambda_t
+        \Bigl(
+        \|\hat{\veps}_{\bm{\theta}}(\vx_t,t,c)-\veps\|^2
+        -
+        \|\hat{\veps}_{\mathrm{ref}}(\vx_t,t,c)-\veps\|^2
+        \Bigr),
+    \]
+    ただし $\vx_t=\alpha_t\vx_0+\sigma_t\veps$，$\veps\sim\mathcal{N}(\bm{0},I)$，$\lambda_t>0$。
+    \begin{block}{略記}
+        \[
+            \Delta\mathrm{MSE}(\vx_t;\veps)
+            :=
+            \|\hat{\veps}_{\bm{\theta}}-\veps\|^2
+            -
+            \|\hat{\veps}_{\mathrm{ref}}-\veps\|^2
+        \]
+    \end{block}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{実用的な 1 ステップ Diffusion-DPO 代理損失}
+    \[
+        \widetilde{\mathcal{L}}_{\mathrm{Diff\text{-}DPO}}
+        =
+        -\mathbb{E}
+        \log\sigma\!\Bigl(
+        \beta T\lambda_t
+        \bigl(
+        \Delta\mathrm{MSE}(\vx_t^l;\veps^l)
+        -
+        \Delta\mathrm{MSE}(\vx_t^w;\veps^w)
+        \bigr)
+        \Bigr)
+    \]
+    期待は $(c,\vx_0^w,\vx_0^l)\sim\mathcal{D}$，$t\sim\mathrm{Unif}$，$\veps^w,\veps^l\sim\mathcal{N}(\bm{0},I)$。\\
+    $\vx_t^{w/l}=\alpha_t\vx_0^{w/l}+\sigma_t\veps^{w/l}$。
+    \begin{itemize}
+        \item 共有ノイズ $\veps^w=\veps^l$ は分散低減の変種（形は DPO 風のまま）
+        \item 参照は $\log\sigma$ 内のマージンに残り、例ごとの重み付けを形作る\\
+        （参照自体への直接勾配はない）
+    \end{itemize}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{直感：何を押し上げているか}
+    $\widetilde{\mathcal{L}}$ を最小化すると、参照正規化の\\
+    \textbf{勝者--敗者マージン}が増える。
+    \begin{block}{等価な読み}
+        凍結参照に対し、\\
+        勝者側の denoising 誤差をより減らし、\\
+        敗者側より相対的に良く当てるよう促す。
+    \end{block}
+    \begin{exampleblock}{ゼミ向け要約}
+        拡散では「サンプル尤度の DPO」を避け、\\
+        経路 $\to$ ステップ $\to$ 前向き近似 $\to$ $\epsilon$-MSE 差、\\
+        と tractable な代理へ落とす。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：Diffusion-DPO の設計フロー（地図）}
+    \footnotesize
+    \begin{enumerate}
+        \item 端点報酬＋経路 KL 正則化（RLHF の経路版）
+        \item 閉形式 $\Rightarrow$ 暗黙経路報酬 $R_{\pi}$
+        \item 端点条件付き平均で BT マージン（式 8.5.8）--- しかし intractable
+        \item Jensen：経路尤度比の上界（式 8.5.9）
+        \item マルコフ分解＋時刻一様化：1 ステップ対数比
+        \item 前向き事後で近似：KL $=$ 重み付き MSE 差
+        \item 実用損失：$\log\sigma$ 内の $\Delta\mathrm{MSE}$ 勝者--敗者差
+    \end{enumerate}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{8.5 のまとめ}
+    \begin{itemize}
+        \item RLHF は強いが、RM＋on-policy RL で重く不安定になりうる
+        \item DPO：KL 正則化 RLHF の閉形式を反転し、\\
+        対数比を暗黙報酬として好みペアへ直接フィット
+        \item 拡散では尤度評価が重い $\Rightarrow$ 経路版へ持ち上げ、\\
+        Jensen・マルコフ・前向き近似で DSM 風の代理損失へ
+        \item 結果：明示的報酬モデルなしの、安定な alignment 微調整
+    \end{itemize}
+    \begin{alertblock}{次節}
+        第8章全体の道具立てをまとめ、第9章（高速ソルバ）へ橋渡しする。
+    \end{alertblock}
 \end{frame}

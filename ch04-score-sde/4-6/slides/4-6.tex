@@ -1,6 +1,215 @@
 % !TEX root = ../tex/4-6.tex
+\input{../slides/ch04-colors}
+
+%=============================================
 \begin{frame}{4.6 Closing Remarks}
+    \begin{block}{この章で起きたこと（論文 4.7）}
+        変分視点（DDPM）とスコア視点（NCSN）を、\\
+        ひとつの連続時間枠組み---Score SDE---に統一した。
+    \end{block}
     \begin{itemize}
-        \item
+        \item 離散のノイズ梯子 $\;\to\;$ 前向きSDE
+        \item 生成 $\;\to\;$ 逆時間SDE または PF-ODE
+        \item 学習 $\;\to\;$ 時間依存スコアのDSM
+    \end{itemize}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{第4章の道筋（全体像）}
+    \begin{enumerate}
+        \item \textbf{4.1 原理}\\
+        離散$\to$連続。前向きSDE、逆時間SDE、PF-ODE
+        \item \textbf{4.2 周辺の一致}\\
+        Fokker--Planckが、確率的／決定的な戻し方をつなぐ
+        \item \textbf{4.3 学習とサンプリング}\\
+        DSMでスコアを学び、SDE/ODEを数値積分する
+        \item \textbf{4.4 具体例}\\
+        VE / VP が NCSN / DDPM に対応
+        \item \textbf{4.5（任意）}\\
+        FPと逆SDEの形の直感的導出
+    \end{enumerate}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{離散から連続へ}
+    NCSNの$\{\sigma_i\}$もDDPMの$\{\beta_i\}$も、有限段の梯子だった。\\
+    段のあいだを埋め、ノイズレベルを時間の連続関数にする。
+    \[
+        p_{\mathrm{data}}
+        \xrightarrow{\;\text{forward SDE}\;}
+        p_T\approx p_{\mathrm{prior}},
+        \qquad
+        p_{\mathrm{prior}}
+        \xrightarrow{\;\text{reverse}\;}
+        p_{\mathrm{data}}
+    \]
+    \begin{block}{統一の帰結}
+        両者は、ドリフト$f$と拡散係数$g$が違う同じSDE枠の離散化である。
+    \end{block}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{前向きSDE}
+    \[
+        \mathrm{d}x(t)
+        =
+        f\bigl(x(t),t\bigr)\,\mathrm{d}t
+        + g(t)\,\mathrm{d}w(t)
+        \tag{4.1.3}
+    \]
+    \begin{itemize}
+        \item データを徐々にノイズへ崩す（$t:0\to T$）
+        \item 周辺列$\{p_t\}$を定義する「公理」側の過程
+        \item 係数$(f,g)$の選び方が VE / VP などのインスタンスを決める
+    \end{itemize}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{逆時間SDEとPF-ODE}
+    \begin{columns}[T,onlytextwidth]
+        \begin{column}{0.48\textwidth}
+            \begin{block}{逆時間SDE（確率的）}
+                \[
+                    \resizebox{0.95\textwidth}{!}{$
+                    \mathrm{d}\bar{x}
+                    =
+                    \bigl[f-g^{2}\nabla\log p_t\bigr]\mathrm{d}t
+                    + g\,\mathrm{d}\bar{w}
+                    $}
+                \]
+                同じ周辺を、揺らぎ付きで戻す。
+            \end{block}
+        \end{column}
+        \begin{column}{0.48\textwidth}
+            \begin{block}{PF-ODE（決定的）}
+                \[
+                    \resizebox{0.95\textwidth}{!}{$
+                    \dot{\tilde{x}}
+                    =
+                    f-\tfrac12 g^{2}\nabla\log p_t
+                    $}
+                \]
+                同じ周辺を、軌道は一意にたどる。
+            \end{block}
+        \end{column}
+    \end{columns}
+    \vfill
+    \begin{block}{共通点}
+        未知量は時間依存スコア$\nabla_x\log p_t(x)$だけである。\\
+        周辺一致は Fokker--Planck が保証する。
+    \end{block}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{学習：DSMとサンプリング}
+    \begin{enumerate}
+        \item \textbf{学習}\\
+        各時刻$t$でノイズを載せ、条件付きスコアを教師にする（DSM）。\\
+        ネット$s_\phi(x,t)\approx\nabla_x\log p_t(x)$を回帰する。
+        \item \textbf{サンプリング}\\
+        学習したスコアを逆SDEまたはPF-ODEに差し込み、\\
+        $t=T\to 0$へ数値積分する。
+    \end{enumerate}
+    \begin{block}{視点の転換}
+        生成 $=$ 微分方程式を解くこと。\\
+        学習 $=$ そのベクトル場（スコア）を当てること。
+    \end{block}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{VE と VP：二つの重要な実例}
+    \centering
+    \footnotesize
+    \renewcommand{\arraystretch}{1.35}
+    \begin{tabular}{|l|p{0.38\textwidth}|p{0.38\textwidth}|}
+        \hline
+        & \textbf{VE} & \textbf{VP} \\
+        \hline
+        対応
+        & NCSN側の連続化
+        & DDPM側の連続化
+        \\
+        \hline
+        ドリフト$f$
+        & $0$（分散爆発）
+        & 平均回帰（分散保存寄り）
+        \\
+        \hline
+        役割
+        & ノイズスケールを連続に広げる
+        & スケジュール$\beta(t)$を連続化
+        \\
+        \hline
+    \end{tabular}
+    \normalsize
+    \vfill
+    どちらも同じScore SDE枠のインスタンスであり、\\
+    離散モデルへの橋を残したまま連続時間へ移れる。
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{章頭の到達目標との対応}
+    章頭の ``After this chapter, you will be able to...'' への対応。
+    \begin{itemize}
+        \item 離散ノイズ $\to$ 前向きSDE（連続化）
+        \item 生成 $=$ 逆時間SDE または PF-ODE
+        \item 同じ周辺・異なる軌道、および FP の役割
+        \item DSMでスコアを学び、SDE/ODEでサンプリング
+        \item PF-ODEの前向き利用と尤度（連続変数変換）
+        \item VE / VP が NCSN / DDPM につながる
+    \end{itemize}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{核心の一文}
+    \begin{block}{Score SDEの核心}
+        学ぶのは時間依存スコアだけ。\\
+        生成は、そのスコアで決まる微分方程式の数値解である。
+    \end{block}
+    \begin{itemize}
+        \item 確率的に戻す：逆時間SDE
+        \item 決定的に戻す：PF-ODE（同じ周辺列）
+        \item 離散の二モデルは、係数の違う同じ物語の特別な場合
+    \end{itemize}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{第5章へ：Flow Matchingへの橋}
+    PF-ODEは純粋に決定的な流れである。\\
+    「速度場が運ぶ確率輸送」という見方は、第5章の中心になる。
+    \begin{enumerate}
+        \item Normalizing Flows / Neural ODE から出発する
+        \item Flow Matching：速度場を直接学習し、分布間を運ぶ
+    \end{enumerate}
+    \begin{block}{対比の予告}
+        Score SDE：スコアから PF-ODE の速度を組む。\\
+        Flow Matching：同じ（または一般の）確率経路の速度を直接当てる。
+    \end{block}
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：二つの見方（予告図）}
+    \centering
+    \renewcommand{\arraystretch}{1.4}
+    \begin{tabular}{c@{\hspace{1.5em}}c}
+        \textbf{Score SDE} & \textbf{Flow Matching} \\[0.3em]
+        スコア$s_\phi\approx\nabla\log p_t$ & 速度$v_\theta$を直接 \\
+        $\downarrow$ & $\downarrow$ \\
+        PF-ODEの場を構成 & 同じ確率経路を運ぶ \\
+    \end{tabular}
+    \vfill
+    \begin{exampleblock}{第5章の標語}
+        Everything flows. --- 決定的な確率輸送として生成を書く。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{第4章のまとめ}
+    \begin{itemize}
+        \item DDPMとNCSNを、連続時間SDEの異なる離散化として統一した
+        \item 逆過程の未知量は時間依存スコアに集約される
+        \item 逆時間SDEとPF-ODEは、同じ周辺を別の軌道でたどる
+        \item 学習はDSM、生成は数値積分である
+        \item 決定的PF-ODEが、第5章のフロー視点への橋になる
     \end{itemize}
 \end{frame}

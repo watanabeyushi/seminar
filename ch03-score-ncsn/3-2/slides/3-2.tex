@@ -1,8 +1,387 @@
 ﻿% !TEX root = ../tex/3-2.tex
 \input{../slides/ch03-colors}
-\begin{frame}{3.2 From Energy-Based to Score-Based Generative Models}
+
+%=============================================
+\begin{frame}{3.1から3.2へ}
+    \begin{block}{ここまで（3.1）}
+        EBMはエネルギー$E_\phi$で分布を表し、
+        スコア$s_\phi=-\nabla_{\bm{x}}E_\phi$で生成できる。\\
+        スコアマッチングは分配関数を避けるが、
+        エネルギー経由だと二階微分が残る。
+    \end{block}
+    \begin{block}{ここから（3.2）}
+        ランジュバン動力学に必要なのはスコアだけである。\\
+        だからエネルギーを経由せず、
+        ニューラルネットでスコアを直接学習する。
+    \end{block}
     \begin{itemize}
-        \item
+        \item エネルギーをモデル化する $\;\to\;$ スコアをモデル化する
+        \item この転換が、スコアベース生成モデルの土台になる
     \end{itemize}
 \end{frame}
-
+%=============================================
+\asmain
+\begin{frame}{3.2 の位置づけ}
+    \begin{block}{この節の役割}
+        EBMのスコア視点から、スコアを直接扱う生成モデルへ橋を渡す
+    \end{block}
+    \begin{enumerate}
+        \item \textbf{3.2.1 スコアマッチングによる学習}\\
+        真のスコアへ当てはめる損失と、
+        真のスコアなしで使える等価形
+        \item \textbf{3.2.2 ランジュバン動力学によるサンプリング}\\
+        学習したスコア$s_{\phi^\star}$でサンプルを得る
+        \item \textbf{3.2.3 予告：スコアベース生成モデル}\\
+        この章の後半（DSM / NCSN）へのつながり
+    \end{enumerate}
+\end{frame}
+%=============================================
+\section{3.2.1 スコアマッチングによる学習}
+\asmain
+\begin{frame}{区切り：3.2.1 スコアマッチングによる学習}
+    \tableofcontents[currentsection]
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{スコアをニューラルネットで直接近似する}
+    データ分布のスコア
+    \[
+        s(\bm{x})
+        =
+        \nabla_{\bm{x}}\log p_{\mathrm{data}}(\bm{x})
+    \]
+    を、ベクトル場としてパラメータ化したネット
+    $s_\phi(\bm{x})$で近似する。
+    \[
+        s_\phi(\bm{x})\;\approx\;s(\bm{x})
+    \]
+    \begin{block}{3.1との違い}
+        3.1では$s_\phi=-\nabla_{\bm{x}}E_\phi$と、エネルギー経由でスコアを得た。\\
+        ここでは$s_\phi$そのものを学習対象にする。
+    \end{block}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{図3.4：スコアマッチングのイメージ}
+    \centering
+    \includegraphics[width=\textwidth,height=0.68\textheight,keepaspectratio]{fig-3-4.jpg}
+    \vfill
+    ニューラルネットのスコア$s_\phi(\bm{x})$を、
+    真のスコア$s(\bm{x})$にMSEで合わせる。\\
+    どちらもベクトル場として表される。
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：図3.4の読み方}
+    \begin{exampleblock}{オレンジの領域}
+        データの高密度領域（モード）である。
+        スコアはここに向かう向きをもつ。
+    \end{exampleblock}
+    \begin{exampleblock}{矢印}
+        各点でのスコアベクトルである。\\
+        真の場$s$とモデルの場$s_\phi$を重ねて描き、
+        MSEで一致させるイメージである。
+    \end{exampleblock}
+    \begin{exampleblock}{学習の目標}
+        どこで密度が増えるかを、
+        エネルギー関数を経由せずにベクトル場として覚える。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{スコアを合わせる損失}
+    真のスコアとモデルのスコアの平均二乗誤差を最小化する。
+    \[
+        \mathcal{L}_{\mathrm{SM}}(\phi)
+        :=
+        \frac12
+        \mathbb{E}_{\bm{x}\sim p_{\mathrm{data}}}
+        \bigl[
+        \|s_\phi(\bm{x})-s(\bm{x})\|_2^2
+        \bigr]
+        \tag{3.2.1}
+    \]
+    \begin{block}{一見すると使えない}
+        回帰の教師$s(\bm{x})=\nabla_{\bm{x}}\log p_{\mathrm{data}}(\bm{x})$が未知である。\\
+        観測できるのはサンプルだけで、真の密度もスコアも通常はわからない。
+    \end{block}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{命題3.2.1：Hyv\"arinenの扱いやすい形}
+    \[
+        \mathcal{L}_{\mathrm{SM}}(\phi)
+        =
+        \mathcal{L}_{\mathrm{eSM}}(\phi)+C
+    \]
+    ここで
+    \[
+        \resizebox{0.98\textwidth}{!}{$
+        \mathcal{L}_{\mathrm{eSM}}(\phi)
+        :=
+        \mathbb{E}_{\bm{x}\sim p_{\mathrm{data}}}
+        \Bigl[
+        \operatorname{Tr}\bigl(\nabla_{\bm{x}}s_\phi(\bm{x})\bigr)
+        +
+        \tfrac12\|s_\phi(\bm{x})\|_2^2
+        \Bigr]
+        $}
+        \tag{3.2.2}
+    \]
+    であり、$C$は$\phi$に依らない定数である。\\
+    最小化の解は$s^\star(\cdot)=\nabla_{\bm{x}}\log p(\cdot)$である。
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：なぜ真のスコアが消えるか}
+    MSEを展開し、部分積分でクロス項の微分をモデル側へ移す
+    （3.1.3で一次元から多次元まで追った変形）。
+    \begin{exampleblock}{残るもの}
+        モデルの大きさ$\|s_\phi\|_2^2$と、
+        ヤコビアンの対角和$\operatorname{Tr}(\nabla_{\bm{x}}s_\phi)$だけである。\\
+        データサンプル上の平均で評価できる。
+    \end{exampleblock}
+    \begin{exampleblock}{注意}
+        トレース項は厳密には入力次元に応じた微分情報が要る。\\
+        高次元では計算が重くなり得る（3.3で別の対処へ進む）。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{式（3.2.2）の二つの項}
+    \[
+        \mathcal{L}_{\mathrm{eSM}}(\phi)
+        =
+        \mathbb{E}_{p_{\mathrm{data}}}
+        \Bigl[
+        \underbrace{\operatorname{Tr}(\nabla_{\bm{x}}s_\phi)}_{\text{発散項}}
+        +
+        \underbrace{\tfrac12\|s_\phi\|_2^2}_{\text{大きさの項}}
+        \Bigr]
+    \]
+    \begin{columns}[T,onlytextwidth]
+        \begin{column}{0.48\textwidth}
+            \begin{block}{大きさの項}
+                スコアが大きくなりすぎるのを抑える。\\
+                期待値は$p_{\mathrm{data}}$下なので、
+                データの多い場所ほど強く効く。
+            \end{block}
+        \end{column}
+        \begin{column}{0.48\textwidth}
+            \begin{block}{発散項}
+                損失に正の符号で入るので、
+                最小化は局所的な収縮
+                （負の発散）を好む。
+            \end{block}
+        \end{column}
+    \end{columns}
+    \vfill
+    二つの項が揃うと、最適解は$s^\star=\nabla_{\bm{x}}\log p_{\mathrm{data}}$になる。
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：大きさの項は「データが多い場所」を重視する}
+    期待値は$p_{\mathrm{data}}$で取るので、
+    高密度領域ほど$\tfrac12\|s_\phi\|_2^2$の罰則が強く効く。
+    \begin{exampleblock}{誤解しやすい点}
+        これだけで「高密度のすべての点で$s_\phi=0$」になるわけではない。\\
+        母集団最適では
+        $s^\star(\bm{x})=\nabla_{\bm{x}}\log p_{\mathrm{data}}(\bm{x})$であり、
+        ゼロになるのは対数密度の停留点だけである。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：発散項は局所的な吸い込みを好む}
+    発散$\operatorname{Tr}(\nabla_{\bm{x}}s_\phi)$が負なら、
+    その付近では場が平均的に内側へ向かう。
+    \begin{exampleblock}{勾配場のとき}
+        $s_\phi=\nabla_{\bm{x}}u$なら、
+        $\nabla_{\bm{x}}s_\phi=\nabla_{\bm{x}}^2 u$（ヘッセ）で、
+        発散は$\operatorname{Tr}(\nabla_{\bm{x}}^2 u)$である。
+    \end{exampleblock}
+    停留点$\bm{x}_\star$（$s_\phi(\bm{x}_\star)=0$）でヘッセが負定値なら、
+    $u$は局所凹で、対数密度はそこで厳密な局所最大になる。
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：負のトレースだけでは足りない}
+    ヘッセが負定値なら全固有値が負なので、
+    トレースも負である。
+    \begin{exampleblock}{逆は成り立たない}
+        トレースが負でも、正の固有値が混ざれば鞍点になり得る。\\
+        したがって「発散が負 $\Rightarrow$ 必ず局所最大」ではない。
+    \end{exampleblock}
+    \begin{exampleblock}{読み方}
+        発散項は収縮を促す項であり、
+        単独でモードの形を保証する条件ではない。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{3.2.1 のまとめ}
+    \begin{itemize}
+        \item スコア$s_\phi$をニューラルネットで直接近似する
+        \item MSE損失（3.2.1）の教師は未知だが、
+        等価形（3.2.2）はデータとモデルだけで評価できる
+        \item 大きさの項と発散項が、最適解$s^\star=\nabla\log p_{\mathrm{data}}$を与える
+    \end{itemize}
+    \begin{block}{次}
+        学習した$s_{\phi^\star}$を、ランジュバン動力学に入れてサンプルする。
+    \end{block}
+\end{frame}
+%=============================================
+\section{3.2.2 ランジュバン動力学によるサンプリング}
+\asmain
+\begin{frame}{区切り：3.2.2 ランジュバン動力学によるサンプリング}
+    \tableofcontents[currentsection]
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{学習したスコアでランジュバン更新する}
+    式（3.2.2）を最小化して得た$s_{\phi^\star}$を、
+    ランジュバン動力学のスコアとして使う。
+    \[
+        \bm{x}_{n+1}
+        =
+        \bm{x}_n
+        +
+        \eta\,s_{\phi^\star}(\bm{x}_n)
+        +
+        \sqrt{2\eta}\,\bm{\epsilon}_n,
+        \qquad
+        \bm{\epsilon}_n\sim\mathcal{N}(\bm{0},\bm{I})
+        \tag{3.2.3}
+    \]
+    $\bm{x}_0$から始め、$n=0,1,2,\ldots$と更新する。
+    \begin{block}{3.1との対応}
+        EBMでは$s_\phi=-\nabla_{\bm{x}}E_\phi$を入れた式（3.1.5）だった。\\
+        ここではエネルギーを持たず、$s_{\phi^\star}$をそのまま入れる。
+    \end{block}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{連続時間ではSDEになる}
+    式（3.2.3）は、次のランジュバンSDEの
+    オイラー・丸山離散化である。
+    \[
+        d\bm{x}(t)
+        =
+        s_{\phi^\star}(\bm{x}(t))\,dt
+        +
+        \sqrt{2}\,d\bm{w}(t)
+    \]
+    $\bm{w}(t)$は標準ブラウン運動である。
+    \begin{itemize}
+        \item ステップ幅$\eta$が小さい極限では、離散更新と連続SDEは一致する
+        \item 実装では離散サンプラを走らせても、SDEを直接シミュレートしてもよい
+    \end{itemize}
+    \begin{block}{要点}
+        学習の出力はスコア場であり、
+        生成はその場に沿った確率的な流れである。
+    \end{block}
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：更新の二つの働き}
+    \[
+        \bm{x}_{n+1}
+        =
+        \bm{x}_n
+        +
+        \underbrace{\eta\,s_{\phi^\star}(\bm{x}_n)}_{\text{スコア方向へ進む}}
+        +
+        \underbrace{\sqrt{2\eta}\,\bm{\epsilon}_n}_{\text{探索のためのノイズ}}
+    \]
+    \begin{exampleblock}{ドリフト}
+        学習したスコアに従い、密度が高い方向へ動かす。
+    \end{exampleblock}
+    \begin{exampleblock}{拡散}
+        勾配だけでは局所に止まり得る。
+        ノイズが別の領域を探る余地を作る。
+    \end{exampleblock}
+    詳細な定常分布や混合の議論は3.1.4と同じ骨格である。
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{3.2.2 のまとめ}
+    \begin{itemize}
+        \item 学習後の$s_{\phi^\star}$を式（3.2.3）に入れればサンプルできる
+        \item 連続時間では$d\bm{x}=s_{\phi^\star}\,dt+\sqrt{2}\,d\bm{w}$
+        \item エネルギー関数を保持しなくても、スコア場だけで生成できる
+    \end{itemize}
+\end{frame}
+%=============================================
+\section{3.2.3 予告：スコアベース生成モデル}
+\asmain
+\begin{frame}{区切り：3.2.3 予告：スコアベース生成モデル}
+    \tableofcontents[currentsection]
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{スコアが拡散モデルの中心になる}
+    スコアは当初、EBMを効率よく学習するための道具だった。
+    いまでは、スコアそのものが生成モデルの中核になっている。
+    \begin{block}{この章の後半で見ること}
+        スコア関数が、スコアベース拡散モデルの理論と実装をどう支えるか。\\
+        確率過程を通じたデータ生成の枠組みへ進む。
+    \end{block}
+    \begin{itemize}
+        \item 単一ノイズでのスコア学習（Denoising Score Matching）
+        \item 複数ノイズへの拡張（NCSN）
+        \item DDPMとの対応
+    \end{itemize}
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：いまの枠組みに残る課題}
+    式（3.2.2）は真のスコアを消すが、
+    $\operatorname{Tr}(\nabla_{\bm{x}}s_\phi)$の計算は高次元で重い。
+    \begin{exampleblock}{次の節への動機}
+        \begin{itemize}
+            \item スライスド・スコアマッチング：
+            ランダム方向でトレースを推定する
+            \item Denoising Score Matching：
+            既知ノイズの条件付きスコアを教師にする
+        \end{itemize}
+        どちらも「生の$p_{\mathrm{data}}$のスコアを直接扱う」難しさを避ける方向である。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{3.2 全体のまとめ}
+    \begin{enumerate}
+        \item \textbf{転換}
+        生成に必要なのはスコアなので、
+        エネルギーではなく$s_\phi$を直接学習する。
+        \item \textbf{学習}
+        MSE（3.2.1）は教師が未知だが、
+        等価形（3.2.2）でデータから学習できる。
+        \item \textbf{生成}
+        学習した$s_{\phi^\star}$をランジュバン動力学（3.2.3）に入れる。
+        \item \textbf{次へ}
+        トレース計算や多様体上の不安定さを避けるため、
+        DSMと多ノイズのNCSNへ進む。
+    \end{enumerate}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{3.2 全体のまとめ：一本の流れ}
+    \begin{block}{今日の道筋}
+        EBMではスコアで足りる
+        $\;\to\;$
+        スコアをネットで直接近似する
+        $\;\to\;$
+        等価なスコアマッチングで学習する
+        $\;\to\;$
+        ランジュバンで生成する
+    \end{block}
+    \begin{block}{核心}
+        密度やエネルギーを経由せず、
+        対数密度の勾配（スコア）をベクトル場として学べばよい。
+    \end{block}
+    \begin{block}{次へ}
+        3.3では、ノイズを入れた条件付きスコア学習
+        （Denoising Score Matching）を扱う。
+    \end{block}
+\end{frame}

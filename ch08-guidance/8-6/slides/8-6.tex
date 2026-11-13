@@ -1,6 +1,231 @@
 % !TEX root = ../tex/8-6.tex
+\input{../slides/ch08-colors}
+
+%=============================================
 \begin{frame}{8.6 Closing Remarks}
+    \begin{block}{この章で閉じたこと（論文 8.6）}
+        基礎原理から、\textbf{制御可能な生成}という実務課題へ焦点を移した。\\
+        条件付きスコアのベイズ分解を軸に、\\
+        無条件方向と舵取り項を分離する統一枠を立てた。
+    \end{block}
     \begin{itemize}
-        \item
+        \item 学習あり：CG / CFG
+        \item 学習なし：タスク損失からの誘導ポテンシャル
+        \item 好み整合：RLHF $\to$ DPO / Diffusion-DPO
+    \end{itemize}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{第8章の道筋（全体像）}
+    \begin{enumerate}
+        \item \textbf{8.1 プロローグ}\\
+        誘導の統一テンプレートと、制御 vs 好み整合
+        \item \textbf{8.2 Classifier Guidance}\\
+        外部分類器による誘導方向
+        \item \textbf{8.3 Classifier-Free Guidance}\\
+        単一モデル内の条件付き／無条件スコア差
+        \item \textbf{8.4 Training-Free Guidance（任意）}\\
+        タスク損失・逆問題などへの学習なし舵取り
+        \item \textbf{8.5 RL $\to$ DPO}\\
+        好みデータからの直接 alignment
+    \end{enumerate}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{統一原理：条件付きスコアの分解}
+    \[
+        \nabla_{\vx_t}\log p_t(\vx_t\mid c)
+        =
+        \underbrace{\nabla_{\vx_t}\log p_t(\vx_t)}_{\text{無条件方向}}
+        +
+        \underbrace{\nabla_{\vx_t}\log p_t(c\mid\vx_t)}_{\text{誘導方向}}
+    \]
+    \begin{itemize}
+        \item 生成の現実味を保つベース場
+        \item 条件へサンプルを押しやる舵取り項
+        \item 以降の手法は、この誘導項の近似・置換のバリエーション
+    \end{itemize}
+    \begin{exampleblock}{固定時刻のエネルギー解釈}
+        正のポテンシャル $h_t$ と強さ $w_t$ で傾いた密度\\
+        $\tilde p_t(\vx_t\mid c)\propto p_t(\vx_t)\,h_t(\vx_t;c)^{w_t}$。\\
+        ただし一般に、誘導サンプラの周辺と厳密一致するとは限らない。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{学習あり誘導：CG と CFG}
+    \begin{columns}[T,onlytextwidth]
+        \begin{column}{0.48\textwidth}
+            \begin{block}{Classifier Guidance}
+                外部分類器 $p_{\bm{\psi}}(c\mid\vx_t,t)$ の\\
+                スコア勾配で誘導。\\
+                専用学習が必要だが、\\
+                ベイズ分解に素直。
+            \end{block}
+        \end{column}
+        \begin{column}{0.48\textwidth}
+            \begin{block}{Classifier-Free Guidance}
+                条件付きと無条件を\\
+                同一モデルで学習。\\
+                差が誘導方向を担い、\\
+                強さで条件適合を調整。
+            \end{block}
+        \end{column}
+    \end{columns}
+    \vfill
+    \begin{alertblock}{共通メッセージ}
+        誘導強さは「条件への張り付き」と「多様性・忠実度」のトレードオフ。
+    \end{alertblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{学習なし誘導：柔軟な推論時舵取り}
+    事前学習モデルを固定したまま、\\
+    タスク固有損失 $\ell(\vx_t,c;t)$ から誘導ポテンシャルを定義：
+    \[
+        h_t(\vx_t;c)=\exp\!\bigl(-\tau\,\ell(\vx_t,c;t)\bigr),\qquad
+        G_t=-\tau\nabla_{\vx_t}\ell.
+    \]
+    \begin{itemize}
+        \item 芸術的制御から逆問題まで、再学習なしで適用しやすい
+        \item 分類器誘導も、損失 $-\log p_{\bm{\psi}}(c\mid\vx_t,t)$ の特別ケースとして同型
+        \item 「厳密な条件付きサンプリング」と「代理誘導ダイナミクス」は区別する
+    \end{itemize}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{制御を超えて：好み整合（Alignment）}
+    強い制御でも、\textbf{条件は満たすが好みから外れる}ことがある。
+    \begin{block}{好みによる傾き}
+        \[
+            \tilde p_0(\vx_0\mid c)
+            \propto
+            p_0(\vx_0\mid c)\,
+            \exp\!\bigl(\lambda_{\mathrm{pref}}\, r(\vx_0,c)\bigr)
+        \]
+    \end{block}
+    \begin{itemize}
+        \item RLHF：報酬モデル＋RL 微調整（強力だが多段・不安定）
+        \item DPO / Diffusion-DPO：好みペアから損失を直接導出し、\\
+        明示的報酬と RL を迂回
+    \end{itemize}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{道具箱の俯瞰}
+    \renewcommand{\arraystretch}{1.25}
+    \footnotesize
+    \begin{tabular}{lll}
+        \textbf{層} & \textbf{代表手法} & \textbf{何を変えるか} \\
+        \hline
+        学習あり誘導 & CG / CFG & スコア場への条件勾配 \\
+        学習なし誘導 & 損失ベース / 逆問題 & 推論時の代理ポテンシャル \\
+        好み整合 & RLHF / DPO & 条件付きモデル自体の微調整 \\
+    \end{tabular}
+    \vfill
+    \begin{exampleblock}{章の到達点}
+        「何を生成するか」を操る強力なツールキットを揃えた。\\
+        残る大きな実務障壁は、\textbf{反復サンプリングそのものの計算コスト}。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{章頭の到達目標との対応}
+    章頭の ``After this chapter, you will be able to...'' への対応。
+    \begin{itemize}
+        \item 条件付けがサンプリング時の速度場をどう変えるか説明できる
+        \item CG / CFG の核心と、誘導強さの役割を導ける
+        \item 学習なし誘導が、タスク損失・計測モデルで\\
+        事前学習モデルを舵取りする仕組みを理解できる
+        \item 厳密な条件付きサンプリングと、代理誘導／\\
+        固定時刻の傾き密度解釈を区別できる
+        \item RLHF $\to$ DPO / Diffusion-DPO が、\\
+        条件付き生成を好みへさらに再形成することを説明できる
+    \end{itemize}
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：到達目標チェックリスト}
+    \footnotesize
+    \begin{enumerate}
+        \item 条件付きスコアの無条件＋誘導分解を式で書けるか
+        \item CG と CFG で「誘導方向」が何の近似かを言えるか
+        \item 誘導強さ $w$ を上げると何が起きやすいか説明できるか
+        \item 学習なし誘導の $h_t=\exp(-\tau\ell)$ と $G_t$ を書けるか
+        \item 傾き密度解釈が、いつサンプラ周辺と一致しないかに注意できるか
+        \item DPO が RM＋RL をどう迂回するか、一文で言えるか
+        \item Diffusion-DPO が尤度 DPO ではなく代理 MSE 差へ落ちる理由を言えるか
+    \end{enumerate}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{Reader route（初読の指針）}
+    章は Score SDE / PF-ODE（第4・6章）の絵を前提とする。
+    \begin{block}{読む目的}
+        制御可能生成の統一インターフェース（条件付きスコア）と、\\
+        その近似・置換・好み整合への拡張を掴むこと。
+    \end{block}
+    \begin{enumerate}
+        \item まず 8.1 の分解と誘導テンプレート
+        \item 実務の主戦場として 8.2--8.3（CG / CFG）
+        \item 必要なら 8.4（学習なし・逆問題）を第二パス
+        \item 好み整合が主題なら 8.5 を第二パスとして精読
+    \end{enumerate}
+    \vfill
+    \footnotesize
+    制御可能生成が主目的なら、後半の preference alignment は後回しでよい（論文の reader route）。
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{核心の一文}
+    \begin{block}{第8章の核心}
+        条件付き生成の舵は、条件付きスコア（＝無条件＋誘導）にある。\\
+        CG / CFG / 学習なし誘導はその近似の族であり、\\
+        DPO 系は条件適合を超えて人間好みへモデルを揃える。
+    \end{block}
+    \begin{itemize}
+        \item 制御と alignment は別レイヤだが、同じ「傾き」の言葉で繋がる
+        \item 推論時誘導と学習時微調整は相補的
+        \item 次のボトルネックは「何を」ではなく「どれだけ速く」生成するか
+    \end{itemize}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{この先：第9章 Numerical Solvers}
+    「何を生成するか」の次は、「どれだけ速く生成できるか」。
+    \begin{enumerate}
+        \item サンプリング $=$ PF-ODE を解くこと、という視点を活かし、\\
+        必要ステップ数を大幅に減らす数値ソルバを探る
+        \item 影響の大きい系列：\textbf{DDIM}、\textbf{DEIS}、\\
+        \textbf{DPM-Solver} 族など（桁違いの高速化）
+    \end{enumerate}
+    \begin{exampleblock}{第9章の大きな二分}
+        \textbf{学習なし}（第9章）：固定モデル＋より良い数値積分。\\
+        \textbf{学習あり}（第10--11章）：蒸留や少数ステップ生成器。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{第9章へのつなぎ（予告）}
+    \begin{itemize}
+        \item SDE サンプラは多様になりうるが、しばしば多ステップ
+        \item 第9章は主に \textbf{ODE ベース生成}（原理は SDE にも波及）
+        \item 名付きサンプラの裏にある少数の数値アイデアを先に見る
+        \item 常に問う：各ソルバは何を厳密に積分し、何を近似しているか
+    \end{itemize}
+    \begin{block}{Message（第9章冒頭）}
+        一度拡散モデルを学習したあと、\\
+        学習なしの高速サンプリングは概ね数値積分の問題である。
+    \end{block}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{第8章のまとめ}
+    \begin{itemize}
+        \item 条件付きスコア分解が、制御可能生成の共通インターフェース
+        \item CG / CFG：学習あり誘導の二本柱
+        \item 学習なし誘導：再学習なしのタスク適応・逆問題
+        \item DPO / Diffusion-DPO：好み整合を安定な直接最適化へ
+        \item 次は第9章：反復サンプリングの加速（数値ソルバ）
     \end{itemize}
 \end{frame}

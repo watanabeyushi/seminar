@@ -1,6 +1,512 @@
 % !TEX root = ../tex/6-1.tex
-\begin{frame}{6.1 Conditional Tricks}
+\input{../slides/ch06-colors}
+
+%=============================================
+\begin{frame}{第5章から第6章へ}
+    \begin{block}{ここまで（第2--5章）}
+        変分（DDPM）、スコア（DSM / Score SDE）、\\
+        フロー（FM / CFM）を、それぞれ別の動機から見てきた。
+    \end{block}
+    \begin{block}{ここから（第6章）}
+        見た目の違いの奥に、共通原理があることを示す。\\
+        鍵は「周辺の扱いづらい目標」を「条件付きの扱いやすい教師」で学ぶこと。
+    \end{block}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{この章の学習目標（導入）}
     \begin{itemize}
-        \item
+        \item 変分／スコア／フローに共通する\textbf{条件付け原理}を認識する
+        \item 4つの予測型（clean / noise / score / velocity）を理解する
+        \item 訓練設計を分解する：スケジュール・予測対象・$p_{\mathrm{time}}$・重み$\omega(t)$
+        \item 「同値」の意味を区別する（オラクル／目的関数／周辺経路／実務アルゴリズム）
     \end{itemize}
+    \begin{block}{今日（6.1）の焦点}
+        条件付けトリック：扱いにくい周辺目標を、条件付き目標で回復する。
+    \end{block}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{6.1 の位置づけ}
+    \begin{block}{この節の役割}
+        三視点の訓練目標が、同じ「条件付け」でtractableになることを示す
+    \end{block}
+    \begin{enumerate}
+        \item \textbf{扱いにくい周辺目標}\\
+        $J_{\mathrm{KL}}$、$J_{\mathrm{SM}}$、$J_{\mathrm{FM}}$
+        \item \textbf{条件付けトリック}\\
+        $J_{\mathrm{CKL}}$、$J_{\mathrm{DSM}}$、$J_{\mathrm{CFM}}$（定数差で同値）
+        \item \textbf{共通パターン（式6.1.1）}\\
+        周辺オラクル＝$p(\cdot|\vx_t)$上の条件付きオラクルの平均
+        \item \textbf{有限データでの具体化（任意）}\\
+        事後重み$w_i$と記憶化の注意
+    \end{enumerate}
+\end{frame}
+%=============================================
+\section{三視点の扱いにくい目標}
+\asmain
+\begin{frame}{区切り：三視点の扱いにくい目標}
+    \tableofcontents[currentsection]
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{三つの起源、三つの訓練目標}
+    これまで別々に見えていた三視点は、固定$t$で次の目標に至る：
+    \begin{itemize}
+        \item \textbf{変分}：逆遷移$p(\vx_{t-\Delta t}|\vx_t)$を$p_\phi$で近似
+        \item \textbf{スコア}：周辺スコア$\nabla_{\vx}\log p_t(\vx_t)$を$s_\phi$で近似
+        \item \textbf{フロー}：周辺速度$\bm{v}_t(\vx_t)$を$\bm{v}_\phi$で近似
+    \end{itemize}
+    \begin{alertblock}{一見すると絶望的}
+        いずれも「オラクル量」を直接必要とし、一般には計算不能。
+    \end{alertblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{変分：$J_{\mathrm{KL}}$}
+    パラメータ化密度$p_\phi(\vx_{t-\Delta t}|\vx_t)$で\\
+    オラクル逆遷移$p(\vx_{t-\Delta t}|\vx_t)$を近似する：
+    \[
+        J_{\mathrm{KL}}(\phi)
+        :=
+        \mathbb{E}_{p_t(\vx_t)}
+        \Bigl[
+        D_{\mathrm{KL}}
+        \bigl(
+        p(\vx_{t-\Delta t}|\vx_t)
+        \,\big\|\,
+        p_\phi(\vx_{t-\Delta t}|\vx_t)
+        \bigr)
+        \Bigr]
+    \]
+    \begin{block}{困難}
+        真の逆遷移$p(\vx_{t-\Delta t}|\vx_t)$は一般に未知。
+    \end{block}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{スコア：$J_{\mathrm{SM}}$}
+    スコアモデル$s_\phi(\vx_t,t)$で周辺スコアを当てる：
+    \[
+        J_{\mathrm{SM}}(\phi)
+        :=
+        \mathbb{E}_{p_t(\vx_t)}
+        \bigl\|
+        s_\phi(\vx_t,t)
+        -
+        \nabla_{\vx}\log p_t(\vx_t)
+        \bigr\|_{2}^{2}
+    \]
+    \begin{block}{困難}
+        周辺密度$p_t$のスコアは閉じた形では書けない。
+    \end{block}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{フロー：$J_{\mathrm{FM}}$}
+    速度モデル$\bm{v}_\phi(\vx_t,t)$でオラクル速度（例：式5.2.9）を当てる：
+    \[
+        J_{\mathrm{FM}}(\phi)
+        :=
+        \mathbb{E}_{p_t(\vx_t)}
+        \bigl\|
+        \bm{v}_\phi(\vx_t,t)
+        -
+        \bm{v}_t(\vx_t)
+        \bigr\|_{2}^{2}
+    \]
+    \begin{block}{困難}
+        周辺速度$\bm{v}_t(\vx_t)$も、一般には未知の期待値。
+    \end{block}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{共通の行き詰まり}
+    \begin{columns}[T,onlytextwidth]
+        \begin{column}{0.32\textwidth}
+            \begin{block}{変分}
+                $p(\vx_{t-\Delta t}|\vx_t)$
+            \end{block}
+        \end{column}
+        \begin{column}{0.32\textwidth}
+            \begin{block}{スコア}
+                $\nabla\log p_t$
+            \end{block}
+        \end{column}
+        \begin{column}{0.32\textwidth}
+            \begin{block}{フロー}
+                $\bm{v}_t(\vx_t)$
+            \end{block}
+        \end{column}
+    \end{columns}
+    \vspace{0.6em}
+    \begin{alertblock}{一言で}
+        「周辺の教師」が欲しいのに、周辺の教師が手に入らない。
+    \end{alertblock}
+    \begin{block}{次}
+        データ$\vx_0$で条件付けると、教師がtractableになる。
+    \end{block}
+\end{frame}
+%=============================================
+\section{条件付けトリック}
+\asmain
+\begin{frame}{区切り：条件付けトリック}
+    \tableofcontents[currentsection]
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{解決策：$\vx_0$で条件付ける}
+    各手法が独立にたどり着いたelegantな解は同じ：
+    \begin{block}{条件付けテクニック}
+        未知の周辺量ではなく、既知のガウス条件付き$p_t(\vx_t|\vx_0)$の下で\\
+        条件付き目標を回帰する。
+    \end{block}
+    \begin{itemize}
+        \item 条件付き目標は閉じた形（または安い式）で書ける
+        \item 周辺目標との差は、$\phi$に依存しない定数$C$
+        \item したがって勾配（最小化子）は一致する
+    \end{itemize}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{変分：CKL（式2.2.3の形）}
+    \[
+        \resizebox{0.98\textwidth}{!}{$
+        J_{\mathrm{KL}}(\phi)
+        =
+        \mathbb{E}_{\vx_0}
+        \mathbb{E}_{p_t(\vx_t|\vx_0)}
+        \Bigl[
+        D_{\mathrm{KL}}
+        \bigl(
+        p(\vx_{t-\Delta t}|\vx_t,\vx_0)
+        \,\big\|\,
+        p_\phi(\vx_{t-\Delta t}|\vx_t)
+        \bigr)
+        \Bigr]
+        +C
+        $}
+    \]
+    右辺の$\phi$依存部を$J_{\mathrm{CKL}}(\phi)$と呼ぶ。
+    \begin{itemize}
+        \item 条件付き逆遷移$p(\vx_{t-\Delta t}|\vx_t,\vx_0)$はガウスで閉じる（補題2.2.2）
+        \item $J_{\mathrm{KL}}=J_{\mathrm{CKL}}+C$（$C$は$\phi$に独立）
+    \end{itemize}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{スコア：DSM（式3.3.3の形）}
+    \[
+        \resizebox{0.98\textwidth}{!}{$
+        J_{\mathrm{SM}}(\phi)
+        =
+        \mathbb{E}_{\vx_0}
+        \mathbb{E}_{p_t(\vx_t|\vx_0)}
+        \bigl\|
+        s_\phi(\vx_t,t)
+        -
+        \nabla_{\vx_t}\log p_t(\vx_t|\vx_0)
+        \bigr\|_{2}^{2}
+        +C
+        $}
+    \]
+    右辺の$\phi$依存部を$J_{\mathrm{DSM}}(\phi)$と呼ぶ。
+    \begin{itemize}
+        \item 条件付きスコアは$\nabla_{\vx_t}\log p_t(\vx_t|\vx_0)=-\sigma_t^{-2}(\vx_t-\alpha_t\vx_0)$
+        \item 第3章のDenoising Score Matchingそのもの
+    \end{itemize}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{フロー：CFM（式5.2.10の形）}
+    \[
+        \resizebox{0.98\textwidth}{!}{$
+        J_{\mathrm{FM}}(\phi)
+        =
+        \mathbb{E}_{\vx_0}
+        \mathbb{E}_{p_t(\vx_t|\vx_0)}
+        \bigl\|
+        \bm{v}_\phi(\vx_t,t)
+        -
+        \bm{v}_t(\vx_t|\vx_0)
+        \bigr\|_{2}^{2}
+        +C
+        $}
+    \]
+    右辺の$\phi$依存部を$J_{\mathrm{CFM}}(\phi)$と呼ぶ。
+    \begin{itemize}
+        \item 条件付き速度$\bm{v}_t(\vx_t|\vx_0)$はスケジュールから閉じた形
+        \item 第5章のConditional Flow Matchingと同じ原理
+    \end{itemize}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{勾配同値：周辺$\leftrightarrow$条件付き}
+    \renewcommand{\arraystretch}{1.2}
+    \begin{tabular}{lll}
+        \hline
+        視点 & 周辺 & 条件付き \\
+        \hline
+        変分 & $J_{\mathrm{KL}}$ & $J_{\mathrm{CKL}}$ \\
+        スコア & $J_{\mathrm{SM}}$ & $J_{\mathrm{DSM}}$ \\
+        フロー & $J_{\mathrm{FM}}$ & $J_{\mathrm{CFM}}$ \\
+        \hline
+    \end{tabular}
+    \vspace{0.5em}
+    \begin{block}{要点}
+        条件付き版は周辺版と定数だけ違う。\\
+        同じモデル族の中では最小化子が一致する。
+    \end{block}
+    \begin{exampleblock}{実務的意味}
+        訓練では条件付き教師だけを使えばよい。\\
+        周辺オラクルを直接計算する必要はない。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\section{共通パターン：事後平均}
+\asmain
+\begin{frame}{区切り：共通パターン（事後平均）}
+    \tableofcontents[currentsection]
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{理想の最小化子が回復するもの}
+    モデルが十分表現力をもてば、三視点は同じ概念パターンに収束する：
+    \[
+        \underbrace{\text{周辺オラクル}}_{\text{一般に intractable}}
+        =
+        \mathbb{E}_{\vx_0\sim p(\cdot|\vx_t)}
+        \Bigl[
+        \underbrace{\text{条件付きオラクル}}_{\vx_0\text{が与えればtractable}}
+        \Bigr]
+    \]
+    \begin{itemize}
+        \item $\vx_0$で条件付ける$\Rightarrow$閉じた教師
+        \item $\vx_t$と整合する$\vx_0$について平均$\Rightarrow$欲しい周辺オラクル
+    \end{itemize}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{式(6.1.1)：三つのオラクル恒等式}
+    \[
+        \begin{aligned}
+        p^\star(\vx_{t-\Delta t}|\vx_t)
+        &=
+        \mathbb{E}_{\vx_0\sim p(\cdot|\vx_t)}
+        \bigl[p(\vx_{t-\Delta t}|\vx_t,\vx_0)\bigr]
+        =
+        p(\vx_{t-\Delta t}|\vx_t),
+        \\
+        s^\star(\vx_t,t)
+        &=
+        \mathbb{E}_{\vx_0\sim p(\cdot|\vx_t)}
+        \bigl[\nabla_{\vx_t}\log p_t(\vx_t|\vx_0)\bigr]
+        =
+        \nabla_{\vx_t}\log p_t(\vx_t),
+        \\
+        \bm{v}^\star(\vx_t,t)
+        &=
+        \mathbb{E}_{\vx_0\sim p(\cdot|\vx_t)}
+        \bigl[\bm{v}_t(\vx_t|\vx_0)\bigr]
+        =
+        \bm{v}_t(\vx_t).
+        \end{aligned}
+        \tag{6.1.1}
+    \]
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{なぜ平均になるか}
+    \begin{columns}[T,onlytextwidth]
+        \begin{column}{0.48\textwidth}
+            \begin{block}{変分}
+                条件付き逆遷移を$\vx_0$で周辺化すると\\
+                真の逆遷移。\\
+                KLの最小化子はその周辺。
+            \end{block}
+        \end{column}
+        \begin{column}{0.48\textwidth}
+            \begin{block}{スコア／速度}
+                二乗誤差回帰の母集団最小化子は\\
+                条件付き期待値。
+            \end{block}
+        \end{column}
+    \end{columns}
+    \vspace{0.5em}
+    \begin{alertblock}{注意}
+        これらは unrestricted な母集団オラクルの話。\\
+        有限容量のニューラルネットが完全再現するとは限らない。
+    \end{alertblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{直観：$p(\vx_0|\vx_t)$上の平均}
+    観測$\vx_t$を見たとき、あり得るきれいなデータ$\vx_0$の事後
+    \[
+        p(\vx_0|\vx_t)
+        =
+        \frac{p_t(\vx_t|\vx_0)\,p_{\mathrm{data}}(\vx_0)}
+             {\int p_t(\vx_t|\tilde{\vx}_0)\,p_{\mathrm{data}}(\tilde{\vx}_0)\,d\tilde{\vx}_0}
+    \]
+    の上で、条件付き教師を平均している。
+    \begin{block}{一言}
+        拡散モデルの学習目標は、\\
+        「ノイズ観測から見た、きれいなデータの事後平均」である。
+    \end{block}
+\end{frame}
+%=============================================
+\section{有限データでの具体化}
+\assuppl
+\begin{frame}{区切り：\supplmark\; 有限データでの具体化}
+    \tableofcontents[currentsection]
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：経験測度と事後重み}
+    データを経験測度
+    $\hat{p}_0=\frac{1}{N}\sum_{i=1}^{N}\delta_{\vx_0^{(i)}}$
+    で置くと、事後は訓練点だけに乗る：
+    \[
+        p(\vx_0=\vx_0^{(i)}|\vx_t)
+        =
+        \frac{p_t(\vx_t|\vx_0^{(i)})}
+             {\sum_{j=1}^{N}p_t(\vx_t|\vx_0^{(j)})}
+        =:
+        w_i(\vx_t,t),
+        \qquad
+        \sum_{i=1}^{N}w_i=1.
+    \]
+    任意の量$h(\vx_0)$の事後期待は
+    \[
+        \mathbb{E}_{\vx_0\sim p(\cdot|\vx_t)}[h(\vx_0)]
+        =
+        \sum_{i=1}^{N}w_i(\vx_t,t)\,h(\vx_0^{(i)}).
+    \]
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：変分オラクル（有限データ）}
+    \[
+        p^\star(\vx_{t-\Delta t}|\vx_t)
+        =
+        \sum_{i=1}^{N}
+        w_i(\vx_t,t)\,
+        p(\vx_{t-\Delta t}|\vx_t,\vx_0^{(i)})
+    \]
+    \begin{itemize}
+        \item 各$p(\vx_{t-\Delta t}|\vx_t,\vx_0^{(i)})$はガウスブリッジで閉じる
+        \item 真の逆遷移は、明示的ガウスの事後重み付き混合
+    \end{itemize}
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：スコアオラクル（有限データ）}
+    条件付きスコア
+    $\nabla_{\vx_t}\log p_t(\vx_t|\vx_0^{(i)})
+    =-\sigma_t^{-2}(\vx_t-\alpha_t\vx_0^{(i)})$
+    より
+    \[
+        s^\star(\vx_t,t)
+        =
+        -\frac{1}{\sigma_t^{2}}
+        \Biggl(
+        \vx_t
+        -
+        \alpha_t
+        \sum_{i=1}^{N}w_i(\vx_t,t)\,\vx_0^{(i)}
+        \Biggr).
+    \]
+    \begin{exampleblock}{読み方}
+        周辺スコアは、ノイズ点から「事後平均されたきれいなデータ」へ向かう。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：速度オラクル（有限データ）}
+    条件付き速度
+    \[
+        \bm{v}_t(\vx_t|\vx_0^{(i)})
+        =
+        \alpha_t'\vx_0^{(i)}
+        +
+        \frac{\sigma_t'}{\sigma_t}
+        \bigl(\vx_t-\alpha_t\vx_0^{(i)}\bigr)
+    \]
+    を重み付き平均すると
+    \[
+        \bm{v}^\star(\vx_t,t)
+        =
+        \sum_{i=1}^{N}
+        w_i(\vx_t,t)\,
+        \bm{v}_t(\vx_t|\vx_0^{(i)}).
+    \]
+    三視点とも、閉じた条件付き量の事後重み付き平均に帰着する。
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：記憶化（memorization）への注意}
+    \begin{itemize}
+        \item 上式は人口分布$p_{\mathrm{data}}$ではなく、経験測度$\hat{p}_0$のオラクル
+        \item 経験オラクルを全ノイズレベルで完全学習し、逆過程も誤差なしなら\\
+        生成分布は$\hat{p}_0$（＝訓練点のみ）になる
+        \item 理想化された意味では「完全フィット＝記憶化」
+    \end{itemize}
+    \begin{alertblock}{しかし実務では}
+        有限容量・有限最適化・数値サンプリング誤差がある。\\
+        有限データ計算は記憶化が厳密解になり得ることを示すが、\\
+        実モデルが必ず記憶するとは言わない。
+    \end{alertblock}
+\end{frame}
+%=============================================
+\section{まとめ}
+\asmain
+\begin{frame}{区切り：6.1のまとめ}
+    \tableofcontents[currentsection]
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{条件付けは偶然ではない}
+    共通の条件付き書き換えは偶然ではない：
+    \begin{enumerate}
+        \item 訓練をtractableにする
+        \item 三視点が同じ原理の異なる面だと示す
+        \item 変分拡散・スコアSDE・Flow Matchingを一本の物語に繋ぐ
+    \end{enumerate}
+    \begin{block}{標語}
+        Three perspectives, one insight.
+    \end{block}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{6.1 全体のまとめ}
+    \begin{enumerate}
+        \item \textbf{行き詰まり}
+        $J_{\mathrm{KL}}$／$J_{\mathrm{SM}}$／$J_{\mathrm{FM}}$は周辺オラクルを要し intractable
+        \item \textbf{条件付け}
+        $\vx_0$条件で$J_{\mathrm{CKL}}$／$J_{\mathrm{DSM}}$／$J_{\mathrm{CFM}}$へ。定数差で同値
+        \item \textbf{式(6.1.1)}
+        周辺オラクル＝$p(\vx_0|\vx_t)$上の条件付きオラクル平均
+        \item \textbf{有限データ}
+        事後重み$w_i$の明示和；記憶化は理想解の注意書き
+    \end{enumerate}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{6.1 全体のまとめ：一本の流れ}
+    \begin{block}{今日の道筋}
+        扱いにくい周辺目標
+        $\;\to\;$
+        $\vx_0$条件付け
+        $\;\to\;$
+        定数差の同値
+        $\;\to\;$
+        事後平均としてのオラクル
+    \end{block}
+    \begin{block}{核心}
+        欲しいのは周辺の教師。\\
+        閉じた条件付き教師を回帰すれば、平均的に周辺が得られる。
+    \end{block}
+    \begin{block}{次へ（6.2）}
+        予測型を4つに広げ、訓練損失の設計要素を分解する。
+    \end{block}
 \end{frame}

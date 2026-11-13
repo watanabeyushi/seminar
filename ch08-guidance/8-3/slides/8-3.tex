@@ -1,6 +1,355 @@
 % !TEX root = ../tex/8-3.tex
+\input{../slides/ch08-colors}
+
+%=============================================
+\asmain
 \begin{frame}{8.3 Classifier-Free Guidance}
+    \begin{block}{この節の役割（論文 8.3）}
+        別途の分類器なしで、条件付き／無条件スコアの\\
+        線形結合によって誘導方向を実現する（CFG）。
+    \end{block}
     \begin{itemize}
-        \item
+        \item \textbf{8.3.1} 基礎：Bayes 恒等式とオラクル CFG 場、$\omega$ の役割
+        \item \textbf{8.3.2} 訓練（null 条件の dropout）とサンプリング
+        \item 図8.2：条件付き・無条件スコアの線形結合の直感
     \end{itemize}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{8.2 から 8.3 へ}
+    \begin{block}{ここまで（8.2 CG）}
+        無条件スコア $+$ 分類器勾配 $\omega\nabla_{\vx_t}\log p_t(c|\vx_t)$。\\
+        拡散モデルは固定し、ノイズ入力用の分類器を別訓練する。
+    \end{block}
+    \begin{block}{ここから（8.3 CFG）}
+        分類器をやめ、\textbf{1つの条件付き拡散モデル}で\\
+        条件付きスコアと無条件スコアを同時に学ぶ。
+    \end{block}
+    \begin{exampleblock}{ねらい}
+        オラクルでは CG と同じ誘導場を、学習・実装の負担を減らして得る。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{8.3 の道筋}
+    \begin{enumerate}
+        \item \textbf{Bayes}：$\nabla\log p_t(c|\vx_t)$ を条件付き・無条件スコアの差へ
+        \item \textbf{オラクル CFG}：$\omega$ 付き線形結合（式 (8.3.2)）
+        \item \textbf{図8.2}：補間（$0\le\omega\le 1$）と外挿（$\omega>1$）
+        \item \textbf{訓練}：条件を確率的に $\varnothing$ に落とす（Algorithm~4）
+        \item \textbf{サンプリング}：学習済み結合場で逆時間 SDE / PF-ODE を駆動
+    \end{enumerate}
+\end{frame}
+%=============================================
+\section{8.3.1 Foundation}
+\asmain
+\begin{frame}{区切り：8.3.1 Foundation of CFG}
+    \tableofcontents[currentsection]
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{CFG の出発点}
+    \begin{block}{動機}
+        Classifier Guidance は別分類器が必要で、\\
+        全ノイズレベルでの頑健な学習コストが大きい（§8.2.3）。
+    \end{block}
+    CFG (Ho and Salimans, 2021) は、\\
+    \textbf{条件付きスコアと無条件スコア}だけで同じ誘導方向を表す。
+    \begin{itemize}
+        \item 目標は依然として条件付き生成（$p_0(\vx|c)$ 方向へ）
+        \item ただし $\nabla_{\vx_t}\log p_t(c|\vx_t)$ を分類器で近似しない
+    \end{itemize}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{Bayes 恒等式（8.3.1）}
+    Bayes 則より
+    \[
+        \nabla_{\vx_t}\log p_t(c|\vx_t)
+        =
+        \nabla_{\vx_t}\log p_t(\vx_t|c)
+        -
+        \nabla_{\vx_t}\log p_t(\vx_t).
+        \tag{8.3.1}
+    \]
+    \begin{exampleblock}{読み方}
+        「分類器勾配」$=$「条件付きスコア」$-$「無条件スコア」。\\
+        右辺はどちらも拡散モデル側の量である。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{オラクル CFG 場（8.3.2）}
+    式 (8.2.3) に (8.3.1) を代入すると
+    \begin{align*}
+        s^{\mathrm{CFG}}(\vx_t,t,c;\omega)
+        &:=
+        \nabla_{\vx_t}\log p_t(\vx_t)
+        +\omega\bigl(
+            \nabla_{\vx_t}\log p_t(\vx_t|c)
+            -
+            \nabla_{\vx_t}\log p_t(\vx_t)
+        \bigr) \\
+        &=
+        \omega\,\nabla_{\vx_t}\log p_t(\vx_t|c)
+        +(1-\omega)\,\nabla_{\vx_t}\log p_t(\vx_t).
+        \tag{8.3.2}
+    \end{align*}
+    \begin{itemize}
+        \item 第1項：条件付きスコア
+        \item 第2項：無条件スコア
+    \end{itemize}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{CG との代数的一致}
+    \begin{block}{オラクル水準}
+        正確なスコアがあれば、式 (8.3.2) は式 (8.2.3) と\\
+        \textbf{同じ誘導場}である（書き換えに過ぎない）。
+    \end{block}
+    \begin{itemize}
+        \item $\omega=1$：純粋な条件付きスコア $\nabla_{\vx_t}\log p_t(\vx_t|c)$
+        \item 一般の $\omega$：固定時刻の tilted 密度解釈は可能だが、\\
+        誘導力学が生成する周辺とは区別する（§8.4.2）
+    \end{itemize}
+    \begin{alertblock}{実務の差}
+        CG は分類器近似、CFG は条件付き／無条件スコア近似。\\
+        近似の置き方が違うので、学習・頑健性の性質も変わる。
+    \end{alertblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{図8.2：CFG の線形結合}
+    \centering
+    \includegraphics[width=0.98\textwidth,height=0.68\textheight,keepaspectratio]{fig-8-2.jpg}
+    \vfill
+    \footnotesize
+    Source: Created by the authors.\ （論文 Figure~8.2）
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{図8.2 の読み方}
+    現在点 $\vx_t$ から、2本の灰色矢印の和が青の誘導方向になる。
+    \begin{itemize}
+        \item $(1-\omega)\nabla\log p_t(\vx_t)$：無条件方向（データ全体）
+        \item $\omega\nabla\log p_t(\vx_t|c)$：条件付き方向（target mode 寄り）
+        \item $0\le\omega\le 1$：2方向の\textbf{補間}
+        \item $\omega>1$：条件付き方向への\textbf{外挿}（条件をより強く）
+    \end{itemize}
+    \begin{exampleblock}{直感}
+        $\omega$ を大きくすると、条件モードへ押し出す力が強まる一方、\\
+        多様性は下がりやすい。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{誘導強度 $\omega$ の役割}
+    $\omega\ge 0$ を取る。
+    \begin{itemize}
+        \item $\omega=0$：完全に無条件。条件 $c$ を無視
+        \item $\omega=1$：追加誘導なしの条件付きスコア
+        \item $\omega>1$：条件付きスコアを強調し、\\
+        条件への整合は強まるが多様性は典型的に低下
+    \end{itemize}
+    \begin{block}{運用上の要点}
+        $\omega$ は\textbf{サンプリング時}のハイパーパラメータ。\\
+        訓練損失には入れない（次節）。
+    \end{block}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{固定時刻の解釈（予告）}
+    CG と同様、固定 $t$ では
+    \[
+        \tilde p_t^{\mathrm{CG},\omega}(\vx_t|c)
+        \propto
+        p_t(\vx_t)\,p_t(c|\vx_t)^{\omega}
+    \]
+    のスコアが (8.2.3)/(8.3.2) である。
+    \begin{alertblock}{注意（§8.4.2 へ）}
+        この tilted 密度は「その時刻の場の解釈」であり、\\
+        誘導付き力学を $T\to 0$ で積分した結果の周辺分布とは\\
+        一般には一致しない。
+    \end{alertblock}
+\end{frame}
+%=============================================
+\section{8.3.2 Training and Sampling}
+\asmain
+\begin{frame}{区切り：8.3.2 Training and Sampling}
+    \tableofcontents[currentsection]
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{1モデルで条件付き＋無条件}
+    CFG は条件付き予測と無条件予測の\textbf{両方}を要する。
+    \begin{block}{方針}
+        2モデルに分けず、単一モデル $s_\phi(\vx_t,t,c)$ を使う。\\
+        訓練中に条件入力をランダムに null トークン $\varnothing$ へ置換する。
+    \end{block}
+    \begin{itemize}
+        \item $\varnothing$ 入力：無条件予測 $s_\phi(\vx_t,t,\varnothing)$ を学習
+        \item 本来の $c$：条件付き予測 $s_\phi(\vx_t,t,c)$ を学習
+    \end{itemize}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{条件ドロップアウト}
+    ユーザ指定の確率 $p_{\mathrm{uncond}}$ で
+    \[
+        c \leftarrow \varnothing
+    \]
+    とする（condition dropout）。
+    \begin{itemize}
+        \item 大きい $p_{\mathrm{uncond}}$：無条件側の学習機会が増える
+        \item 小さすぎると無条件推定が弱く、CFG の結合が不安定になりうる
+        \item $\omega$ 自体は訓練に現れない（推論時のみ）
+    \end{itemize}
+    \begin{exampleblock}{ポイント}
+        「条件を時々忘れる」ことで、同じネットが両モードを担う。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{Algorithm 3：無条件 DM（対比）}
+    標準的な無条件スコア学習の骨格：
+    \begin{enumerate}
+        \item $\vx\sim p_{\mathrm{data}}(\vx)$，$t\sim U[0,T]$，$\veps\sim\mathcal{N}(0,I)$
+        \item $\vx_t=\alpha_t\vx+\sigma_t\veps$
+        \item 勾配ステップ：$\nabla_\phi\|s_\phi(\vx_t,t)-s\|_2^{2}$
+        \item 収束まで繰り返す
+    \end{enumerate}
+    \begin{block}{対比の狙い}
+        Algorithm~4 は、データが $(\vx,c)$ ペアになり、\\
+        入力に条件（または $\varnothing$）が付く点だけが本質的に違う。
+    \end{block}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{Algorithm 4：CFG 用の条件付き訓練}
+    入力：$p_{\mathrm{uncond}}$（無条件ドロップアウト確率）
+    \begin{enumerate}
+        \item $(\vx,c)\sim p_{\mathrm{data}}(\vx,c)$
+        \item 確率 $p_{\mathrm{uncond}}$ で $c\leftarrow\varnothing$
+        \item $t\sim U[0,T]$，$\veps\sim\mathcal{N}(0,I)$
+        \item $\vx_t=\alpha_t\vx+\sigma_t\veps$
+        \item 勾配ステップ：$\nabla_\phi\|s_\phi(\vx_t,t,c)-s\|_2^{2}$
+        \item 収束まで繰り返す
+    \end{enumerate}
+    \begin{alertblock}{注意}
+        ここでの $c$ は「本物の条件」か「$\varnothing$」かのいずれか。\\
+        誘導スケール $\omega$ はまだ出てこない。
+    \end{alertblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{学習済み CFG 場（8.3.3）}
+    訓練後のモデルを $s_{\phi^\times}(\vx_t,t,c)$ と書くと
+    \begin{align*}
+        s^{\mathrm{CFG}}_{\mathrm{model}}(\vx_t,t,c;\omega)
+        &:=
+        \omega\,s_{\phi^\times}(\vx_t,t,c)
+        +(1-\omega)\,s_{\phi^\times}(\vx_t,t,\varnothing) \\
+        &\approx
+        s^{\mathrm{CFG}}(\vx_t,t,c;\omega).
+        \tag{8.3.3}
+    \end{align*}
+    \begin{itemize}
+        \item 条件付き推定：$\omega$ の係数
+        \item 無条件推定：$(1-\omega)$ の係数（$\varnothing$ 入力）
+    \end{itemize}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{サンプリング手順}
+    逆時間 SDE または PF-ODE で、\\
+    無条件スコア推定を $s^{\mathrm{CFG}}_{\mathrm{model}}$ に置き換える。
+    \begin{enumerate}
+        \item 各ステップで条件付き評価 $s_{\phi^\times}(\vx_t,t,c)$ を計算
+        \item 同じ $\vx_t$ で無条件評価 $s_{\phi^\times}(\vx_t,t,\varnothing)$ を計算
+        \item $\omega$ で線形結合し、その場で1ステップ更新
+    \end{enumerate}
+    \begin{exampleblock}{コスト感}
+        1ステップあたりネット評価が実質2回（条件あり／なし）。\\
+        分類器を別途走らせる CG より実装は単純なことが多い。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{制御可能性：強さと多様性}
+    訓練後に $\omega$ だけを動かして、\\
+    \textbf{条件への整合}と\textbf{多様性}のトレードオフを調整できる。
+    \begin{columns}[T,onlytextwidth]
+        \begin{column}{0.48\textwidth}
+            \begin{block}{$\omega$ 小}
+                無条件寄り。\\
+                多様だが条件が弱い。
+            \end{block}
+        \end{column}
+        \begin{column}{0.48\textwidth}
+            \begin{block}{$\omega$ 大}
+                条件を強調。\\
+                整合は強いが単調になりやすい。
+            \end{block}
+        \end{column}
+    \end{columns}
+    \vfill
+    別分類器も、別の無条件拡散モデルも不要。
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{CG と CFG の比較（再掲）}
+    \renewcommand{\arraystretch}{1.2}
+    \footnotesize
+    \begin{tabular}{lll}
+        & \textbf{CG（8.2）} & \textbf{CFG（8.3）} \\
+        \hline
+        拡散モデル & 無条件を流用 & 条件付き（$+\varnothing$）を学習 \\
+        追加モデル & 時間依存分類器 & 不要（同一ネット） \\
+        誘導の中身 & $\omega\nabla\log p_\psi(c|\vx_t,t)$ & 条件／無条件スコアの差 \\
+        $\omega$ の位置 & 推論時 & 推論時 \\
+        典型コスト & 分類器＋拡散 & 拡散2評価／ステップ \\
+    \end{tabular}
+    \normalsize
+    \vfill
+    オラクルでは同じ場、実装では「何を近似するか」が違う。
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：実装メモ（スコア以外のパラメータ化）}
+    本文はスコア予測で書いているが、\\
+    $\veps$ 予測や $\vx$ 予測でも同様の結合が広く使われる。
+    \begin{itemize}
+        \item 実務の CFG はしばしば
+        $\tilde{\veps}=\veps_\phi(\vx_t,t,\varnothing)+\omega\bigl(\veps_\phi(\vx_t,t,c)-\veps_\phi(\vx_t,t,\varnothing)\bigr)$
+        \item これは (8.3.2) と同じ「無条件 $+$ $\omega\times$差」の形
+        \item パラメータ化の換算は第6章の同値関係に従う
+    \end{itemize}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{8.3 のまとめ}
+    \begin{itemize}
+        \item Bayes で分類器勾配 $=$ 条件付き $-$ 無条件スコア
+        \item オラクル CFG 場は CG 場の書き換え（式 (8.3.2)）
+        \item $\omega$：補間／外挿で条件の強さを制御
+        \item 訓練：null 条件ドロップアウトで1モデル二役
+        \item 推論：2評価の線形結合で逆過程を駆動
+    \end{itemize}
+    \begin{block}{残る問い}
+        では、訓練せずに外部損失だけで誘導すると何が起きるか？\\
+        → 次節 8.4（Training-Free Guidance）
+    \end{block}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{次節へ：8.4 Training-Free Guidance}
+    \begin{enumerate}
+        \item 凍結した事前学習モデルを、推論時だけ外部条件で曲げる
+        \item data-space / noise-space の2系統の補正
+        \item 誘導が本当に作る分布（tilted / 近似事後）
+        \item 逆問題への適用例（ILVR、DPS など）
+    \end{enumerate}
+    \vfill
+    \footnotesize
+    8.4 は論文上 Optional。ゼミでは本筋を青、深い整合条件は緑で。
 \end{frame}
