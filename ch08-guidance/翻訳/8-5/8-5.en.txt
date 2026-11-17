@@ -1,0 +1,461 @@
+8.5        From Reinforcement Learning to Direct Preference Optimization for
+           Model Alignment
+
+In the pursuit of aligning generative models with human intent, the prevailing
+paradigm has been Reinforcement Learning from Human Feedback (RLHF). While
+effective, RLHF is a complex, multi-stage process that can be unstable. This section
+introduces Direct Preference Optimization (DPO) (Rafailov et al., 2023), a more
+streamlined and stable method that reaches the same goal without explicit reward
+modeling or reinforcement learning. We then outline its extension to diffusion
+models via Diffusion-DPO (Wallace et al., 2024).
+
+8.5.1         The Motivation: Circumventing the Pitfalls of RLHF
+
+The goal of alignment is to steer a base, pre-trained model (e.g., an SFT model) to-
+ward outputs that humans prefer. RLHF proceeds in three stages. First, supervised
+fine-tuning (SFT) trains a base model on prompt–response pairs. Second, reward
+modeling (RM) fits a model on preference data consisting of prompts c and paired
+responses (a preferred “winner” xw and a dispreferred “loser” xl ), learning a scalar
+r(c, x) with r(c, xw ) > r(c, xl ). Third, RL fine-tuning optimizes the SFT model
+(policy π 5 ) with an algorithm such as PPO (Schulman et al., 2017), maximizing
+expected reward from r while regularizing by a KL penalty that keeps π close to
+the reference/SFT distribution.
+    Despite its impact, this pipeline suffers from drawbacks: the RL stage is
+unstable and computationally expensive because it is on-policy—each update
+requires freshly generated samples from the current model; it also requires training
+and hosting multiple large models (SFT, reward, and sometimes a value model);
+and it optimizes only a proxy for human preferences, so flaws in the reward model
+can be exploited. This motivates a central question:
+Question 8.5.1
+      Can we eliminate explicit reward modeling and the unstable RL step, directly
+      optimizing the model on preference data?
+
+    Direct Preference Optimization (DPO) streamlines alignment by replacing the
+multi-stage RLHF pipeline with a single, supervised-style step. Instead of training
+a separate reward model and running unstable RL algorithms like PPO, DPO
+directly fits the policy to preference pairs using a simple logistic loss, while staying
+close to a fixed reference model. The key insight is that the KL-regularized RLHF
+objective can be rewritten so that the log-likelihood ratio between the policy and
+the reference acts as an implicit reward. This preserves the same regularization
+toward the reference policy but avoids costly rollouts and explicit reward modeling.
+      5
+          A policy maps a prompt/history (state) to a distribution over responses/actions.
+
+268                                              Guidance and Controllable Generation
+
+
+    In Section 8.5.2, we briefly review the RLHF pipeline and its reliance on large
+reward models and RL fine-tuning. In Section 8.5.3, we present DPO, originally
+proposed for language models, which circumvents reward model training and
+simplifies alignment fine-tuning. Finally, in Section 8.5.4, we extend this idea to
+diffusion models, introducing Diffusion-DPO as a practical and stable alignment
+method in the generative modeling setting.
+
+8.5.2   RLHF: Bradley-Terry View
+Short Introduction to RLHF. RLHF begins with a learned judge: a reward
+model rψ that assigns a scalar preference score to candidate responses for the
+same prompt c. The dataset D consists of pairs (x̃, x) annotated with a label y
+indicating whether x̃ is preferred over x. The label can be binary y ∈ {0, 1} or a
+soft value y ∈ [0, 1] obtained by aggregating multiple raters. The training objective
+is a simple logistic loss
+                              h                              
+   LRM (ψ) = −E(c,x̃,x,y)∼D y log σ rψ (c, x̃) − rψ (c, x)
+                                                                               i       (8.5.1)
+                                  + (1 − y) log 1 − σ rψ (c, x̃) − rψ (c, x)         ,
+
+where σ(u) = 1/(1 + e−u ). In practice, preference pairs in D may originate from
+various sources: curated responses, model snapshots at different checkpoints, or
+generations from a pre-trained conditional diffusion model. A standard convention
+is to store them in an ordered format (winner, loser). Under this convention we
+simply set y = 1, and Equation (8.5.1) reduces to the special case (with x̃ = xw
+and x = xl ):
+                                          h                              i
+              LRM (ψ) = −E(c,xw ,xl )∼D log σ rψ (c, xw ) − rψ (c, xl ) .                (8.5.2)
+
+Bradley-Terry View and KL Connection.            It is standard to interpret
+                                                                     
+                       prψ (x̃ ≻ x|c) := σ rψ (c, x̃) − rψ (c, x)
+
+through the Bradley-Terry (BT) model (Bradley and Terry, 1952), which converts
+two scalar scores into a win probability. This formulation highlights two key
+properties: (i) only the difference of scores matters (so rψ (c, ·) is shift-invariant),
+and (ii) the loss pushes the predicted winner’s score above the loser’s score. To see
+(ii) intuitively, consider one pair with label y ∈ {0, 1} and define
+
+             ∆r := rψ (c, x̃) − rψ (c, x),    p := σ(∆r),    σ(u) = 1+e1−u .
+
+The per-example logistic loss is
+                                                                
+                         ℓ = − y log p + (1 − y) log(1 − p) .
+
+8.5. From Reinforcement Learning to Direct Preference Optimization for Model
+Alignment                                                                    269
+
+Then
+                               ∂ℓ
+                                    = σ(∆r) − y.
+                              ∂∆r
+Under gradient descent with step size η > 0, the score gap updates as
+                                                        
+                             ∆r ← ∆r − η σ(∆r) − y .
+
+Hence, if y = 1 (“x̃ wins”), then σ(∆r) − 1 ≤ 0, so ∆r increases (winner up, loser
+down); if y = 0, ∆r decreases.
+   Each per-example term in Equation (8.5.1) can be viewed as the cross-entropy
+between the observed Bernoulli label and the model’s predicted win probability:
+                                                                                   
+  − y log prψ + (1 − y) log(1 − prψ ) = DKL Bern(y) Bern(prψ ) + H Bern(y) ,
+
+where H is the entropy of the target Bernoulli distribution. Averaging over the
+dataset D gives
+                      h                         i                            
+        LRM (ψ) = ED DKL Bern(y) Bern(prψ )           + ED H(Bern(y)) .             (8.5.3)
+                                                       |          {z            }
+                                                            independent of ψ
+
+Thus, minimizing the logistic loss is equivalent to minimizing the KL divergence
+between the empirical Bernoulli distribution of human labels and the model’s
+predicted Bernoulli distribution. In the binary case (y ∈ {0, 1}), this equivalence is
+exact; for soft labels (y ∈ [0, 1]), the result holds up to an entropy constant offset.
+Intuitively, the reward model is trained to adjust its win probabilities until they
+align with the empirical human win rates observed in the dataset.
+    From this point onward, we adopt the most common convention where D stores
+pairs in an ordered format: (xw , xl , c) ∼ D. Under this convention, the label is
+always y = 1, and the loss simplifies to the ordered form given in Equation (8.5.2),
+which we will use in the following discussion.
+
+KL Regularized Policy Optimization (with Fixed Reward). With the fitted
+reward r := rψ× trained via Equation (8.5.2), and a conditional pre-trained
+diffusion model pϕ× (x|c), RLHF then adjusts a learnable policy πθ (x|c), usually
+fine-tuned on top of pϕ× (x|c), toward higher-reward responses. At the same time,
+the policy is regularized to stay close to a reference model, taken as the pre-trained
+diffusion model πref (x|c) := pϕ× (x|c), using a DKL penalty:
+                     h                                                   i
+         max Ec∼p(c) Ex∼πθ (·|c) rψ (c, x) − βDKL πθ (·|c) πref (·|c) ,             (8.5.4)
+          θ
+
+which makes the two forces explicit: seek samples the judge prefers, but stay close
+to the pre-trained reference.
+    We remark that the reward objective in Equation (8.5.2) uses only labeled
+pairs and does not require that D be generated by the reference model (i,e., the
+
+270                                          Guidance and Controllable Generation
+
+
+pre-trained conditional diffusion model). While not required, collecting pairs from
+models close to the intended policy can reduce distribution shift and make the
+learned reward more reliable in the region where it will be used.
+    In summary, RLHF proceeds in two stages: first fit the reward r∗ by min-
+imizing the loss in Equation (8.5.2) (equivalently, the expected binary DKL in
+Equation (8.5.3)); then optimize the policy π ∗ by solving Equation (8.5.4).
+
+8.5. From Reinforcement Learning to Direct Preference Optimization for Model
+Alignment                                                                    271
+
+8.5.3   DPO Framework
+The Bridge from RLHF. The KL-regularized policy objective in Equation (8.5.4)
+has a simple closed-form solution for each prompt c, given the fitted reward
+r := rψ× , expressed in the following energy-based form (Peters et al., 2010):
+                                     1
+                      π ∗ (x|c) =        πref (x|c) exp(r(c, x)/β),                         (8.5.5)
+                                    Z(c)
+where πref (x|c) := pϕ× (x|c), and Z(c) is the partition function ensuring π ∗ (x|c) dx =
+                                                                                        R
+
+1.
+    For smaller β, exp(r/β) becomes sharper, so π ∗ concentrates on high reward
+regions: reward dominates, the policy moves farther from πref , diversity decreases,
+and training may become unstable or prone to reward hacking. For larger β,
+exp(r/β) flattens, keeping π ∗ closer to πref : the KL term dominates, updates are
+conservative, diversity follows the reference, but reward gains are limited.
+    Since our aim is to fine-tune the policy directly (without training a separate
+reward model), Equation (8.5.5) lets us define an implicit reward from any policy.
+We introduce below:
+
+Defining an Implicit Reward Motivated by Inverting Equation (8.5.5). Equa-
+tion (8.5.5) suggests an immediate inversion: for any policy π (with support
+contained in πref ), define
+                                               π(x|c)
+                       rπ (c, x) = β log                 + β log Z(c).                      (8.5.6)
+                                              πref (x|c)
+Then Equation (8.5.5) holds with π in place of π ∗ , i.e., π would be the optimizer of
+Equation (8.5.4) for the reward function rπ . In this sense, rπ is an implicit (policy-
+induced) reward: it is identified up to the prompt-dependent constant β log Z(c),
+which vanishes in any pairwise comparison such as in the BT model:
+                                                    π(xw |c)           π(xl |c) 
+            rπ (c, xw ) − rπ (c, xl ) = β log                    − log              .
+                                                    πref (xw |c)       πref (xl |c)
+This cancellation is exactly what makes the constant irrelevant for preference
+learning and leads directly to the DPO loss on log-probability differences.
+
+DPO’s Training Loss. Plug the implicit reward Equation (8.5.6) into the BT
+model of Equation (8.5.2) for a labeled pair (xw , xl ) under the same prompt c. The
+constants log Z(c) cancel between winner and loser, yielding a single logistic-loss
+objective on log-probability differences:
+                                                          πθ (xw |c)         πθ (xl |c) 
+                                                                                          
+   LDPO (θ; πref ) = −E(c,xw ,xl )∼D log σ β log                       − log               .
+                                                          πref (xw |c)       πref (xl |c)
+
+272                                                    Guidance and Controllable Generation
+
+
+In words: DPO pushes up the (temperature-scaled) advantage of the winner over
+the loser, measured as the difference of log-likelihood improvements over the
+reference:                                                      
+              − log σ β log-ratio difference of ππref
+                                                   θ
+                                                      at xw vs. xl .
+This achieves the goal of RLHF in a single, stable classification-style fine-tuning
+stage, without training an explicit reward model.
+
+8.5.4    Diffusion-DPO
+
+Throughout this subsection, we retain the policy notation from Section 8.5.3: πθ
+and πref denote the learned and reference diffusion policies, including their path
+and transition distributions, while pt (xt |x0 ) continues to denote the fixed forward
+noising process.
+
+
+Why Naive DPO Fails for Diffusion Models? Evaluating the sample likelihood
+πθ (x|c) in diffusion models requires the instantaneous change-of-variables for-
+mula (divergence of the drift) of ODE solving (see Equation (4.3.7))6 , which is
+computationally intensive. Moreover, differentiating through the entire sampling
+trajectory can suffer from vanishing or exploding gradients. To avoid these issues,
+Diffusion-DPO works at the path level. We take the discrete-time diffusion model
+(e.g., DDPM) as an illustrative example; the continuous-time diffusion model is
+analogous.
+
+
+Defining Pathwise Implicit Rewards. Let a trajectory be x0:T := (xT , . . . , x0 )
+under the reverse-time Markov chain with conditionals π(xt−1 |xt , c). Here, xT is
+the highest-noise state and x0 is the clean output.
+   Human preferences are defined on the final output through r(c, x0 ). Since x0 is
+part of every diffusion trajectory, the reward itself does not need to change when
+we move to path space. The useful step is instead to regularize the entire reverse
+process. By the chain rule for KL divergence, the KL divergence between the full
+path distributions is at least as large as the KL divergence between their endpoint
+marginals. This motivates the pathwise objective
+                         h                                                      i
+           max Ec∼p(c) Ex0:T ∼πθ (·|c) r(c, x0 ) − βDKL πθ (·|c) πref (·|c) ,
+             θ
+
+where πθ (·|c) and πref (·|c) denote the corresponding path distributions. The reward
+term is unchanged, while the KL penalty now also controls how the latent denoising
+trajectories deviate from the reference.
+   6
+     In discrete-time diffusion models (e.g., DDPM), evaluating πθ (x0 |c) requires marginalizing
+over the latent reverse trajectory x1:T .
+
+8.5. From Reinforcement Learning to Direct Preference Optimization for Model
+Alignment                                                                    273
+
+   At the distributional level, assuming the normalizer is finite, the optimizer for
+each prompt c has the energy-based form
+                                     1
+                  π ∗ (x0:T |c) =
+                                                                       
+                                         πref (x0:T |c) exp r(c, x0 )/β .                          (8.5.7)
+                                    Z(c)
+As in ordinary DPO, we can invert this relation and define the implicit path reward
+induced by any policy π:
+                                                  π(x0:T |c)
+                   Rπ (c, x0:T ) := β log                       + β log Z(c).
+                                                 πref (x0:T |c)
+At the pathwise optimum, Rπ∗ (c, x0:T ) = r(c, x0 ). For a general policy, however,
+Rπ may also depend on the latent trajectory. Since the preference data compare
+only the clean endpoints, we therefore average this implicit path reward over
+trajectories associated with each endpoint.
+
+From Pathwise Implicit Rewards to DPO. For a labeled endpoint pair (x0w , x0l )
+under the same prompt c, the Bradley–Terry margin is obtained by comparing
+the conditional averages of their implicit path rewards:
+                                                                              
+       LDiff-DPO (θ; πref ) := −E(c,xw ,xl )∼D log σ ∆R(c; θ) ,                          where
+                                       0     0
+                                                     h                              i
+                              w ∼π (·|xw ,c) Rπ
+                ∆R(c; θ) := Ex1:T θ    0        θ
+                                                             w
+                                                  c, (x0w , x1:T )
+                                                                                                   (8.5.8)
+                              |                          {z                          }
+                                           winner path expectation
+                                                                h                         i
+                                    − Ex l              l
+                                                                                   l
+                                                                    Rπθ c, (x0l , x1:T )       .
+                                            1:T ∼πθ (·|x0 ,c)
+                                      |                             {z                     }
+                                                    loser path expectation
+
+Here, the expectation Ex1:T ∼πθ (·|x0 ,c) [·] means: given a fixed endpoint x0 (e.g., the
+winner x0w ) from the dataset, we take an expectation over latent denoising trajec-
+tories x1:T under the model-induced conditional path distribution (the posterior
+over reverse-time trajectories) that, with kernels πθ (xt−1 |xt , c), could produce x0 .
+Since these intermediate states are unobserved, we average the path reward over
+all such trajectories.
+    However, Equation (8.5.8) is impractical for three practical reasons:
+
+1. Endpoint Conditioning Induces an Intractable Path Posterior. The term
+   Eπθ (x1:T |x0 ,c) [·] averages over reverse paths constrained to hit x0 , whereas the
+   sampler runs xT → · · · → x0 without this constraint. Conditioning on the
+   endpoint creates a diffusion-bridge posterior with generally no closed form and
+   costly sampling.
+
+2. Nested, θ-Coupled Expectations. The loss − log σ(∆R(c; θ)) with
+
+                        ∆R = Epaths|x0w ,c [Rπθ ] − Epaths|xl ,c [Rπθ ]
+                                                                           0
+
+274                                                   Guidance and Controllable Generation
+
+
+   has both the path joint distribution and the integrand Rπθ depending on
+   θ. Thus ∇θ must differentiate through the sampling distribution, leading to
+   REINFORCE/pathwise couplings and high-variance gradients.
+
+3. Long Chains, Large Sums, and Expensive Backpropagation. In Rπθ (c, x0:T ),
+   computing
+                       β [log πθ (x0:T |c) − log πref (x0:T |c)]
+   requires O(T ) per-step log-densities with T ∼ 102 –103 , for both policy πθ and
+   reference πref , and for both winner/loser paths. Backpropagating through these
+   stochastic chains (or bridge samplers) is memory and compute heavy and can
+   be unstable; repeating this over many samples per pair and across all triplets
+   pushes training beyond practical budgets.
+
+Toward a Tractable Surrogate for Equation (8.5.8). To make this computable,
+we apply a key mathematical insight. By leveraging properties of diffusion models
+and applying Jensen’s inequality, we can optimize a tractable upper bound on this
+loss. This transforms the problem from evaluating an entire path’s likelihood to
+evaluating an expectation over the individual, single-step transitions within the
+path:
+    Because − log σ(·) is convex, Jensen’s inequality yields an upper bound by
+moving the inner expectations outside the nonlinear function:
+                                                               h                              i
+                                                                       w               l
+LDiff-DPO (θ; πref ) ≤ −E(c,xw ,xl )∼D Ex1:T
+                                         w ∼π (·|xw ,c) log σ Rπ (c, x
+                                             θ    0             θ     0:T ) − Rπθ (c, x0:T )        .
+                             0   0
+                                          l
+                                         x1:T ∼πθ (·|x0l ,c)
+
+Using the implicit-reward identity Rπθ = β log ππref
+                                                  θ
+                                                     + β log Z(c) and cancellation
+of the constant between winner and loser, the bound becomes
+                            "                                                    #
+                                              w |c)
+                                        πθ (x0:T                  l |c) 
+                                                           πθ (x0:T
+  LDiff-DPO (θ; πref ) ≤ −E log σ β log        w |c) − log         l |c)
+                                                                           . (8.5.9)
+                                        πref (x0:T         πref (x0:T
+
+    A Tractable Surrogate (Stepwise Form). We now exploit the Markov prop-
+erty of the reverse process to decompose the upper bound of LDiff-DPO . This
+allows us to express the path-level preference as a sum of per-step contributions,
+converting the intractable pathwise loss into a tractable single-step estimator. The
+resulting form yields a DPO-style log-sigmoid loss whose inner margin reduces to
+a DSM-style MSE difference. Concretely, for the reverse chain,
+                                                   T
+                                                   Y
+                      πθ (x0:T |c) = πθ (xT |c)         πθ (xt−1 |xt , c),
+                                                   t=1
+                                                    YT
+                    πref (x0:T |c) = πref (xT |c)         πref (xt−1 |xt , c).
+                                                    t=1
+
+8.5. From Reinforcement Learning to Direct Preference Optimization for Model
+Alignment                                                                    275
+
+Hence
+                                                        T
+                         πθ (x0:T |c)     πθ (xT |c) Y     πθ (xt−1 |xt , c)
+                                        =                                      .
+                         πref (x0:T |c)   πref (xT |c) t=1 πref (xt−1 |xt , c)
+If the prior at time T is the same for both models, πθ (xT |c) = πref (xT |c), then
+the first factor equals 1, and taking logs yields
+                                                 T
+                                 πθ (x0:T |c)    X      πθ (xt−1 |xt , c)
+                           log                 =    log                     .
+                                 πref (x0:T |c) t=1     πref (xt−1 |xt , c)
+
+It follows that the bound in Equation (8.5.9) can be written as
+                                                                  T
+                                                        "                        #
+                                                                 X          
+                          LDiff-DPO (θ; πref ) ≤ −E log σ β             ∆t           ,
+                                                                  t=1
+
+where each per-step contribution is
+                                           w |xw , c)
+                                    πθ (xt−1                πθ (xt−1l |xl , c)
+                                               t                         t
+                        ∆t = log           w |xw , c) − log          l |xl , c)
+                                                                                .
+                                    πref (xt−1  t           π ref (x t−1 t
+
+    To reduce the sum over timesteps to a single randomly selected transition,
+observe that β Ts=1 ∆s = Et∼U {1,...,T } [βT ∆t ]. Since − log σ(·) is convex, Jensen’s
+               P
+
+inequality therefore gives, after taking the existing outer expectations,
+                                                                        
+                            LDiff-DPO (θ; πref ) ≤ −E log σ βT ∆t             ,
+                                                                                w
+where the expectation is over (c, x0w , x0l ) ∼ D, t ∼ U{1, . . . , T }, and xt−1:t ∼
+       w           l              l
+πθ (·|x0 , c) and xt−1:t ∼ πθ (·|x0 , c). Although the bound now depends on only
+one transition, sampling these endpoint-conditioned transition pairs remains in-
+tractable.
+     Following Diffusion-DPO, we approximate the intractable model-induced condi-
+tional path using the fixed forward noising process. For each clean endpoint x0 , we
+first sample xt ∼ pt (xt |x0 ). Conditioned on (x0 , xt ), the forward process induces
+the tractable posterior p(xt−1 |xt , x0 ). Averaging the reverse-transition log-ratio
+under this posterior gives
+                      πθ (xt−1 |xt , c)
+                                           
+Ep(xt−1 |xt ,x0 ) log
+                      πref (xt−1 |xt , c)
+= −DKL (p(xt−1 |xt , x0 ) ∥ πθ (xt−1 |xt , c)) + DKL (p(xt−1 |xt , x0 ) ∥ πref (xt−1 |xt , c)) .
+
+   For Gaussian reverse kernels with the same prescribed reverse variance, these
+KL divergences reduce to weighted denoising regression errors. Under ϵ-prediction,
+                        πθ (xt−1 |xt , c)
+                                               h                                                 i
+Ep(xt−1 |xt ,x0 ) log                       = −λt ∥ϵ̂θ (xt , t, c) − ϵ∥2 − ∥ϵ̂ref (xt , t, c) − ϵ∥2 ,
+                        πref (xt−1 |xt , c)
+                                                                                            (8.5.10)
+
+276                                                           Guidance and Controllable Generation
+
+
+where xt = αt x0 +σt ϵ with ϵ ∼ N (0, I), and λt > 0 collects the schedule-dependent
+weighting factors.
+   For notation simplicity, define for any noised sample (xt , ϵ):
+                                                               2                          2
+                 ∆MSE(xt ; ϵ) := ϵ̂θ (xt , t, c) − ϵ               − ϵ̂ref (xt , t, c) − ϵ .
+
+This yields the practical single-step Diffusion-DPO surrogate for LDiff-DPO :
+
+
+      L̃Diff-DPO (θ; πref ) :=
+                                            h                                                  i
+      −E         (c,x0w ,x0l )∼D                log σ βT λt ∆MSE(xtl ; ϵl ) − ∆MSE(xtw ; ϵw )     ,
+           t∼U {1,...,T },ϵw ,ϵl ∼N (0,I)
+
+
+
+where xtw = αt x0w + σt ϵw and xtl = αt x0l + σt ϵl . In practice, one may also use shared
+noise ϵw = ϵl as a variance-reduction variant; this does not change the overall
+DPO-style form of the objective, but slightly alters the stochastic estimator.
+   Intuitively, minimizing L̃Diff-DPO increases the reference-normalized winner-
+over-loser margin. Equivalently, it encourages the model to reduce denoising error
+on the winner more than on the loser, measured relative to the frozen reference
+model. The reference model does not contribute a direct gradient term, but it
+remains inside the margin within the log σ(·) nonlinearity, so it still shapes the
+DPO-style per-example weighting.
+
+8.6. Closing Remarks                                                             277

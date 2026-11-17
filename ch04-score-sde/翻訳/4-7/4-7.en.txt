@@ -1,0 +1,172 @@
+4.7   Closing Remarks
+
+This chapter marked a pivotal moment in our journey, unifying the discrete-time
+diffusion processes from the variational and score-based perspectives into a single,
+elegant continuous-time framework. We demonstrated that both DDPM and NCSN
+can be understood as discretizations of Stochastic Differential Equations (SDEs)
+with different drift/volatility coefficients.
+    The cornerstone of this framework is the existence of a corresponding reverse-
+time SDE, which formally defines a generative process that reverses the noise
+corruption. Crucially, the drift of this reverse process depends on a single unknown
+quantity: the score function, ∇x log pt (x), of the marginal data distributions at
+every point in time. This insight solidifies the score function’s central role in
+generative modeling.
+    Furthermore, we introduced a purely deterministic counterpart, the Probability
+Flow Ordinary Differential Equation (PF-ODE), whose solution trajectories evolve
+along the same marginal densities {pt } as the SDEs. This remarkable consistency
+is guaranteed by the underlying Fokker-Planck equation. The profound implication
+is that the complex task of generation is fundamentally equivalent to solving a
+differential equation. Training reduces to learning the score function that defines the
+equation’s vector field, while sampling becomes a problem of numerical integration.
+    The introduction of the PF-ODE, a purely deterministic flow, provides a
+powerful bridge to the third and final perspective on diffusion models. This concept
+of learning a deterministic transformation governed by a velocity field is the central
+principle of recent major family of generative models. In the next chapter, we will:
+
+   1. Explore this flow-based perspective, starting from its origins in Normalizing
+      Flows and Neural ODEs.
+
+   2. Show how this viewpoint leads to the modern framework of Flow Match-
+      ing, which directly learns a velocity field to transport samples between
+      distributions.
+
+    Ultimately, we will see how the deterministic PF-ODE, which we derived from
+stochastic principles, can be constructed and generalized from this entirely different,
+flow-based origin, completing our unified picture of diffusion modeling.
+
+                                           5
+  Flow-Based Perspective: From NFs to Flow Matching
+
+
+
+
+                 Everything flows.
+                                                                         Heraclitus
+
+   The change-of-variables formula, a cornerstone of probability theory (Tabak
+and Vanden-Eijnden, 2010; Turner, 2013), takes on new life in modern generative
+modeling. In Chapter 4, we saw that the Fokker–Planck equation describes how
+probability densities evolve under a diffusion process, and that the same marginal
+density evolution can also be realized deterministically through the associated
+PF-ODE. This naturally suggests studying generative modeling directly from the
+viewpoint of deterministic probability transport.
+
+
+Change-of-Variables Formula of Densities. Given an invertible transformation
+f , the density of x = f (z), where z ∼ pprior , is
+
+
+                                   ∂f −1 (x)
+           p(x) = pprior (z) det             ,   where z = f −1 (x).     (5.0.1)
+                                      ∂x
+
+
+This deceptively simple formula enables bidirectional transport of samples and
+densities when f is tractable, forming the foundation of Normalizing Flows, which
+we introduce in Section 5.1. But what happens when this transformation is viewed
+continuously in time?
+    In this chapter, we follow this idea from Normalizing Flows to Neural ODEs and
+then to Flow Matching. The key connection to Chapter 4 is especially important.
+In Score SDEs, the learned score is used to construct the velocity field of the PF-
+ODE. Flow Matching instead learns a velocity field directly. For the same diffusion
+
+                                           133
+
+134                                 Flow-Based Perspective: From NFs to Flow Matching
+
+
+probability path, these provide two views of the same deterministic probability
+flow.
+    A useful mental picture for this chapter is therefore, where both rely on the
+same conditioning principle:
+
+                     Score SDE                                  Flow Matching
+
+                Conditional Score                           Conditional Velocity
+                 ∇x log pt (x | x0 )                              vt (x | z)
+                     closed form                                  closed form
+
+
+                                               ⇐⇒
+                                                                         
+                     Ex 0 | x ·                                    Ez | x ·
+
+                  Marginal Score                             Marginal Velocity
+                   ∇x log pt (x)                                  vt (x)
+                      intractable                                  intractable
+
+
+
+
+                             vt (x) = f (t)x − 12 g 2 (t) ∇x log pt (x)
+
+
+
+                                 The same probability flow
+                                    dx(t)              
+                                            = vt x(t) ,
+                                     dt
+                            transporting between pdata and pprior .
+
+Figure 5.1: Score SDEs and Flow Matching. Both frameworks train on the closed-form conditional
+quantity in the top row. Averaging it over the conditioning variable (vertical arrows) gives the
+intractable marginal quantity below, which is what the trained model recovers. The columns differ
+only in which quantity that is. On a diffusion path the score determines the velocity through
+the conversion in the middle, so both routes end at the same ODE; Flow Matching learns that
+velocity directly and needs neither endpoint to be Gaussian.
+                                                                   Source: Created by the authors.
+
+
+    Flow Matching carries this principle beyond the usual Gaussian diffusion
+setting. It can construct continuous transport between more general source and
+target distributions from which samples are available, provided that the chosen
+conditional probability paths can be sampled efficiently and their conditional
+velocities can be computed tractably.
+    To support a solid understanding of this chapter, we provide in Chapter B an
+intuitive, self-contained overview of the different forms of the change-of-variables
+
+                                                                                135
+
+
+principle, progressing from the ordinary change-of-variables formula to the conti-
+nuity equation and, with stochastic dynamics, to the Fokker–Planck equation.
+
+  After this chapter, you will be able to...
+   ■  connect Normalizing Flows, Neural ODEs, and Flow Matching through
+      the common idea of transporting probability distributions, from discrete
+      invertible transformations to continuous-time velocity fields;
+   ■ recognize the key analogy with the Score SDE framework in Chapter 4:
+
+
+      for the same diffusion probability path, Score SDEs learn a score that
+      determines the PF-ODE velocity, whereas Flow Matching can learn that
+     velocity field directly; in both cases, an intractable marginal target can
+      be learned through tractable conditional targets;
+   ■ understand the continuity equation as the density-level rule that connects
+
+
+      an ODE velocity field to the evolution of its probability distribution;
+   ■ understand how Flow Matching extends this conditional strategy beyond
+
+
+      Gaussian diffusion paths to transport between general source and target
+      distributions from which samples are available, while retaining simulation-
+      free training through tractable conditional paths and velocities;
+   ■ distinguish the prescribed probability path {p }
+                                                     t t∈[0,1] from the particular
+     velocity field, coupling, and particle trajectories used to realize it, and
+      understand why different flows can share the same marginal distributions;
+   ■ understand the two complementary ways of constructing tractable condi-
+
+
+      tional flows: starting from a conditional probability path and deriving its
+     velocity, or starting from a conditional flow map and deriving its velocity
+      along trajectories.
+  Reader route. Readers already comfortable with Normalizing Flows and
+  Neural ODEs may skim Section 5.1 and begin with Section 5.2.1. For a first
+  pass, focus on the connection between the Score SDE and Flow Matching views,
+  the continuity equation, and the conditional-to-marginal velocity construction.
+  The detailed path constructions and optional theoretical properties can be
+  revisited afterward.
+
+136                               Flow-Based Perspective: From NFs to Flow Matching

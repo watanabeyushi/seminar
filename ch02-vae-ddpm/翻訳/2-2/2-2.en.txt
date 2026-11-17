@@ -1,0 +1,624 @@
+2.2       Variational Perspective: DDPM
+
+Denoising Diffusion Probabilistic Models (DDPMs) (Sohl-Dickstein et al., 2015;
+Ho et al., 2020) represent a cornerstone of diffusion modeling. Conceptually, they
+operate within a variational framework, much like VAEs and HVAEs. However,
+DDPMs introduce a clever twist that tackles some of the challenges faced by their
+predecessors.
+   At their core, DDPMs involve two distinct stochastic processes:
+      ■   The Forward Pass (Fixed Encoder): This process gradually corrupts data by
+          injecting Gaussian noise over multiple steps via a transition kernel p(xi |xi−1 ).
+          The data evolves into an isotropic Gaussian distribution, effectively becoming
+          pure noise. This means the encoder is fixed and not learned.
+      ■   The Reverse Denoising Process (Learnable Decoder): Here, a neural
+          network learns to reverse the noise corruption through a parameterized
+          distribution pϕ (xi−1 |xi ). Starting from pure noise, this process iteratively
+          denoises to generate realistic samples. Crucially, each individual denoising
+          step is a more manageable task than generating a complete sample from
+          scratch, as VAEs often attempt to do.
+By fixing the encoder and concentrating learning on the gradual generative trajec-
+tory, DDPMs achieve remarkable stability and expressive power.
+
+
+                     p(x1 |x0 )          p(x2 |x1 )             p(xL |xL−1 )
+                x0                  x1                  x2   ···              xL
+                     pϕ (x0 |x1 )        pϕ (x1 |x2 )          pϕ (xL−1 |xL )
+
+Figure 2.3: Illustration of DDPM. It consists of a fixed forward process (in gray) that gradually
+adds Gaussian noise to the data, and a learned reverse process that denoises step-by-step to
+generate new samples.
+                                                                 Source: Created by the authors.
+
+   In this section, we focus on DDPMs, postponing the broader discussion to
+Section 4.5, where we present a more general and flexible framework.
+
+2.2.1       Forward Process (Fixed Encoder)
+In DDPMs, the forward process is a fixed, non-trainable operation that serves as an
+encoder. It progressively corrupts the original data by adding noise over multiple
+steps, eventually transforming it into a simple prior distribution pprior := N (0, I).
+This transformation is depicted as the forward chain in Figure 2.3 or as illustrated
+in Figure 2.4.
+    Let us formalize this step-by-step degradation:
+
+50                                                  Variational Perspective: From VAEs to DDPMs
+
+
+  𝐱 0 ∼ 𝑝data
+
+                Add noise            Add noise                                                   Add noise
+         𝐱0                  𝐱1                     𝐱2                 ⋯ 𝐱2              𝐱 𝐿−1                   𝐱𝐿
+                𝑝 𝐱1 𝐱 0 )           𝑝 𝐱 2 𝐱1 )                                                  𝑝 𝐱 𝐿 𝐱 𝑳−1 )
+
+
+
+
+Figure 2.4: Illustration of the DDPM forward process, wherein Gaussian noise is incrementally
+added to corrupt a data sample into pure noise.
+                                                                                    Source: Created by the authors.
+
+
+Fixed Gaussian Transitions. Each step in the forward process is governed by a
+fixed Gaussian transition kernel2 :
+                                                              q
+                             p(xi |xi−1 ) := N (xi ;              1 − βi2 xi−1 , βi2 I).
+Here, the process begins with x0 , representing a sample drawn from the real data
+distribution pdata . The sequence {βi }L
+                                       i=1 denotes a pre-determined, monotonically
+increasing noise schedule, where each βi ∈ (0, 1) controls the variance
+                                                                    q      of the
+Gaussian noise injected at step i. For convenience, we define αi := 1 − βi2 . This
+mathematical definition is precisely equivalent to the following intuitive iterative
+update:
+                               xi = αi xi−1 + βi ϵi ,
+where ϵi ∼ N (0, I) are independently and identically distributed. This means at
+each step i, we scale down the previous state xi−1 by αi and add a controlled
+amount of Gaussian noise scaled by βi .
+
+Perturbation Kernel and Prior Distribution. By recursively applying the tran-
+sition kernels, we obtain a closed-form expression for the distribution of noisy
+samples at step i given the original data x0 :
+                                                                                    
+                                  pi (xi |x0 ) = N xi ; ᾱi x0 , (1 − ᾱi2 )I ,
+where
+                                                  i q
+                                                  Y                     i
+                                                                        Y
+                                       ᾱi :=             1 − βk2 =          αk .
+                                                  k=1                  k=1
+This means we can sample xi directly from x as
+                                                   q
+                              xi = ᾱi x0 +             1 − ᾱi2 ϵ,    ϵ ∼ N (0, I).                             (2.2.1)
+Let the noise schedule {βi }Li=1 be an increasing sequence, then the marginal
+distribution of the forward process converges as
+                                  pL (xL |x0 ) −→ N (0, I)             as L → ∞,
+     2
+     This formulation, while potentially appearing different, is mathematically equivalent to the
+original DDPM transition kernel.
+
+2.2. Variational Perspective: DDPM                                                                      51
+
+
+which motivates the choice of the prior distribution as
+
+                                                pprior := N (0, I)
+
+with no reliance on data x0 .
+
+2.2.2     Reverse Denoising Process (Learnable Decoder)
+At its core, the essence of DDPMs lies in their ability to reverse the controlled
+degradation imposed by the forward diffusion process. Starting from pure, unstruc-
+tured noise, xL ∼ pprior , the objective is to progressively denoise this randomness,
+step by step, until a coherent and meaningful data sample emerges. This reverse
+generation proceeds through a Markov chain, illustrated by Figure 2.5.
+
+  𝐱 0 ∼ 𝑝data
+
+                Denoise            Denoise                                           Denoise
+     𝐱0                      𝐱1                    𝐱2           ⋯ 𝐱2       𝐱 𝐿−1                   𝐱𝐿
+                𝑝 𝐱 0 𝐱1 )         𝑝 𝐱1 𝐱 2 )                                      𝑝 𝐱 𝐿−1 𝐱 𝑳 )
+
+
+
+
+Figure 2.5: Illustration of DDPM reverse (denoising) process. Starting from noise xL ∼ pprior ,
+the model sequentially samples xi−1 ∼ p(xi−1 |xi ) for i = L, . . . , 1 to obtain a newly generated
+data x0 . The oracle transition p(xi−1 |xi ) is unknown; thus, we aim to approximate it.
+                                                                       Source: Created by the authors.
+
+
+   The fundamental challenge, and the central question guiding DDPM develop-
+ment, then becomes:
+Question 2.2.1
+    Can we precisely compute, or at least effectively approximate, these reverse tran-
+    sition kernels p(xi−1 |xi ), especially when considering the complex distribution
+    of xi ∼ pi (xi )?
+
+    Rather than diving immediately into the mathematically intricate derivation of
+the Evidence Lower Bound (ELBO), as the original DDPM paper does (for which
+a detailed discussion awaits in Section 2.2.5), we will instead approach the training
+objective from a more intuitive perspective: by leveraging conditional probabilities
+to achieve a tractable formulation.
+
+Overview: Modeling and Training Objective. To enable the generative process,
+our goal is to approximate the unknown true reverse transition kernel, p(xi−1 |xi ).
+We achieve this by introducing a learnable parametric model, pϕ (xi−1 |xi ), and
+training it to minimize the expected KL divergence:
+                                                                        
+                              Epi (xi ) DKL p(xi−1 |xi )∥pϕ (xi−1 |xi ) .                          (2.2.2)
+
+52                                                       Variational Perspective: From VAEs to DDPMs
+
+
+    However, a direct computation of the target distribution p(xi−1 |xi ) is challeng-
+ing. By Bayes’ theorem, we would need to evaluate:
+                                                                      pi−1 (xi−1 )
+                                  p(xi−1 |xi ) = p(xi |xi−1 )                      .
+                                                                        pi (xi )
+                                                                      |       {z        }
+                                                                          intractable
+
+The marginals pi (xi ) and pi−1 (xi−1 ) are expectations over the unknown data
+distribution pdata , given by:
+                                                    Z
+                                       pi (xi ) =       pi (xi |x0 )pdata (x0 )dx0 ,
+
+and analogously for pi−1 (xi−1 ). Since pdata is unknown, these integrals have no
+closed-form evaluation; at best they can be approximated from samples, so the
+exact densities are not available in practice.
+
+                Marginal                                                        Conditional
+                   p(x i − 1 | x i )                                                p(x i − 1 | x i , x 0 )
+
+
+
+
+     mixture over the whole data distribution                              single Gaussian           closed form
+
+Figure 2.6: The conditioning trick in DDPM. (Left) For a fixed noisy sample xi , the reverse
+distribution p(xi−1 |xi ) averages over all possible clean samples x0 that could have produced xi .
+It can therefore be a complicated mixture. (Right) During training, however, the clean sample x0
+used to generate xi is known. Conditioning on this sample gives p(xi−1 |xi , x0 ), a Gaussian with
+closed-form mean and variance. DDPM can therefore use this tractable conditional distribution as
+a simple regression target. Although each training example conditions on only one clean sample,
+averaging the conditional training objective over all samples gives the same optimal model as
+directly learning the marginal reverse distribution; see Theorem 2.2.1. Thus, DDPM can learn
+the same optimal reverse prediction without directly regressing onto the complicated, generally
+intractable target induced by the marginal mixture.
+                                                        Source: Created by the authors with AI-assisted coding.
+
+
+
+Overcoming Intractability with Conditioning. A central insight in DDPMs
+resolves this intractability: we condition the reverse transition on a clean data
+
+2.2. Variational Perspective: DDPM                                                                      53
+
+
+sample x0 . This subtle yet powerful step transforms the intractable kernel into
+one that is mathematically tractable:
+
+                                                           p(xi−1 |x0 )
+                        p(xi−1 |xi , x0 ) = p(xi |xi−1 )                 .
+                                                            pi (xi |x0 )
+
+This tractability arises from two key properties of the forward process: its Markov
+property, meaning p(xi |xi−1 , x0 ) = p(xi |xi−1 ), and the Gaussian nature of all
+involved distributions. As a result, p(xi−1 |xi , x0 ) itself is Gaussian and admits
+a closed-form expression (which we will see in Equation (2.2.4)). We visualize it
+in Figure 2.6. Crucially, this elegant conditioning strategy allows us to derive a
+tractable objective that is functionally equivalent to the seemingly intractable
+marginal KL divergence in Equation (2.2.2).
+
+   Theorem 2.2.1: Equivalence Between Marginal and Conditional KL Min-
+                  imization
+   The following equality holds:
+                                                     
+          Epi (xi ) DKL p(xi−1 |xi )∥pϕ (xi−1 |xi )
+                                                                                           (2.2.3)
+        = Epdata (x0 ) Epi (xi |x0 ) DKL p(xi−1 |xi , x0 )∥pϕ (xi−1 |xi )         + C.
+
+   where C is a constant independent of ϕ. Moreover, the minimizer of Equa-
+   tion (2.2.3) satisfies
+
+          p∗ (xi−1 |xi ) = Ep(x0 |xi ) p(xi−1 |xi , x0 ) = p(xi−1 |xi ),
+                                                      
+                                                                                  xi ∼ pi .
+
+
+Proof for Theorem.
+
+   The proof rewrites a KL-divergence expectation by expanding definitions,
+   applying the chain rule of probability, and using a logarithmic identity to
+   decompose it into the sum of an expected conditional KL divergence and a
+   marginal KL divergence. A complete derivation is in Section D.1.1.       ■
+    This alternative viewpoint: conditioning to obtain a tractable objective, forms
+the foundation of DDPMs and reveals a profound commonality with other influen-
+tial diffusion models, as we will explore in Chapter 3 and Chapter 5.
+    It reveals a powerful equivalence: minimizing the KL divergence between
+marginal distributions is mathematically identical to minimizing the KL divergence
+between specific conditional distributions. This latter formulation is exception-
+ally useful because the crucial conditional distribution, p(xi−1 |xi , x), possesses a
+convenient closed-form expression:
+
+54                                             Variational Perspective: From VAEs to DDPMs
+
+
+     Lemma 2.2.2: Reverse Conditional Transition Kernel
+
+     p(xi−1 |xi , x) is Gaussian with the closed-form expression:
+                                                                                 
+                       p(xi−1 |xi , x) = N xi−1 ; µ (xi , x, i) , σ 2 (i)I ,
+
+     where
+                                                2 )α                               2
+                           ᾱi−1 βi2     (1 − ᾱi−1  i                       1 − ᾱi−1
+        µ (xi , x, i) :=             x +               xi ,     σ 2 (i) :=             β 2 . (2.2.4)
+                           1 − ᾱi2         1 − ᾱi2                          1 − ᾱi2 i
+
+   Later in Lemma 4.5.2, we present a more general formula that extends beyond
+the DDPM noising process described in Equation (2.2.1).
+
+2.2.3     Modeling of Reverse Transition Kernel pϕ (xi−1 |xi )
+
+Leveraging the gradient-level equivalence as in Theorem 2.2.1 and the Gaussian
+form of the reverse conditional p(xi−1 |xi , x) as in Lemma 2.2.2, DDPM assumes
+that each reverse transition pϕ (xi−1 |xi ) is Gaussian, parameterized as
+
+                            pϕ (xi−1 |xi ) := N xi−1 ; µϕ (xi , i), σ 2 (i)I ,
+                                                                              
+                                                                                                (2.2.5)
+
+where µϕ (·, i) : RD → RD is a learnable mean function, and σ 2 (i) > 0 is fixed as
+defined in Equation (2.2.4).
+    We denote the KL divergence, averaged over time steps i and conditioned on
+data x0 ∼ pdata , to match all layers of distributions as:
+                               L
+                               X                                                       
+      Ldiffusion (x0 ; ϕ) :=         Epi (xi |x0 ) DKL p(xi−1 |xi , x0 )∥pϕ (xi−1 |xi ) .       (2.2.6)
+                               i=2
+
+Thanks to the Gaussian forms of both distributions and the parameterization
+defined in Equation (2.2.5), the objective admits a closed-form expression and can
+be simplified as:
+                              L
+                                     1
+                                                        ∥µϕ (xi , i) − µ(xi , x0 , i)∥22 + C,
+                              X
+     Ldiffusion (x0 ; ϕ) =                E
+                                     2 (i) pi (xi |x0 )
+                                                                                                (2.2.7)
+                              i=2
+                                  2σ
+
+where C is a constant independent of ϕ. Averaging over the data distribution and
+omitting the constant C (which does not affect the optimization), the final DDPM
+training objective is
+                           L
+                           X     1                   h
+                                                                                    2
+                                                                                      i
+      LDDPM (ϕ) :=                     Ex Ep (x |x )  ∥µϕ (xi , i) − µ(xi , x0 , i)∥2 ,
+                                                                                                (2.2.8)
+                           i=2
+                               2σ 2 (i) 0 i i 0
+
+where x0 ∼ pdata .
+
+2.2. Variational Perspective: DDPM                                                    55
+
+
+     We remark that the forward perturbation kernel pi (xi |x0 ) plays an important
+computational role in the training objective. It gives the distribution of the noisy
+state xi obtained from a clean sample x0 after i forward steps. Because each
+forward transition is linear and Gaussian, their composition also has a closed-form
+Gaussian distribution; see the discussion around Equation (2.2.1). Consequently,
+after selecting a time step i, we can sample xi ∼ pi (xi |x0 ) directly from x0 , without
+first generating the intermediate states x1 , . . . , xi−1 . Thus, each loss term can be
+estimated using only a clean sample, a selected time step, and a directly corrupted
+sample, making stochastic training computationally efficient.
+
+
+2.2.4   Practical Choices of Predictions and Loss
+
+ϵ-Prediction. In typical DDPM implementations, training is not conducted
+directly using the original loss based on the mean prediction parameterization
+from Equation (2.2.8). Instead, an equivalent reparameterization, known as the
+ϵ-prediction (noise prediction) formulation, is commonly adopted.
+    Recall that in the DDPM forward process, a noisy sample xi ∼ p(xi |x0 ) at
+noise level i is generated by
+                                q
+                xi = ᾱi x0 +    1 − ᾱi2 ϵ,   x0 ∼ pdata ,    ϵ ∼ N (0, I).     (2.2.9)
+
+Using this expression, the reverse mean µ(xi , x0 , i) from Equation (2.2.4) can be
+rewritten as:                                             
+                                           1       1 − αi2 
+                        µ(xi , x0 , i) =       xi − q         ϵ .
+                                           αi         1 − ᾱ2  i
+
+    This motivates a parameterization of the model mean µϕ using a neural network
+ϵϕ (xi , i) that directly predicts the noise:
+                                                                        
+                                    1          1 − αi2
+                    µϕ (xi , i) =      xi −               ϵϕ (xi , i)  .
+                                                                         
+                                               q
+                                    αi           1 − ᾱi2 | {z }
+                                                          ϵ-prediction
+
+Substituting this into the original loss leads to a squared ℓ2 error between predicted
+and true noise:
+
+                   ∥µϕ (xi , i) − µ(xi , x0 , i)∥22 ∝ ∥ϵϕ (xi , i) − ϵ∥22 ,
+
+up to a weighting factor depending on i. Intuitively, the model acts as a “noise
+detective”, estimating the random noise added at each step of the forward process.
+Subtracting this estimate from the corrupted sample moves it closer to the clean
+original, and repeating this step-by-step reconstructs the data from pure noise.
+
+56                                          Variational Perspective: From VAEs to DDPMs
+
+
+Simplified Loss with ϵ-Prediction. In practice, this expression is further simplified
+by omitting the weighting term, yielding the widely used DDPM training loss:
+                                                            h                   i
+           Lsimple (ϕ) := Ei Ex∼pdata (x) Eϵ∼N (0,I) ∥ϵϕ (xi , i) − ϵ∥22 ,                (2.2.10)
+                         q
+where xi = ᾱi x0 + 1 − ᾱi2 ϵ with x0 ∼ pdata . Since the target noise has unit
+variance at every timestep t, the ℓ2 loss in Equation (2.2.10) maintains a consistent
+scale across all t. This prevents vanishing or exploding targets and eliminates the
+need for explicit loss weighting.
+    Importantly, both LDDPM and Lsimple share the same optimal solution ϵ∗ , this
+is because Equation (2.2.10) essentially reduces to a least-squares problem (as
+shown similarly in Proposition 4.3.1 or Proposition 6.3.1)3 :
+                               ϵ∗ (xi , i) = E [ϵ|xi ] ,        xi ∼ pi .
+Intuitively, the ϵ-prediction network ϵϕ (xi , i) estimates the noise added by the
+forward process to produce xi . At optimality, this estimate coincides with the
+conditional expectation of the true noise, even though xi does not uniquely
+determine the original clean sample.
+
+Another Equivalent Parametrization: x-Prediction. Equation (2.2.4) motivates
+an alternative yet equivalent parameterization, known as x-prediction (clean
+prediction), in which a neural network xϕ (xi , i) is trained to predict a clean
+(denoised) sample from a given noisy input xi ∼ pi (xi ) at noise level i. Replacing
+the ground-truth clean sample x0 in the reverse mean expression with xϕ (xi , i)
+leads to the following model:
+                                                                    2 )α
+                                     ᾱi−1 βi2               (1 − ᾱi−1 i
+                     µϕ (xi , i) =          2  xϕ (xi , i) +          2   xi .
+                                     1 − ᾱi                    1 − ᾱi
+Analogous to the ϵ-prediction formulation, the training objective can be expressed
+as
+          ∥µϕ (xi , i) − µ(xi , x0 , i)∥22 ∝ ∥xϕ (xi , i) − x0 ∥22 , x0 ∼ pdata ,
+where the model is trained to predict the original data sample x0 from its noisy
+version xi . This equivalence reduces the mean-matching loss in Equation (2.2.8) to
+                                                 h                          i
+                       Ei Ex0 ∼pdata Eϵ∼N (0,I) ωi ∥xϕ (xi , i) − x0 ∥22 ,
+for some weighting function ωi . Since this is a least-squares problem, the optimal
+solution is given by (see Proposition 4.3.1 or Proposition 6.3.1)
+                              x∗ (xi , i) = E [x0 |xi ] ,       xi ∼ pi ,                 (2.2.11)
+    3
+      We remark that removing the ELBO-derived weights in LDDPM changes the training objective,
+but not its population-optimal prediction: ϵ∗ (xi , i) = E[ϵ|xi ]. Thus, the weighted and simplified
+DDPM losses have the same ideal predictor, but they emphasize different noise levels during
+training. In practice, this weighting can still affect optimization and performance.
+
+2.2. Variational Perspective: DDPM                                                                   57
+
+
+that is, the model should predict the expected clean data given a noisy observation
+xi at timestep i.
+    The x-prediction and ϵ-prediction parameterizations are mathematically equiv-
+alent and connected via the forward process:
+                                                      q
+                          xi = ᾱi xϕ (xi , i) +          1 − ᾱi2 ϵϕ (xi , i).                 (2.2.12)
+That is, one may either predict the clean sample xϕ (xi , i) or the noise ϵϕ (xi , i),
+such that their combination reproduces xi under the forward noising process.
+
+2.2.5   DDPM’s ELBO
+With the reverse transitions defined as in Equation (2.2.5), this leads to the
+definition of the joint generative distribution in DDPM as:
+           pϕ (x0 , x1:L ) := pϕ (x0 |x1 )pϕ (x1 |x2 ) · · · pϕ (xL−1 |xL )pprior (xL ),
+and the marginal generative model for data is given by:
+                                              Z
+                                pϕ (x0 ) :=       pϕ (x0 , x1:L ) dx1:L .
+
+    Indeed, DDPM training via Equation (2.2.6) can be rigorously grounded in
+maximum likelihood estimation (Equation (1.1.2)). Specifically, its objective forms
+an ELBO, similar to those in VAEs and HVAEs from Section 2.1, which serves as
+a lower bound on the log-density:
+
+   Theorem 2.2.3: DDPM’s ELBO
+
+        − log pϕ (x0 ) ≤ −LELBO (x0 ; ϕ)
+                                                                                       (2.2.13)
+                       := Lprior (x0 ) + Lrecon. (x0 ; ϕ) + Ldiffusion (x0 ; ϕ)
+   Here, each component of losses are defined as:
+                                                                   
+              Lprior (x0 ) := DKL p(xL |x0 )∥pprior (xL )
+          Lrecon. (x0 ; ϕ) := Ep(x1 |x0 ) [− log pϕ (x0 |x1 )]
+                                L
+                                X                 h                                       i
+        Ldiffusion (x0 ; ϕ) =         Epi (xi |x0 ) DKL p(xi−1 |xi , x0 )∥pϕ (xi−1 |xi )        .
+                                i=2
+
+
+Proof for Theorem.
+   The derivation applies Jensen’s inequality, as in the HVAE/VAE ELBO (Equa-
+   tion (2.1.3)), with further simplifications. The detailed proof is deferred to
+   Section D.1.2.                                                              ■
+   The ELBO LELBO consists of three terms:
+
+58                                              Variational Perspective: From VAEs to DDPMs
+
+
+     ■    Lprior can be made negligible by choosing the noise schedule {βi } such that
+          p(·|x0 ) ≈ pprior (·).
+     ■    For Lrecon. , this can be approximated and optimized using a Monte Carlo
+          estimate; see (Ho et al., 2020; Kingma et al., 2021) for practical implementa-
+          tions.
+     ■    Ldiffusion (cf. Equation (2.2.6)) matches the reverse conditionals pϕ (xi−1 |xi )
+          to p(xi−1 |xi ) at all steps i.
+   The ELBO objective LELBO can also be interpreted through the lens of the
+Data Processing Inequality with latents z = x1:L , as illustrated in Equation (2.1.2):
+                  DKL (pdata (x0 )∥pϕ (x0 )) ≤ DKL (p(x0 , x1:L )∥pϕ (x0 , x1:L )) ,
+where p(x0 , x1:L ) := pdata (x0 )p(x1 |x0 )p(x2 |x1 ) · · · p(xL |xL−1 ) denotes the joint
+distribution along the forward process.
+
+Remark.
+     Diffusion’s variational view fits the hierarchical latent-variable picture in a
+     particularly convenient way: the “encoder” is the fixed forward noising chain, so
+     there is no learned inference network. The ELBO nevertheless does decompose
+     into per-step KL terms, together with the terminal-prior and reconstruction
+     terms in Equation (2.2.13). What makes DDPM training especially tractable is
+     that, under the linear–Gaussian forward process, these per-step KL terms can be
+     rewritten as simple denoising regression problems with closed-form conditional
+     targets. Thus the key simplification is not the absence of per-level KL terms,
+     but the fact that the forward process is fixed and turns them into supervised
+     denoising objectives that can be sampled efficiently.
+
+2.2.6        Sampling
+After training the ϵ-prediction model, ϵϕ× (xi , i)4 , sampling is performed sequen-
+tially as illustrated in Figure 2.5, using the parametrized transition pϕ× (xi−1 |xi )
+instead.
+    More specifically, starting from a random seed xL ∼ pprior = N (0, I), we
+recursively sample from pϕ× (xi−1 |xi ) following the update rule below for i =
+L, L − 1, . . . , 1:
+                                                      
+                    1         1 − αi2
+           xi−1 ←       xi −   q             ϵϕ× (xi , i) +σ(i)ϵi ,   ϵi ∼ N (0, I).   (2.2.14)
+                    αi            1 − ᾱi2
+                    |               {z                  }
+                                µϕ× (xi ,i)
+
+     4
+         We use the symbol “×” to indicate that the model has been trained and is now frozen.
+
+2.2. Variational Perspective: DDPM                                                                           59
+
+
+This “denoising” process continues until x0 is obtained as the final clean generated
+sample.
+
+Another Interpretation of DDPM Sampling. A useful way to interpret DDPM
+sampling is to rewrite the update rule so that the noise-level structure becomes
+explicit. Recall from Equation (2.2.12) that the predicted noise can be expressed
+in terms of the current sample xi and the predicted clean sample xϕ× (xi , i):
+                                                       xi − ᾱi xϕ× (xi , i)
+                                      ϵϕ× (xi , i) =         q                    .
+                                                                 1 − ᾱi2
+Substituting this into the DDPM sampling rule (Equation (2.2.14)) and rearranging,
+we obtain
+                                               q
+         xi−1 ← ᾱi−1 xϕ× (xi , i) +                     2
+                                                   1 − ᾱi−1 − β̃i2 ϵϕ× (xi , i) + β̃i ϵi ,            (2.2.15)
+                                               |                         {z p                  }
+                                                           combined std. =       1−ᾱ2i−1
+
+                 (1−ᾱ2   )(1−α2i )
+where β̃i2 =      i−1
+                   1−ᾱ2i
+                                       is the DDPM posterior variance5 . Moreover, the residual
+coefficients satisfy
+                                        2                         2
+                                            − β̃i2 + β̃i2 = 1 − ᾱi−1
+                                                       
+                                  1 − ᾱi−1                           ,
+so the update has the same noise-level structure as the forward marginal at
+level i − 1. This returns to the first operational sampling template introduced in
+Equation (1.4.1): predict the clean part and rewrite the sample at a lower noise
+level. DDPM carries out this rewrite stochastically, combining the noise direction
+estimated from xi with a fresh Gaussian noise sample. A deterministic sampler
+follows the same basic idea, but removes the fresh randomness and adjusts the
+remaining noise coefficient accordingly. We will revisit this construction when
+studying diffusion samplers more systematically in Section 9.2.
+q Compare Equation (2.2.15) with the forward marginal xi−1 = ᾱi−1 x0 +
+         2 ϵ̄. The structure is identical: signal coefficient ᾱ
+  1 − ᾱi−1                                                     i−1 and noise stan-
+                    q
+dard deviation 1 − ᾱi−1 2 , except that the unknown x is replaced by the network
+                                                      0
+prediction xϕ× (xi , i). In other words, each DDPM step predicts the clean data
+and then re-noises it to exactly noise level i−1. One can therefore view DDPM
+sampling as iterating two operations:
+   1. Denoise. Estimate the clean data xϕ× (xi , i) from the current noisy input xi .
+
+   2. Re-noise. Add back noise at the reduced level i−1 via Equation (2.2.15),
+      producing a sample xi−1 whose noise level matches the forward process at
+      step i−1.
+                                                              αi (1−ᾱ2
+                          q
+    5                                                                 i−1 )
+        The coefficient          2
+                           1 − ᾱi−1 − β̃i2 simplifies to        √            , which is always non-negative, so
+                                                                     1−ᾱ2
+                                                                         i
+the square root is well-defined.
+
+60                                          Variational Perspective: From VAEs to DDPMs
+
+
+    However, even if xϕ× is trained as the optimal denoiser (i.e., the conditional
+expectation minimizer; see Equation (2.2.11)), it can only predict the average clean
+sample given xi . This limitation leads to blurry predictions, particularly at high
+noise levels, where recovering detailed structure from severely corrupted inputs
+becomes difficult. From this viewpoint, diffusion sampling moves from high to low
+noise and progressively refines an estimate of the clean signal. Early steps set the
+global structure, later steps add fine detail, and the sample becomes more realistic
+as the noise is removed.
+
+                                                                          Starting point 𝐱 𝐿 ∼ 𝑝prior
+                                                                              𝐱-prediction given 𝐱 𝑖
+                                                                          Updated 𝐱 𝑖−1 with 𝐱 𝑖 and
+ 𝑝prior = 𝒩 𝟎, 𝐈                                                          𝐱-prediction
+                     𝑝𝐿−1
+                                𝑝𝐿−2
+                                 𝐱            𝑝data
+
+
+
+
+                                                                      𝐱 𝐿−1
+
+
+
+                                  𝐱 𝐿−2
+                                                                 𝐱𝐿
+
+
+
+
+Figure 2.7: Illustration of the denoise-then-re-noise view of DDPM sampling. From the current
+noisy sample xi , the model first estimates the underlying clean signal xϕ× (xi , i), and then samples
+a less noisy point xi−1 by re-noising this estimate to the (i − 1)-th noise level.
+                                                                      Source: Created by the authors.
+
+
+
+
+Slow Sampling Speed of DDPM. Sampling in DDPMs (i.e., diffusion models)
+is inherently slow. In the original formulation and implementation, generating a
+sample typically requires around 1,000 denoising steps. This is because sampling
+proceeds through a long sequence of small refinements: at each step, the model
+updates the current noisy sample slightly toward a cleaner one, and the next
+update must start from the result of the previous step. As a result, standard
+DDPM sampling is time-stepping and strongly sequential, and good sample quality
+
+2.2. Variational Perspective: DDPM                                                    61
+
+
+usually requires many such steps to closely track the reverse diffusion path.
+    Theorem 2.2.1 shows that an expressive pϕ (xi−1 |xi ) can theoretically match the
+true reverse distribution p(xi−1 |xi ). However, in practice, pϕ (xi−1 |xi ) is typically
+modeled as a Gaussian to approximate p(xi−1 |xi ), limiting its expressiveness.
+    For small forward noise scales βi , the true reverse distribution is approximately
+Gaussian, enabling accurate approximation. Conversely, large βi induce multi-
+modality or strong non-Gaussianity that a single Gaussian cannot capture. To
+maintain accuracy, DDPM employs many small βi steps, forming a sequential chain
+where each step depends on the previous and requires a neural network evaluation
+ϵϕ× (xi , i). This results in O(L) sequential passes, preventing parallelization and
+slowing generation.
+    Later in Chapter 4 we show a more principled interpretation of this inherent
+sampling bottleneck as a differential-equation problem, which motivates continuous-
+time numerical strategies for accelerating generation.
+
+62                                     Variational Perspective: From VAEs to DDPMs

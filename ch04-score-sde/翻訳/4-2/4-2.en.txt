@@ -1,0 +1,425 @@
+4.2     Matching Marginals in Forward/Reverse-Time SDEs and PF-ODE
+
+
+
+In this section, we present the Fokker-Planck equation as the central principle
+governing diffusion models. It describes how probability densities evolve under
+noisy dynamics and serves as the natural analogue of a change-of-variables formula
+when randomness is present (see Chapter B). Starting from the forward diffusion
+process, which defines the marginals pt , we explain how both the reverse-time SDE
+and the PF-ODE are designed to reproduce the same marginal family. We then
+make this principle concrete through a Gaussian example, where the reverse-time
+SDE and the PF-ODE can be computed directly and explicitly.
+
+
+
+
+4.2.1     Fokker-Planck Equation to Ensure Alignment of Marginal Densities
+
+
+
+A central concept in diffusion models is that different processes can lead to the same
+sequence of marginal distributions (as we will illustrate later in this subsection).
+The objective is to construct a process that transforms pprior into pdata by aligning
+the marginals across time, and in particular at t = 0. The exact form of the process
+is secondary, provided it is tractable and admits efficient sampling. This naturally
+leads to a fundamental question:
+
+
+Question 4.2.1
+      How can we ensure that different processes yield identical marginal distribu-
+      tions?
+
+
+
+    Returning to our setup, once the forward SDE is specified, it defines the
+evolution of marginal densities from pdata to pprior . The reverse-time SDE and
+PF-ODE are then constructed so that their trajectories yield marginal distributions
+that exactly match those of the forward process. The key to this correspondence
+lies in the Fokker–Planck equation, which governs how marginal densities evolve
+under diffusion processes. An illustration is provided in Figure 4.5. The following
+theorem (Anderson, 1982; Song et al., 2020c) establishes the foundation for this
+connection:
+
+106                                                  Diffusion Models Today: Score SDE Framework
+
+              t=0                         t = 0.25      t = 0.50           t = 0.75                t=1
+  data                                                                                                      noise
+                                     (    ) Noising Direction (data → noise)
+
+ Forward         SDE (defines pt )
+ dx = fx dt + g dw
+                                                                                                   marginals = pt
+
+
+
+
+ Reverse-Time
+       2
+              SDE (stochastic)                                                          (inactive in this direction)
+ dx = [fx − g ∇log pt ] dt + g dw̄
+
+
+
+
+ PF-ODE
+     1 2
+         (deterministic, reversible)                                                               marginals = pt
+ ẋ = fx − 2 g ∇log pt
+
+
+
+
+                               (         ) Denoising Direction (data ← noise)
+
+ Forward         SDE (defines pt )
+ dx = fx dt + g dw
+                                                                                        (inactive in this direction)
+
+
+
+
+ Reverse-Time
+       2
+              SDE (stochastic)                                                                     marginals = pt
+ dx = [fx − g ∇log pt ] dt + g dw̄
+
+
+
+
+ PF-ODE
+     1 2
+         (deterministic, reversible)                                                               marginals = pt
+ ẋ = fx − 2 g ∇log pt
+
+
+
+
+Figure 4.5: Three dynamics sharing the same marginals pt . Upper panel: noising direction. The
+forward SDE, which serves as an anchor reference, defines the marginals pt by diffusing data
+toward a Gaussian prior. The PF-ODE follows the same marginal path deterministically when
+run forward in time. Lower panel: denoising direction. The reverse-time SDE and the PF-ODE
+run backward in time yield the same marginals in reverse, as guaranteed by the Fokker–Planck
+equation. The reverse-time SDE gives a stochastic denoising process, whereas the PF-ODE gives
+a deterministic one. Thus, the repeated density snapshots are intentional: the processes agree at
+the level of one-time marginals, but differ in their sample-level dynamics. The PF-ODE appears
+in both panels because it is a deterministic flow that can be integrated in either time direction.
+                                                     Source: Created by the authors with AI-assisted coding.
+
+4.2. Matching Marginals in Forward/Reverse-Time SDEs and PF-ODE                      107
+
+
+  Theorem 4.2.1: Marginal Alignment via the Fokker–Planck Equation
+   Consider the forward SDE
+
+            dx(t) = f (x(t), t) dt + g(t) dw(t),         x(0) ∼ p0 = pdata .
+
+   Under standard regularity conditions, its marginal density pt evolves ac-
+   cording to the Fokker–Planck equation
+
+                 ∂t pt (x) = −∇x · f (x, t)pt (x) + 12 g 2 (t)∆x pt (x)
+                                                  
+                                                                             (4.2.1)
+                            = −∇x · v(x, t)pt (x) ,
+
+  where ∆x denotes the Laplacian operator and
+
+                      v(x, t) := f (x, t) − 21 g 2 (t)∇x log pt (x).
+
+   Importantly, the same family of marginal distributions {pt }t∈[0,T ] can be
+   realized by two different dynamics:
+
+     (i) The PF-ODE
+                                    dx̃(t)
+                                           = v(x̃(t), t).
+                                      dt
+        Starting from x̃(0) ∼ p0 and solving forward from 0 to T gives x̃(t) ∼
+        pt . Equivalently, starting from x̃(T ) ∼ pT and solving the same ODE
+        backward from T to 0 follows the same marginals in reverse.
+
+    (ii) The reverse-time SDE
+                        h                                     i
+              dx̄(t) = f (x̄(t), t) − g 2 (t)∇x log pt (x̄(t)) dt + g(t) dw̄(t).
+
+        Starting from x̄(T ) ∼ pT , this SDE is solved backward in time from
+        t = T to t = 0. Along this reverse evolution, its marginal distribution
+        at time t is
+                                       x̄(t) ∼ pt .
+
+  Thus, the reverse-time SDE and PF-ODE can have the same marginal
+  distribution at every noise level even though one is stochastic and the other
+  is deterministic.
+
+
+Proof for Theorem.
+
+  The proof is provided in Section D.2.5, while Section 4.6.1 offers further intuition
+  behind the Fokker–Planck equation using the marginalization technique of
+  probability.                                                                       ■
+
+108                                              Diffusion Models Today: Score SDE Framework
+
+
+Multiple Conditional Distributions for a Fixed Marginal. To understand how
+the PF-ODE transports pdata forward in time (or equivalently pprior in reverse),
+consider the flow map Ψs→t : RD → RD , where Ψs→t (xs ) denotes the PF-ODE
+solution at time t initialized from xs at time s, for any time s, t ∈ [0, T ]. In other
+words, this map takes an initial state xs and directly jumps to its state at t:
+                                                            Z t
+                                    Ψs→t (xs ) := xs +              v(xτ , τ )dτ,                (4.2.2)
+                                                                s
+
+with velocity field
+                                               1
+                        v(x, τ ) := f (x, τ ) − g 2 (τ )∇x log pτ (x).
+                                               2
+Here, the integral captures the net displacement accumulated along the PF-ODE
+trajectory. The term flow map is indeed classical in differential equations, dynamical
+systems, and continuum mechanics: it denotes the map that carries a state from its
+position at time s to its position at time t under the given dynamics. The velocity
+field v(x, t) describes the instantaneous motion, whereas the flow map Ψs→t records
+the accumulated motion over a finite time interval (arnold1988geometrical;
+chorin1993mathematical)8 . We use the term in this standard mathematical
+and physical sense throughout the book, particularly when discussing fast diffusion-
+based generators in Chapters 10 and 11. Under mild smoothness assumptions on
+v, the flow map Ψs→t : RD → RD is a smooth bijection9 .
+     For any t ∈ [0, T ], the pushforward density is defined as
+                                          Z
+                            pfwd
+                                                                       
+                             t (xt ) :=       δ xt − Ψ0→t (x0 ) pdata (x0 ) dx0 ,
+
+denoted Ψ0→t ♯pdata , representing the distribution at time t under Ψ0→t . Theo-
+rem 4.2.1 ensures pfwd
+                   t   = pt , where pt is the marginal density of the forward SDE,
+equating the deterministic PF-ODE and stochastic kernel:
+                       Z                                    Z
+                                                                                    
+          pt (xt ) =       pt (xt |x0 ) pdata (x0 ) dx0 =       δ xt − Ψ0→t (x0 ) pdata (x0 ) dx0 .
+
+    This implies infinitely many conditionals Qt (xt |x0 ) yield the same pt (xt ), for
+instance:
+      ■    Stochastic (Simulation-Free): Qt (xt |x0 ) = pt (xt |x0 ),
+    8
+      The physical idea underlying this map is much older. Eighteenth-century fluid mechanics
+already studied motion through velocity fields and by following the evolution of material particles,
+notably in the foundational works of Euler and Lagrange (euler1757fluid; lagrange1783fluid).
+    9
+      Spoiler: the PF-ODE flow map Ψs→t is exactly the Normalizing Flow (NF) bijection carrying
+ps to pt (to be detailed in Section 5.1). The difference is that, once the forward SDE and its
+marginal densities are fixed, the PF-ODE formula uniquely specifies its associated velocity field,
+v(x, t) = f (x, t) − 12 g 2 (t)∇x log pt (x), whereas a normalizing flow, or continuous-time normalizing
+flow, parameterizes and learns a velocity field directly. Both rely on the same continuous change-
+of-variables principle.
+
+4.2. Matching Marginals in Forward/Reverse-Time SDEs and PF-ODE                              109
+
+                                                                                         
+   ■    Deterministic (Requires ODE Solving): Qt (xt |x0 ) = δ xt − Ψ0→t (x0 ) ,
+                                                                         
+   ■    Mixture: Qt (xt |x0 ) = λpt (xt |x0 ) + (1 − λ)δ xt − Ψ0→t (x0 ) , λ ∈ [0, 1].
+
+This nonuniqueness of Qt (xt |x0 ) arises from the fact that the marginal constraint
+does not uniquely determine the conditional distribution. This concept reappears
+in Section 5.2.2 and Section 9.2.3. In particular, there exists an entire family of
+reverse-time SDEs that are consistent with the same marginal pt .
+
+   Observation 4.2.1: Matching Prescribed Marginal Densities
+
+   Multiple processes can give rise to the same sequence of marginal densities;
+   what truly matters is satisfying the Fokker–Planck equation. This fundamen-
+   tal insight affords us remarkable flexibility in designing generative processes
+   that transition from pprior to pdata , or vice versa.
+
+    The Fokker–Planck equation lies at the heart of diffusion models and is rooted in
+the fundamental change-of-variable formula for probability densities (see Chapter B
+for a systematic treatment). Far from being a minor technical detail, this principle
+recurs throughout our development, most notably in Section 5.2.
+
+4.2.2     A Computable Example: Evolutions of Gaussian Dynamics
+
+When pdata is a normal distribution (or a mixture of Gaussians), the score function
+admits a closed-form expression. This makes it an ideal setting for building intuition
+about diffusion processes: we can explicitly derive the reverse-time SDE and the PF-
+ODE using only basic calculus, without resorting to advanced mathematical tools.
+In this subsection, we illustrate how these equations behave in such a tractable
+case.
+
+
+Exact Computation of the Reverse-Time SDE with a Gaussian. When pdata is
+Gaussian, the formula in Equation (4.1.6) can be derived directly, without relying
+on the general theory and proofs of Anderson (1982). To illustrate the core idea,
+we consider the one-dimensional case; the extension to higher dimensions follows
+in the same way.
+    Start from the forward SDE
+
+                             dx(t) = f (t)x(t) dt + g(t) dwt ,
+
+and take one small Euler step of size ∆t > 0:
+
+                                    xt+∆t = axt + rϵ,
+
+110                                         Diffusion Models Today: Score SDE Framework
+
+                                 √
+where a := 1 + f (t)∆t, r := g(t) ∆t, and ϵ ∼ N (0, 1). Equivalently, the forward
+one-step transition kernel is Gaussian:
+
+                                xt+∆t |xt ∼ N ·; axt , r2 .
+                                                                  
+
+
+Since pdata is assumed to be Gaussian, the current marginal at time t is also
+Gaussian, which takes the following form:
+
+                                      xt ∼ N (·; mt , s2t ),
+
+for some scalar mt and st . So conditioning will amount to multiplying two Gaussians
+and renormalizing. This keeps the algebra elementary.
+    By Bayes’ rule the conditional density is, up to a constant, the product of the
+prior and the transition kernel:
+
+           p(xt |xt+∆t ) ∝ p(xt+∆t |xt )pt (xt )
+                                         (xt − mt )2      (x   − axt )2 
+                         ∝ exp −                2       exp − t+∆t 2         .
+                                              2st                2r
+The exponent is a quadratic in xt . Expanding both squares and grouping terms
+shows exactly which coefficients matter:
+
+                     −2 log p(xt |xt+∆t ) = Ax2t − 2Bxt + const,
+
+with
+                               1     a2                    mt axt+∆t
+                        A :=       +    ,           B :=       +     .
+                               s2t   r2                    s2t   r2
+Here A is the sum of precisions (prior precision plus the transition-kernel precision
+transported through a), while B is the corresponding precision-weighted sum of
+targets. With these in hand, completing the square gives the posterior in one line:
+                                                            B 2 B 2
+                         Ax2t − 2Bxt = A xt −                    −    ,
+                                                             A     A
+so the conditional distribution is Gaussian with variance 1/A and mean B/A:
+                                                                        mt       ax
+                                      1                                 s2t
+                                                                             + t+∆t r2
+            Var(xt |xt+∆t ) = 1             2   ,       E[xt |xt+∆t ] =            a2
+                                                                                       .
+                                s2t
+                                      + ar2                                 1
+                                                                            s2t
+                                                                                + r2
+
+These closed forms already describe the reverse transition for any small ∆t. To
+read off a reverse-time SDE, we now expand them for small ∆t.
+                                                                         2
+   Use a = 1 + f (t)∆t and r2 = g 2 (t)∆t. As ∆t → 0, the contribution ar2 ∼ g2 (t)∆t
+                                                                                 1
+
+dominates the precision, so the variance becomes
+                                                     !−1
+                                          1     a2
+               Var(xt |xt+∆t ) =              +             = g 2 (t)∆t + O(∆t2 ),
+                                          s2t   r2
+
+4.2. Matching Marginals in Forward/Reverse-Time SDEs and PF-ODE                           111
+
+
+which tells us the reverse step has the same diffusion scale g(t) as the forward step.
+For the mean, expand the ratio B/A to first order:
+                                 "                       !                  #
+                                        g 2 (t)        g 2 (t)
+    E[xt |xt+∆t ] = xt+∆t + ∆t − f (t) + 2      xt+∆t + 2 mt + O(∆t2 ).
+                                          st             st
+   Putting the mean and variance together yields the one-step reverse transition
+kernel
+                                  "              !                  #       !
+                                 g2                         g2
+   xt |xt+∆t ∼ N xt+∆t + ∆t − f + 2                  xt+∆t + 2 mt , g 2 ∆t + O(∆t2 ).
+                                 st                         st
+This is recognized as the Euler–Maruyama update, run backward from t + ∆t to t:
+                                                                    √
+                                 "              !                  #
+                                   g2                      g2
+              xt − xt+∆t = ∆t − f + 2               xt+∆t + 2 mt + g ∆t ϵ.
+                                   st                      st
+This backward drift can be written with the score because for a Gaussian marginal
+pt = N (mt , s2t ),
+                                                !
+                    x − mt          g2                   g2       h                       i
+  ∂x log pt (x) = −        =⇒ − f +                 x+      mt = − f x − g 2 ∂x log pt (x) .
+                      s2t           s2t                   2
+                                                         st
+Therefore, letting ∆t → 0 gives the reverse-time SDE on the original diffusion
+clock,
+               h                                     i
+      dx̄(t) = f (t)x̄(t) − g 2 (t)∂x log pt (x̄(t)) dt + g(t) dw̄(t),       t : T → 0.
+
+This exactly matches the general reverse-time SDE in Equation (4.1.6). In vector
+form, the scalar derivative ∂x log pt is replaced by ∇x log pt .
+
+Exact Computation of PF–ODE with a Gaussian. When the data distribution
+is assumed to be Gaussian, we can also directly derive the PF-ODE formula,
+avoiding heavy machinery such as the Fokker–Planck equation. In the end, we will
+see that the marginal densities of the PF-ODE coincide with those of both the
+forward SDE and the reverse-time SDE, providing a constructive verification of
+the Fokker–Planck theory to be discussed in Section 4.2.
+    Assume xt ∼ N (·; mt , s2t ) at time t. A small deterministic step of size ∆t can
+be written as a smooth map
+
+                    xt+∆t = Φt,∆t (xt ) = xt + ∆tvt (xt ) + O(∆t2 ),
+
+which is simply the first–order Taylor expansion in ∆t. Our goal is to construct
+a velocity field whose deterministic flow reproduces the same Gaussian marginal
+evolution. A particularly simple choice is an affine velocity field
+
+                                      vt (x) = at x + bt .
+
+112                                       Diffusion Models Today: Score SDE Framework
+
+
+Since affine dynamics preserve Gaussianity, we can determine at and bt by matching
+the evolution of the mean and variance to those of the forward SDE. Plugging this
+back into the step gives
+
+           xt+∆t = (1 + αt ∆t)xt + βt ∆t + O(∆t2 ),                αt := at , βt := bt .
+
+    We now push xt ∼ N (·; mt , s2t ) through this map and track mean and variance
+to first order:
+
+                      E[xt+∆t ] = mt + ∆t(αt mt + βt ) + O(∆t2 ),
+                    Var(xt+∆t ) = s2t + ∆t(2αt s2t ) + O(∆t2 ).
+
+On the other hand, the forward SDE dx = f (t)x dt + g(t) dwt has the elementary
+moment formulas (see Equation (4.4.3)):
+
+                      m′t = f (t)mt ,          (s2t )′ = 2f (t)s2t + g 2 (t).
+
+Matching the coefficients of ∆t gives
+                                        g 2 (t)                 g 2 (t)
+                       αt = f (t) +             ,     βt = −            mt .
+                                         2s2t                    2s2t
+      With these choices, the step becomes
+                                "                                      #
+                                            g 2 (t)       g 2 (t)
+              xt+∆t = xt + ∆t        f (t) +      2    xt −         mt + O(∆t2 ).
+                                              2st            2s2t
+
+Since for a Gaussian pt = N (mt , s2t ) we have ∂x log pt (x) = −(x − mt )/s2t , we can
+rewrite the bracket as f (t)xt − 21 g 2 (t)∂x log pt (xt ). Therefore,
+                                h                                      i
+              xt+∆t = xt + ∆t f (t)xt − 12 g 2 (t)∂x log pt (xt ) + O(∆t2 ).
+
+Finally, dividing by ∆t and letting ∆t → 0 yields the PF-ODE
+
+                       x′ (t) = f (t)x(t) − 21 g 2 (t)∂x log pt x(t) .
+                                                                           
+
+
+    To see why this ODE has the same marginals as the forward SDE (and the
+reverse–time SDE), observe that the drift above is linear plus a shift. Thus x(t)
+depends affinely on x(0), and affine maps send Gaussians to Gaussians. Moreover,
+the mean mt and variance s2t along this ODE satisfy exactly the same two scalar
+ODEs as the forward SDE (by our matching), with the same initial values. Hence
+pt = N (mt , s2t ) is identical for both evolutions at every time t.
+
+4.3. Score SDE: Its Training and Sampling                                                         113

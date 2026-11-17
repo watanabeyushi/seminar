@@ -1,0 +1,650 @@
+5.3       Constructing Probability Paths and Velocities Between Distributions
+
+The essence of flow matching lies in the gradual transformation of a source distri-
+bution into a target. To direct this transformation, two key elements are needed:
+the probability path pt , which provides a snapshot of the evolving distribution at
+each time t, and the velocity field vt , which describes how individual particles move
+along the path. These two objects are not independent; they are linked through
+the continuity equation, which ensures that particle dynamics are consistent with
+the evolution of the distribution. Thus, the learning task reduces to finding a
+velocity field vt that faithfully drives the process. The difficulty, however, is that
+for general and complex distributions, the true marginal velocity vt is unknown,
+leaving us with an intractable target that cannot be accessed directly.
+    The core idea of Conditional Flow Matching is to address the intractability
+of the true marginal velocity by constructing an artificial but tractable process.
+To do this, we introduce a conditioning variable z and design either a conditional
+velocity vt (xt |z) and/or a conditional path pt (xt |z), which are deliberately chosen
+to be simple.
+    Because these conditional objects are known in closed form, they serve as
+surrogate targets that the model can regress against. This leads to a valid training
+loss LCFM , provided two practical requirements are met: (i) we can sample efficiently
+from pt (·|z), and (ii) the corresponding velocity vt (·|z) admits a closed-form
+expression.
+    How should we design a well behaved conditional process? For inspiration, we
+turn to the one case that is fully understood: the Gaussian to Gaussian bridge
+(Section 5.3.1). This example highlights two natural design strategies: adopt a
+Gaussian probability path at each time t, or prescribe an affine velocity field, both
+of which are analytically tractable.
+    Guided by this insight, we extend to general endpoint distributions using two
+complementary construction views (see also Section B.1.2). These correspond to
+the classical Eulerian and Lagrangian descriptions of transport:
+      ■   Conditional Probability-Path First (Eulerian View). We begin with the
+          conditional density path pt (·|z) and seek a conditional velocity field vt (·|z)
+          satisfying the continuity equation. Since a density path alone generally does
+          not determine a unique velocity, this construction also requires choosing a
+          particular compatible velocity field.
+      ■   Conditional Flow First (Lagrangian View). We instead specify how individ-
+          ual particles move through a conditional flow map Ψ0→t (·|z). The induced
+          density is obtained by pushforward, and, when the flow map is invertible,
+          the corresponding Eulerian velocity field is
+                                      vt = ∂t Ψ0→t ◦ Ψ−1
+                                                      0→t .
+
+158                              Flow-Based Perspective: From NFs to Flow Matching
+
+
+    In Section 5.3.2, we detail the first approach, which shows its close analogy
+to diffusion model construction discussed in Section 5.2.1, while in Section 5.3.3
+we present the second. Together, these perspectives provide a practical frame-
+work for defining pt (xt |z) and vt (xt |z), enabling simulation-free training and the
+construction of flows between arbitrary source and target distributions.
+
+
+
+5.3.1   A Key Special Case: Marginal pt (xt ) and Velocity vt (xt ) in the Gaussian-
+        to-Gaussian Bridge
+
+We begin with the Gaussian–endpoint case, where we can compute the marginal
+density pt (xt ) and velocity field vt (xt ) analytically. This serves as a template
+for the general construction of the conditional density pt (xt |zt ) and velocity field
+vt (xt |zt ).
+    When the source and target distributions, psrc and ptgt , are both Gaussian, the
+velocity field vt (·) admits a closed-form expression. We consider the interpolated
+marginal density path:
+                                                           
+                             pt (xt ) = N xt ; µ(t), σ 2 (t)I ,                       (5.3.1)
+
+with time-varying mean µ(t) and variance σ 2 (t) > 0. The two endpoints are given
+by
+                                                                               
+        psrc = p0 = N x; µ(0), σ 2 (0)I ,      ptgt = p1 = N x; µ(1), σ 2 (1)I ,
+
+so that the path {pt }t∈[0,1] connects these distributions.
+   With the given path {pt }t∈[0,1] , there are indeed many velocity fields that
+induce an ODE flow Ψ0→t (x) such that x ∼ p0 implies Ψ0→t (x) ∼ pt . For this
+Gaussian path, a particularly simple realization is given by7 :
+
+                                                        x − µ(0)
+                                                                 
+                         Ψ0→t (x) := µ(t) + σ(t)                 .                    (5.3.2)
+                                                          σ(0)
+
+    For the defined Gaussian path pt (Gaussian for all t), the velocity field vt (·)
+inducing the ODE flow in Equation (5.3.2) is uniquely and analytically characterized
+as follows (Lipman et al., 2022):
+
+   7
+     In (Lipman et al., 2022), the authors consider Ψ0→t (x) = µ(t) + σ(t)x, which requires
+constraints on µ(t) and σ(t) to ensure boundary conditions. We adopt an equivalent normalized
+formulation that avoids such constraints.
+
+5.3. Constructing Probability Paths and Velocities Between Distributions         159
+
+
+   Proposition 5.3.1: Closed-Form Velocity Field for Gaussian Density Path
+
+   Let pt be the Gaussian path in Equation (5.3.1). Then the velocity field
+   vt (·) that generates the ODE flow Equation (5.3.2) is unique for the defined
+   Ψ0→t and has the closed-form expression:
+                                     σ ′ (t)
+                          vt (x) =           (x − µ(t)) + µ′ (t).
+                                     σ(t)
+
+Proof for Proposition.
+   Consider the ODE with initial condition y:
+                               d
+                                  Ψ0→t (y) = vt (Ψ0→t (y)).
+                               dt
+   Since Ψ0→t is invertible (as σ(t) > 0), we may set x = Ψ0→t (y) and y =
+   Ψ−1
+     0→t (x) = Ψt→0 (x) to obtain
+
+                                Ψ′0→t Ψ−1
+                                                  
+                                       0→t (x) = vt (x).
+
+   Differentiating Equation (5.3.2) with respect to t gives
+                                                            x − µ(0)
+                                                                     
+                         Ψ′0→t (x) = µ′ (t) + σ ′ (t)                .
+                                                              σ(0)
+
+   Solving for y = Ψ−1
+                    0→t (x) yields
+
+                                                      x − µ(t)
+                                                               
+                             y = µ(0) + σ(0)                   .
+                                                        σ(t)
+   Substituting this into Ψ′0→t (x) gives
+                                       σ ′ (t)
+                            vt (x) =           (x − µ(t)) + µ′ (t),
+                                       σ(t)
+   as claimed.                                                                     ■
+   We note that for a fixed flow map Ψ0→t (flow-first view), the velocity is uniquely
+determined by
+                                 vt = ∂t Ψ0→t ◦ Ψ−1
+                                                 0→t .
+
+Under this construction, the pair (pt , vt ) automatically satisfies the continuity
+equation. By contrast, for a given density path t 7→ pt without fixing Ψ0→t
+(probability-path-first view), the velocity field is not unique.
+    This distinction precisely characterizes the difference between the flow-first
+and probability-path-first perspectives.
+    This closed-form characterization remains valid when conditioning on a latent
+
+160                                      Flow-Based Perspective: From NFs to Flow Matching
+
+
+variable z. In the following, we extend this insight to construct a conditional
+Gaussian path pt (·|z) and derive the corresponding conditional velocity field vt (·|z)
+for the general marginal setting.
+
+5.3.2      Conditional Probability-Path-First Construction of vt (·|z) and pt (·|z)
+
+
+psrc                              ptgt   psrc                     ptgt         psrc                  ptgt
+
+                             x1                              x0                       x1
+   x0
+
+
+
+Figure 5.9: Illustrations of two common types of conditioning probability paths. It includes:
+(i) two-sided, conditioned on x0 ∼ ptgt and x1 ∼ psrc with general endpoint distributions; (ii)
+one-sided, conditioned at either x0 ∼ ptgt or x1 ∼ psrc .
+                                                                             Source: Created by the authors.
+
+    We aim to construct a conditional density path pt (·|z) first and then derive
+its corresponding conditional velocity field vt (·|z) (via Proposition 5.3.1), under
+conditioning with respect to π(z). Depending on how z is chosen, there are two
+natural scenarios: (i) two-sided conditioning with z = (x0 , x1 ), or (ii) one-sided
+conditioning with z = x0 or x1 . In either case, the construction must match the
+boundary distributions:
+                             Z                                           Z
+              psrc (x0 ) =        p0 (x0 |z)π(z) dz,    ptgt (x1 ) =         p1 (x1 |z)π(z) dz.
+
+Since verifying these constraints is straightforward once a concrete construction is
+specified, we do not emphasize the verification step here.
+
+I. Two-Sided z = (x0 , x1 ) — “Beam-Like” Path.
+
+   Choice of π(z). Consider general distributions psrc and ptgt over RD . Let
+z = (x0 , x1 ) with x0 ∼ psrc and x1 ∼ ptgt independently, i.e.,
+
+                                         π(z) = psrc (x0 )ptgt (x1 ).
+
+    Choice of Conditional Path pt (·|z). Define the conditional path by linear
+interpolation with a fixed and small variance σ > 08 :
+
+                       pt (xt |z = (x0 , x1 )) = N (xt ; at x0 + bt x1 , σ 2 I),
+    8
+        One may instead add a fixed conditional variance σ 2 I. The conditional velocity remains
+a′t x0 + b′t x1 because the variance is constant in time, but the endpoint marginals then become
+Gaussian smoothings of psrc and ptgt , approaching the desired endpoints as σ → 0.
+
+5.3. Constructing Probability Paths and Velocities Between Distributions             161
+
+
+where at and bt are time-dependent functions satisfying a0 = 1, b0 = 0 and
+a1 = 0, b1 = 1. A choice suggested by (Lipman et al., 2022; Liu, 2022) is at = 1 − t,
+bt = t. In the deterministic case σ = 0, we obtain
+                                                                
+                          pt (xt |z) = δ xt − [at x0 + bt x1 ] ,
+
+which describes a deterministic interpolating path from x0 to x1 .
+
+    Derived Conditional Velocity vt (·|z). By Proposition 5.3.1, the conditional
+velocity is
+                            vt (x|z) = a′t x0 + b′t x1 .
+
+   CFM Loss.      When σ = 0 so that xt = at x0 + bt x1 , the CFM loss reduces to
+                                                                            2
+              LCFM = Et,x0 ∼psrc ,x1 ∼ptgt vϕ (xt , t) − a′t x0 + b′t x1         .
+
+From Equations (5.2.9) and (5.2.11), the optimal velocity field is
+
+                     v∗ (xt , t) = E xt′ |xt = E a′t x0 + b′t x1 |xt .
+                                                                   
+
+
+Here, the expectation is taken over p(x0 , x1 |xt ), the conditional distribution over
+source-target pairs (x0 , x1 ) that could have produced the observed interpolation
+xt = at x0 + bt x1 at time t.
+
+II. One-Sided z = x0 or x1 — “Spotlight-Like” Path. We illustrate the
+conditional probability–path–first construction in the one-sided setting, considering
+the standard generative setup with psrc = N (0, I) and ptgt = pdata . Crucially, this
+Gaussian source is not an additional assumption but a direct consequence of the
+conditional path defined below. A more general treatment of arbitrary endpoints
+will be given in Section 5.3.3.
+
+    Choice of π(z). We take z = x1 with π(z) = pdata (x1 ) (the case z = x0 ∼
+pprior follows analogously).
+
+   Choice of Conditional Path pt (·|z).           For fixed x1 ∼ pdata , define
+
+                          pt (xt |z = x1 ) = N xt ; bt x1 , a2t I ,
+                                                                
+
+
+with a0 = 1, b0 = 0, a1 = 0, b1 = 1 (usually interpreted as the limit). At the
+boundaries,
+
+              p0 (·|z = x1 ) = N (·; 0, I),       p1 (·|z = x1 ) = δ(· − x1 ).
+
+Marginalizing over x1 yields {pt }t∈[0,1] with p0 = N (0, I) (independent of pdata )
+and p1 = pdata .
+
+162                              Flow-Based Perspective: From NFs to Flow Matching
+
+
+   Derived Conditional Velocity vt (·|z). For t ∈ (0, 1) with at > 0, applying
+Proposition 5.3.1 to the conditional Gaussian path gives
+                                                   a′t
+                           vt (x|x1 ) = b′t x1 +
+                                                                
+                                                       x − bt x1 .
+                                                   at
+
+   One-Sided CFM Objective. With t ∼ U(0, 1) (or any fixed sampling distri-
+bution) and x1 ∼ pdata , the CFM loss becomes
+                                                   h
+                                                            a′              i 2
+       LCFM = Et,x1 Ext ∼pt (·|x1 ) vϕ (xt , t) − b′t x1 + att xt − bt x1          .       (5.3.3)
+                                                                               2
+
+By MSE optimality, the unique minimizer is the marginal velocity field
+
+         v∗ (x, t) = E [vt (x|x1 )|dle|xt = x] = E a′t x0 + b′t x1 |dle|xt = x .
+                                                                                      
+
+
+    Equivalence to Two-Sided Target. For paired samples (x0 , x1 ) with xt =
+at x0 + bt x1 ,
+                                        a′
+                vt (xt |x1 ) = b′t x1 + att xt − bt x1 = a′t x0 + b′t x1 .
+                                                      
+
+Thus the one-sided loss regresses to the conditional expectation of the two-sided
+target given xt :
+                        v∗ (x, t) = E a′t x0 + b′t x1 |xt = x ,
+                                                            
+
+so the one-sided and two-sided CFM objectives share the same minimizer.
+
+Gaussian FM = Diffusion Model. We use the FM convention where t = 0
+denotes the source/prior and t = 1 denotes the target/data:
+
+                             psrc = pprior ,       ptgt = pdata .
+
+By contrast, diffusion models typically index time from data to noise (i.e., t = 0
+is data and t = 1 is prior). Here, we adopt the FM convention indexing in the
+main discussion. For comparison, however, the VE and VP entries in Table 5.2
+are summarized in their usual diffusion-time indexing, where t = 0 corresponds to
+data and t = 1 to prior/noise. If further psrc = N (0, I), then for fixed condition
+x1 ∼ pdata , the conditional path pt (·|x1 ) is naturally chosen to be Gaussian,
+while the target distribution ptgt itself need not be Gaussian. We refer to this
+Gaussian conditional-path setting as Gaussian FM. Diffusion probability paths
+form an important subclass of such Gaussian paths. A generic Gaussian schedule,
+however, need not correspond to a valid forward diffusion SDE; the schedule must
+additionally satisfy the SDE compatibility condition in Lemma 4.5.1.
+    Choosing at = 1 − t and bt = t (equivalently, αt = t and σt = 1 − t under
+the relabeling at := σt , bt := αt in diffusion model) recovers the familiar FM/RF
+schedule (Lipman et al., 2022; Liu, 2022).
+
+5.3. Constructing Probability Paths and Velocities Between Distributions                                     163
+
+Table 5.2: Summary of different interpolants written as xt = at x0 + bt x1 , where x0 ∼ psrc = pprior
+and x1 ∼ ptgt = pdata . The FM/RF and trigonometric columns use the FM convention (t = 0
+source, t = 1 target), whereas the VE/VP columns retain the usual diffusion-time convention
+(t = 0 data, t = 1 prior/noise), with at := σt and bt := αt . For VE at a finite terminal noise level,
+the exact terminal marginal is pdata ∗ N (0, a21 I); the Gaussian prior shown in the table is the
+usual approximation when the terminal noise dominates the scale of the data.
+
+                                     VE                         VP        FM/RF      Trig. (Albergo et al., 2023)
+                                                            p
+                                                                                               cos π2 t
+                                                                                                        
+  at (prior coeff.)                   at                        1 − b2t    1−t
+  bt (data coeff.)                    1                          bt         t                  sin π2 t
+  a0                                  0                          0           1                    1
+  b0                                  1                          1           0                    0
+  a1                                  a1                         1           0                    0
+  b1                                  1                          0           1                    1
+  pprior              pdata ∗ N (0, a21 I) ≈ N (0, a21 I)   N (0, I)      N (0, I)             N (0, I)
+
+
+
+    In the Gaussian FM setting, both the beam-like and spotlight-like conditional
+paths lead to training objectives that are similar to the standard diffusion losses. As
+we will elaborate in Chapter 6, Gaussian FM can in fact be equivalently interpreted
+as a diffusion model trained to predict the velocity, under the linear schedule
+at = 1 − t and bt = t. This perspective highlights that flow matching and diffusion
+are not fundamentally different, but rather two equivalent formulations that can be
+transformed into one another. The hGaussian FM objective isiparticularly appealing
+in practice: its loss function (Et,xt ∥vϕ (xt , t) − (x1 − x0 )∥22 ) is simple, and it has
+been shown to achieve competitive performance at scale (Esser et al., 2024).
+
+
+5.3.3      Conditional Flow-First Construction of vt (·|z) and pt (·|z)
+
+We treat the general case where the endpoints psrc (at t = 0) and ptgt (at t = 1)
+are arbitrary. Our goal is to design, directly in trajectory space, a conditional flow
+that transports samples from psrc to ptgt and yields a closed-form vt (xt |z) usable
+as a regression target.
+
+
+Motivation. Instead of first designing conditional density path, we may directly
+specify a conditional flow map Ψ0→t (·; z) that moves samples along trajectories.
+This has two practical advantages: (i) it immediately yields a regression target
+for training via a time derivative along trajectories; (ii) on geometry-structured
+spaces (Riemannian manifolds, Lie groups, or constrained submanifolds), it is often
+natural to construct the conditional flow map Ψ0→t directly from the geometry
+(e.g., geodesics, exponential maps, or premetrics) (Lipman et al., 2024) which
+yields analytic, simulation-free target velocities for training.
+
+164                                 Flow-Based Perspective: From NFs to Flow Matching
+
+
+Conditional Affine Flow (Link to Proposition 5.3.1). We fix a conditioning
+variable z ∼ π (e.g., z = x1 ∼ ptgt in one-sided “spotlight’’ training) and push
+forward x0 ∼ psrc through the time-varying conditional affine flow
+
+                     Ψ0→t (x0 ; z) := µt (z) + At (z)x0 ,            t ∈ [0, 1],
+
+where µt (z) ∈ RD and At (z) ∈ RD×D is invertible for t ∈ (0, 1). The boundary
+A0 (z) = I, µ0 (z) = 0 recovers psrc at t = 0. It is standard to interpret boundary
+when t → 1 as a limit (the terminal map may concentrate mass on a lower-
+dimensional set or a point)9 .
+
+      Induced Conditional Path pt (·|z).          The construction defines
+                                                                 Z
+                                        
+               pt (·|z) = Ψ0→t (·; z) # psrc ,        pt (·) =       pt (·|z)π(z) dz.
+
+What ultimately matters in LCFM is how to sample from it: first draw z ∼ π, then
+draw x0 ∼ psrc , and finally set
+
+                                    xt = µt (z) + At (z)x0 .
+
+    We remark that when Ψ0→t is affine in x0 , then pt (·|z) is Gaussian if and only
+if psrc is Gaussian. In particular, for arbitrary (non-Gaussian) psrc , an affine flow
+yields a generally non-Gaussian pt (·|z).
+
+    Derived Conditional Velocity vt (·|z). The conditional velocity vt (·|z) is
+obtained by t-differentiating the conditional flow map Ψ0→t . Following the deriva-
+tion in Proposition 5.3.1, consider the conditional ODE defined by the flow map
+Ψ0→t (y; z) with initial condition y, where the goal is to identify the corresponding
+conditional velocity field vt (·|z):
+                            d                               
+                               Ψ0→t (y; z) = vt Ψ0→t (y; z) z .
+                            dt                   | {z     }
+                                                          x
+
+Since Ψ0→t (·; z) is invertible for t ∈ (0, 1), we may express the initial point y
+corresponding to the current state x = Ψ0→t (y; z) as
+
+                               y = Ψ−1
+                                    0→t (x; z) = Ψt→0 (x; z).
+
+The corresponding Eulerian velocity field is therefore
+                                        ∂
+                          vt (x|z) :=      Ψ0→t (y; z)              .
+                                        ∂t             y=Ψ−1
+                                                          0→t (x;z)
+
+   9
+     Allowing A1 (z) to be singular (e.g., 0) is compatible with invertibility on (0, 1) and causes
+the path to contract onto the prescribed endpoint at t = 1.
+
+5.3. Constructing Probability Paths and Velocities Between Distributions                          165
+
+
+That is, we first differentiate the forward flow map with respect to t while holding
+its initial point y fixed, and then substitute the initial point whose trajectory
+reaches x at time t.
+    Since xt = µt (z) + At (z)x0 and At (z) is invertible on (0, 1), we have x0 =
+At (z)−1 x − µt (z) , giving
+                    
+
+
+                     vt (x|z) = µ′t (z) + A′t (z)At (z)−1 x − µt (z) .
+                                                                               
+
+
+   One-Sided Conditioning (z = x1 ). Choosing µt (z) = bt z and At (z) = at I
+with a0 = 1, a1 = 0 and b0 = 0, b1 = 1 (with at > 0 for t ∈ (0, 1)) yields
+                                                                       a′t
+                                           vt (x|x1 ) = b′t x1 +
+                                                                                     
+               xt = at x0 + bt x1 ,                                        x − b t x1 .
+                                                                       at
+On paired samples (x0 , x1 ) (with xt = at x0 + bt x1 ), this simplifies to the usual
+CFM target:
+                             vt (xt |x1 ) = a′t x0 + b′t x1 .
+
+    Two-Sided Conditioning (z = (x0 , x1 )). The same template with µt (x0 , x1 ) =
+bt x1 and At (x0 , x1 ) = at I makes the conditional path deterministic:
+
+              xt = at x0 + bt x1 ,       pt (·|x0 , x1 ) = δ (· − (at x0 + bt x1 )) ,
+
+and the conditional velocity is
+
+                               vt (xt |x0 , x1 ) = a′t x0 + b′t x1 ,
+
+i.e., the standard two-sided CFM target.
+
+    Unconditional Gaussian Path as a Special Case. If µt is independent of z
+                        σ(t)
+(denoted µ(t)) and At = σ(0) I, then
+
+                                     x0 − µ(0)                               σ ′ (t)
+                                                    vt (x) = µ′ (t) +
+                                                                                             
+        Ψ0→t (x0 ) = µ(t) + σ(t)               ,                                     x − µ(t) ,
+                                        σ(0)                                 σ(t)
+which recovers the Gaussian density path and the closed-form velocity in Proposi-
+tion 5.3.1.
+
+5.3.4    Probability-Path-First vs. Flow-First Construction
+The two constructions correspond to complementary Eulerian and Lagrangian
+descriptions of transport. The probability-path-first (Eulerian) view begins by
+specifying a conditional density path pt (·|z) and then selects a compatible velocity
+field through the continuity equation. Because a density path alone generally does
+not determine the velocity uniquely, additional transport structure may be needed
+to select one.
+
+166                                       Flow-Based Perspective: From NFs to Flow Matching
+
+
+    The flow-first (Lagrangian) view instead specifies a conditional flow map
+Ψ0→t (·|z), which directly describes particle trajectories. The corresponding density
+path follows by pushforward, and when the map is invertible its Eulerian velocity
+is uniquely recovered as
+                                           vt = ∂t Ψ0→t ◦ Ψ−1
+                                                           0→t .
+
+Both constructions therefore describe the same kinds of transport objects from
+different starting points, but a prescribed density path need not select the same
+velocity as a separately prescribed flow map.
+    The following table summarizes these contrasts. The takeaway: path-first is
+natural when conditional paths admit closed-form velocities; flow-first is natural
+when you have strong structural priors on trajectories.
+
+Table 5.3: Comparison of conditional probability-path-first and conditional flow-first constructions.
+
+ Axis            Conditional Probability-Path-First                    Conditional Flow-First
+ Given           Conditional density path pt (·|z).                    Conditional flow map Ψ0→t (·|z) (trajectories,
+                                                                       for each fixed z).
+ Get Velocity    For each z, find vt (·|z) s.t.                        Along paths (for each z):
+
+                                                                                                   d
+                      ∂t pt (·|z) + ∇ · (pt (·|z)vt (·|z)) = 0;              vt (Ψ0→t (·|z) | z) = dt Ψ0→t (·|z).
+
+                 Non-unique: if ∇· (pt wt ) = 0 then vt + wt           When Ψ0→t is invertible, one can solve
+                 yields the same pt .
+                                                                          vt (x|z) = ∂t Ψ0→t (y|z)|y=Ψ−1 (x|z) .
+                                                                                                         0→t
+
+
+
+ Closed Form     Convenient when pt (·|z) is Gaussian / Convenient when Ψ0→t (·|z) has structure
+ of vt (·|z)     exponential-family; otherwise obtaining vt (·|z) (affine/low-rank); avoids density evaluation.
+                 is nontrivial.
+ Uniqueness      For each z, vt (·|z) is underdetermined unless a      Given     Ψ0→t (·|z),    both   pt (·|z)     =
+ of vt (·|z)     selection rule (e.g., potential flow / min. kinetic   (Ψ0→t (·|z))# p0 and the particle trajec-
+                 energy) is imposed.                                   tories are determined. If the flow map is
+                                                                       invertible, the corresponding Eulerian velocity
+                                                                       field is uniquely determined; otherwise, a
+                                                                       unique global Eulerian field need not exist.
+ Realizability   Must verify the constructed vt (·|z) solving the      Holds by construction:
+                 continuity equation on the intended support.
+                                                                              pt (·|z) = (Ψ0→t (·|z))# p0 (·|z).
+
+
+
+Match            Mix conditionals:
+                       R                                               Set Ψ0→0 = Id and choose boundary condition
+(psrc , ptgt )   psrc = p0 (·|z)π(z) dz,                               to hit any ptgt .
+                        R
+                 ptgt = p1 (·|z)π(z) dz.
+                 Under Gaussian–affine conditional paths with
+                 z-independent coefficients, psrc can be forced
+                 to be Gaussian. For a general fixed endpoint
+                 psrc (possibly non-Gaussian), the choice of
+                 pt (·|z) does not generally pin psrc .
+ Preferred       Diffusion-style constructions; analytic targets       Strong structural priors via maps Ψ0→t (·|z);
+ Scenarios       via conditional Gaussians pt (·|z).                   easy boundary control; accommodates
+                                                                       singular/low-dimensional endpoints; natural
+                                                                       for map-based regularization/transport costs.
+
+5.3. Constructing Probability Paths and Velocities Between Distributions          167
+
+
+5.3.5    Conditional Straightness Does Not Imply Marginal-Flow Straightness
+The canonical affine interpolation
+
+                                 xt = (1 − t)x0 + tx1
+
+has an appealing geometric property: conditioned on a particular endpoint pair
+(x0 , x1 ), the interpolation is a straight line with constant velocity x1 − x0 . This
+conditional notion of straightness is used extensively in Flow Matching and Rectified
+Flow.
+     It is important, however, to distinguish the straightness of these conditional
+interpolation paths from the straightness of the marginal ODE trajectories used
+at generation time. Under a coupling π(x0 , x1 ), the population-optimal marginal
+velocity is
+                             v⋆ (x, t) = E [x1 − x0 | xt = x] .
+The posterior over endpoint pairs generally changes with (x, t). Consequently, the
+velocity encountered along a marginal ODE trajectory need not remain constant,
+even though every conditional interpolation used for training is a straight line.
+    Thus, choosing the canonical affine schedule alone does not imply that the
+learned marginal ODE is exactly straight or that one Euler step is exact. Rectified
+Flow addresses precisely this distinction: its rectification or Reflow procedure
+changes the endpoint coupling so that the induced causal flow can become pro-
+gressively closer to a straight flow (Liu, Gong, et al., 2022).
+    The following example makes the distinction explicit.
+
+Example: A Simple 1D Counterexample
+   Consider the one-dimensional setting with
+
+                           x0 ∼ N (0, σ02 ),     x1 ∼ N (0, σ12 ),
+
+   independent coupling, and the canonical affine interpolation xt = (1 − t)x0 + tx1 .
+   Each conditional path (1 − t)x0 + tx1 is a straight line in time. We now compute
+   the induced marginal velocity field.
+      Since (x1 − x0 , xt ) is jointly Gaussian, the conditional expectation is linear
+   in x, so
+                                                   Cov(x1 − x0 , xt )
+                 v ∗ (x, t) = E[x1 − x0 |xt = x] =                    x.
+                                                        Var(xt )
+   A direct calculation gives
+
+                         Var(xt ) = (1 − t)2 σ02 + t2 σ12 =: V (t),
+
+   and
+                     Cov(x1 − x0 , xt ) = tσ12 − (1 − t)σ02 = 21 V ′ (t).
+
+168                          Flow-Based Perspective: From NFs to Flow Matching
+
+  Hence
+                                                    V ′ (t)
+                                     v ∗ (x, t) =           x.
+                                                    2V (t)
+      The marginal ODE
+                                        dzt
+                                            = v ∗ (zt , t)
+                                        dt
+  therefore has the exact solution
+                                 s                  s
+                                     V (t)                σ2
+                       zt = z0             = z0 (1 − t)2 + 12 t2 .
+                                     V (0)                σ0
+    Now, a straight-line interpolation in time would require zt to be affine in t,
+  namely zt = (1 − t)z0 + t z1 for some endpoint z1 . But
+                                     s
+                                                        σ12 2
+                                         (1 − t)2 +         t
+                                                        σ02
+  is not affine in t for any positive σ0 , σ1 . Thus the ODE trajectory is generally
+  not a straight-line interpolation in time. We illustrate this phenomenon in
+  Section 5.3.5 with the example σ0 = 2 and σ1 = 3.
+      For example, when σ0 = σ1 , we have z1 = z0 , so a straight-line interpolation
+  would simply be the constant path zt = z0 . In contrast, the actual ODE
+  trajectory satisfies
+                                             z0
+                                    z1/2 = √ ̸= z0 .
+                                                2
+  Therefore, even though every conditional interpolation path is straight, the
+  induced marginal ODE trajectory need not be.                                     ■
+
+5.3. Constructing Probability Paths and Velocities Between Distributions                                                         169
+
+
+
+
+                                 Marginal ODE trajectories are not straight ( 0 = 2, 1 = 3)
+     8        psrc = (0, 02)                                                                       ptgt = (0, 12)
+     6
+
+     4
+
+     2
+
+     0
+zt
+
+
+
+
+     2
+
+     4
+
+     6
+            Marginal ODE trajectory zt     Straight-line interpolation   Conditional paths (samples)     Velocity field v * (x, t)
+     8
+                  0.00                   0.25                     0.50                0.75                   1.00
+                                                                     t
+Figure 5.10: Marginal ODE trajectories are not straight under the canonical affine interpolation.
+We take x0 ∼ N (0, σ02 ) and x1 ∼ N (0, σ12 ) with σ0 = 2, σ1 = 3, and independent coupling. Gray
+lines show sampled conditional paths (1 − t)x0 + tx1 , which  pare straight by construction. Solid
+curves show the exact marginal ODE trajectories zt = z0 (1 − t)2 + (σ1 /σ0 )2 t2 , and dashed
+lines show the corresponding straight-line interpolations from z0 to z1 . The visible gap between
+solid and dashed curves confirms that the marginal ODE trajectories are not affine in t, even
+though every conditional path is a straight line. The marginal densities psrc and ptgt are shown
+on the left and right margins, respectively.
+                                                     Source: Created by the authors with AI-assisted coding.
+
+170                              Flow-Based Perspective: From NFs to Flow Matching

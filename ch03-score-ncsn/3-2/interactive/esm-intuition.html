@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>eSM 直感デモ（大きさの項・発散項）</title>
+<style>
+  :root {
+    --bg: #f7f4ef;
+    --ink: #1f2933;
+    --card: #ffffff;
+    --accent: #1e468c;
+    --sink: #2e7d32;
+    --source: #c62828;
+    --mag: #e67e22;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: "Yu Gothic", "Meiryo", sans-serif;
+    background: linear-gradient(160deg, #f7f4ef, #e8eef7);
+    color: var(--ink);
+  }
+  header {
+    padding: 1rem 1.25rem; background: var(--accent); color: #fff;
+  }
+  header h1 { margin: 0; font-size: 1.15rem; font-weight: 700; }
+  header p { margin: 0.35rem 0 0; opacity: 0.9; font-size: 0.9rem; }
+  main {
+    max-width: 1100px; margin: 0 auto; padding: 1rem;
+    display: grid; gap: 1rem;
+    grid-template-columns: 280px 1fr;
+  }
+  @media (max-width: 860px) { main { grid-template-columns: 1fr; } }
+  .panel {
+    background: var(--card); border-radius: 12px; padding: 1rem;
+    box-shadow: 0 8px 24px rgba(20,40,80,.08);
+  }
+  label { display: block; font-size: 0.85rem; margin-top: 0.75rem; font-weight: 600; }
+  select, input[type=range] { width: 100%; margin-top: 0.35rem; }
+  .stats { font-size: 0.9rem; line-height: 1.55; margin-top: 0.8rem; }
+  .stats b { color: var(--accent); }
+  canvas {
+    width: 100%; height: auto; display: block; border-radius: 10px;
+    background: #fff; border: 1px solid #d9e0ea;
+  }
+  .legend { display: flex; flex-wrap: wrap; gap: 0.75rem; font-size: 0.82rem; margin-top: 0.6rem; }
+  .swatch { width: 12px; height: 12px; border-radius: 3px; display: inline-block; margin-right: 0.3rem; vertical-align: -1px; }
+  .note { font-size: 0.85rem; color: #52606d; margin-top: 0.75rem; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Explicit Score Matching（eSM）の直感デモ</h1>
+  <p>大きさの項は $p_{\mathrm{data}}$ で重み付け／発散項は収縮を好む／最適は真のスコア</p>
+</header>
+<main>
+  <aside class="panel">
+    <label for="field">スコア場の種類</label>
+    <select id="field">
+      <option value="true">真のスコア s = ∇log p（最適）</option>
+      <option value="sink">強い吸い込み（過剰収縮）</option>
+      <option value="source">湧き出し（膨張・悪い例）</option>
+      <option value="big">大きすぎる場（ノルム大）</option>
+    </select>
+
+    <label for="sigma">密度の広がり σ = <span id="sigmaVal">1.0</span></label>
+    <input id="sigma" type="range" min="0.6" max="1.8" step="0.05" value="1.0" />
+
+    <label for="scale">場のスケール = <span id="scaleVal">1.0</span></label>
+    <input id="scale" type="range" min="0.3" max="2.0" step="0.05" value="1.0" />
+
+    <div class="stats" id="stats"></div>
+    <p class="note">
+      背景色は局所発散（緑＝収縮、赤＝膨張）。矢印はスコア場。
+      右下の数値はモンテカルロ近似の寄与です。
+    </p>
+  </aside>
+  <section class="panel">
+    <canvas id="cv" width="720" height="520"></canvas>
+    <div class="legend">
+      <span><i class="swatch" style="background:#2e7d32"></i>発散 &lt; 0（収縮）</span>
+      <span><i class="swatch" style="background:#c62828"></i>発散 &gt; 0（膨張）</span>
+      <span><i class="swatch" style="background:#e67e22"></i>高密度（大きさの項が効きやすい）</span>
+    </div>
+  </section>
+</main>
+<script>
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const fieldEl = document.getElementById('field');
+const sigmaEl = document.getElementById('sigma');
+const scaleEl = document.getElementById('scale');
+const sigmaVal = document.getElementById('sigmaVal');
+const scaleVal = document.getElementById('scaleVal');
+const statsEl = document.getElementById('stats');
+
+function pdata(x, y, sigma) {
+  const n = 1 / (2 * Math.PI * sigma * sigma);
+  return n * Math.exp(-(x*x + y*y) / (2 * sigma * sigma));
+}
+function trueScore(x, y, sigma) {
+  return { u: -x / (sigma*sigma), v: -y / (sigma*sigma) };
+}
+function scoreAt(x, y, kind, sigma, scale) {
+  let s;
+  if (kind === 'true') s = trueScore(x, y, sigma);
+  else if (kind === 'sink') s = { u: -1.6*x, v: -1.6*y };
+  else if (kind === 'source') s = { u: 1.2*x, v: 1.2*y };
+  else s = { u: -3.0*x, v: -3.0*y }; // big: same direction but huge
+  return { u: scale * s.u, v: scale * s.v };
+}
+// For linear fields s=A[x;y], div = A_xx + A_yy
+function divAt(kind, sigma, scale) {
+  if (kind === 'true') return scale * (-2 / (sigma*sigma));
+  if (kind === 'sink') return scale * (-3.2);
+  if (kind === 'source') return scale * 2.4;
+  return scale * (-6.0);
+}
+
+function draw() {
+  const kind = fieldEl.value;
+  const sigma = +sigmaEl.value;
+  const scale = +scaleEl.value;
+  sigmaVal.textContent = sigma.toFixed(2);
+  scaleVal.textContent = scale.toFixed(2);
+
+  const W = cv.width, H = cv.height;
+  const xmin = -3, xmax = 3, ymin = -3, ymax = 3;
+  const toX = x => (x - xmin) / (xmax - xmin) * W;
+  const toY = y => (1 - (y - ymin) / (ymax - ymin)) * H;
+
+  // density + divergence background
+  const img = ctx.createImageData(W, H);
+  let maxP = 0;
+  const pBuf = new Float32Array(W*H);
+  for (let j = 0; j < H; j++) {
+    for (let i = 0; i < W; i++) {
+      const x = xmin + (i + 0.5) / W * (xmax - xmin);
+      const y = ymax - (j + 0.5) / H * (ymax - ymin);
+      const p = pdata(x, y, sigma);
+      pBuf[j*W+i] = p;
+      if (p > maxP) maxP = p;
+    }
+  }
+  const div = divAt(kind, sigma, scale);
+  for (let j = 0; j < H; j++) {
+    for (let i = 0; i < W; i++) {
+      const p = pBuf[j*W+i] / maxP;
+      // mix orange density with green/red divergence tint
+      let r = 255, g = 255, b = 255;
+      r = Math.round(255 - p * 40);
+      g = Math.round(255 - p * 90);
+      b = Math.round(255 - p * 160);
+      if (div < 0) {
+        g = Math.round(g * (1 - 0.25) + 46 * 0.25);
+      } else {
+        r = Math.round(r * (1 - 0.28) + 198 * 0.28);
+        g = Math.round(g * 0.85);
+      }
+      const k = (j*W+i)*4;
+      img.data[k] = r; img.data[k+1] = g; img.data[k+2] = b; img.data[k+3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+
+  // quiver
+  const step = 8;
+  for (let gy = 0; gy < step; gy++) {
+    for (let gx = 0; gx < step; gx++) {
+      const x = xmin + (gx + 0.5) / step * (xmax - xmin);
+      const y = ymin + (gy + 0.5) / step * (ymax - ymin);
+      const s = scoreAt(x, y, kind, sigma, scale);
+      const cx = toX(x), cy = toY(y);
+      const len = Math.hypot(s.u, s.v) + 1e-9;
+      const L = Math.min(28, 10 + 6 * len);
+      const ux = s.u / len * L, uy = -s.v / len * L;
+      ctx.strokeStyle = '#1e468c';
+      ctx.fillStyle = '#1e468c';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(cx - ux*0.4, cy - uy*0.4);
+      ctx.lineTo(cx + ux*0.6, cy + uy*0.6);
+      ctx.stroke();
+      // arrow head
+      const ang = Math.atan2(uy, ux);
+      ctx.beginPath();
+      ctx.moveTo(cx + ux*0.6, cy + uy*0.6);
+      ctx.lineTo(cx + ux*0.6 - 7*Math.cos(ang-0.4), cy + uy*0.6 - 7*Math.sin(ang-0.4));
+      ctx.lineTo(cx + ux*0.6 - 7*Math.cos(ang+0.4), cy + uy*0.6 - 7*Math.sin(ang+0.4));
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
+  // Monte Carlo estimates of terms
+  let mag = 0, divTerm = 0, n = 0;
+  for (let t = 0; t < 2500; t++) {
+    // sample approx from N(0, sigma^2 I) via Box-Muller
+    const u1 = Math.random(), u2 = Math.random();
+    const r = Math.sqrt(-2*Math.log(u1+1e-12));
+    const th = 2*Math.PI*u2;
+    const x = sigma * r * Math.cos(th);
+    const y = sigma * r * Math.sin(th);
+    const s = scoreAt(x, y, kind, sigma, scale);
+    mag += 0.5 * (s.u*s.u + s.v*s.v);
+    divTerm += div; // constant for these linear fields
+    n++;
+  }
+  mag /= n; divTerm /= n;
+  const loss = mag + divTerm;
+  const trueS = trueScore(0.8, 0.5, sigma); // just for display note
+
+  statsEl.innerHTML = `
+    <div>局所発散 div s ≈ <b>${div.toFixed(2)}</b> ${div<0 ? '（収縮寄り）' : '（膨張寄り）'}</div>
+    <div>大きさの項 E[½‖s‖²] ≈ <b>${mag.toFixed(2)}</b></div>
+    <div>発散項 E[div s] ≈ <b>${divTerm.toFixed(2)}</b></div>
+    <div>eSM 近似 L ≈ <b>${loss.toFixed(2)}</b></div>
+    <div style="margin-top:.5rem">ヒント: 「湧き出し」は発散項が正で損失が悪化。「大きすぎる場」はノルム罰が跳ね上がる。「真のスコア」がバランスする。</div>
+  `;
+}
+
+[fieldEl, sigmaEl, scaleEl].forEach(el => el.addEventListener('input', draw));
+draw();
+</script>
+</body>
+</html>

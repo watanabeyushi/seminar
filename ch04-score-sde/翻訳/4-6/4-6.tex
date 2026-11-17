@@ -1,0 +1,286 @@
+\input{../../../common/translation-preamble}
+\begin{document}
+{\color{gray}\footnotesize 出典: §4.6\par}
+\vspace{0.2em}
+
+\section*{4.6 （任意）周辺化とベイズの法則による Fokker–Planck 方程式と逆時間 SDE}
+
+
+本節では、Fokker–Planck 方程式と逆時間 SDE の構造に対する確率的視点を提供する。周辺化トリックやベイズの法則といった基本的道具を活用することで、確率過程の統計的定式化と対応する微分方程式のあいだの接続を明らかにする。
+
+ここで提示する「導出」は数学的に厳密な証明ではなく、根底の接続を伝えることを意図したヒューリスティックな議論であることを強調する。
+
+\subsection*{4.6.1 遷移核の周辺化からの Fokker–Planck 方程式}
+
+
+式 (4.1.2) のような前向き遷移確率
+
+\[
+p(x_{t+\Delta t}\mid x_t)=\mathcal{N}\bigl(x_{t+\Delta t};\, x_t+f(x_t,t)\Delta t,\, g^2(t)\Delta t\, I\bigr)
+\]
+
+
+および周辺分布
+
+\[
+p_t(x_t),\qquad p_{t+\Delta t}(x_{t+\Delta t})
+\]
+
+
+が与えられたとき、周辺分布 $p_t$ の時間発展を支配する Fokker–Planck 方程式を導出することが目標である。
+
+\textbf{変数変換。} マルコフ性により、時刻 $t+\Delta t$ における周辺分布は前の状態 $x_t$ 上の積分として表せる（すなわち Chapman–Kolmogorov 方程式）：
+
+\[
+p_{t+\Delta t}(x)
+=\int\mathcal{N}\bigl(x;\, y+f(y,t)\Delta t,\, g^2(t)\Delta t\, I\bigr)\, p_t(y)\, dy.
+\]
+
+
+新しい変数
+
+\[
+u:=y+f(y,t)\Delta t
+\]
+
+
+を導入し、ガウスが $u$ に中心をもつようにする。小さな $\Delta t$ では、この写像は可逆で
+
+\[
+y=u-f(u,t)\Delta t+O(\Delta t^2), \qquad
+\det\frac{\partial y}{\partial u}=1-(\nabla_u\cdot f)(u,t)\Delta t+O(\Delta t^2)
+\]
+
+
+である。
+
+ゆえに変数変換公式は次へ導く：
+
+\begin{align*}
+\begin{aligned}
+p_{t+\Delta t}(x)
+&=\int\mathcal{N}\bigl(x;\, u,\, g^2(t)\Delta t\, I\bigr)\cdot \\
+&\quad\Bigl[
+p_t(u)-\Delta t\, f(u,t)\cdot\nabla_u p_t(u)
+-\Delta t\,(\nabla_u\cdot f)(u,t)p_t(u)
+\Bigr]du
++O(\Delta t^2).
+\end{aligned}
+\end{align*}
+
+
+\textbf{Taylor 展開。} 任意の滑らかな関数 $\phi:\mathbb{R}^D\to\mathbb{R}$ とスケール $\sigma>0$ について、$z\sim\mathcal{N}(0,I)$ なら次の近似が成り立つ（Taylor–ガウス平滑公式として知られる）：
+
+\[
+\int\mathcal{N}(x;\, u,\, \sigma^2 I)\,\phi(u)\, du
+=\mathbb{E}\bigl[\phi(x+\sigma z)\bigr]
+=\phi(x)+\tfrac{\sigma^2}{2}\Delta_x\phi(x)+O(\sigma^4).
+\]
+
+
+これは次の Taylor 展開による：
+\[
+\phi(x+\sigma z)=\phi(x)+\sigma\nabla_x\phi(x)\cdot z+\tfrac{\sigma^2}{2}z^\top\nabla_x^2\phi(x)z+O(\sigma^3)
+\]
+
+および $\mathbb{E}[z]=0$、$\mathbb{E}[zz^\top]=I$。
+
+$\phi=p_t$、$\phi=f\cdot\nabla_u p_t$、$\phi=(\nabla_u\cdot f)p_t$ にこれを適用し、$\sigma^2=g^2(t)\Delta t$ を用いると、
+
+\begin{align*}
+\begin{aligned}
+&p_{t+\Delta t}(x)-p_t(x) \\
+&= -\Delta t\, f(x,t)\cdot\nabla_x p_t(x)
+-\Delta t\,(\nabla_x\cdot f)(x,t)p_t(x)
++\tfrac{g^2(t)}{2}\Delta t\,\Delta_x p_t(x)
++O(\Delta t^2) \\
+&= -\Delta t\,\nabla_x\cdot\bigl[f(x,t)p_t(x)\bigr]
++\tfrac{g^2(t)}{2}\Delta t\,\Delta_x p_t(x)
++O(\Delta t^2)
+\end{aligned}
+\end{align*}
+
+
+が得られる。$\Delta t$ で割り $\Delta t\to 0$ とすると、Fokker–Planck 方程式が得られる。
+
+第 C.1.4 節では、上の離散時間見方を補完する Itô ベースの導出を提示する。
+
+\subsection*{4.6.2 なぜ逆時間 SDE はその形をとるか？}
+
+
+逆時間 SDE の厳密な導出は技術的であり、Fokker–Planck 方程式の性質に踏み込む必要がある。しかし、逆時間 SDE の形はベイズの定理を通じて直感的に理解できる。ここでは、式 (4.1.6) がその形をとり、スコア関数が現れる理由への洞察を与えるヒューリスティック導出を提示する\footnote{この導出は当該投稿のアプローチに触発されている。}。
+
+\textbf{逆転のためのベイズの法則の利用。} 目標は、まず離散時間の場合
+
+\[
+p(x_t\mid x_{t+\Delta t})
+\]
+
+
+を考え、次いで $\Delta t\to 0$ として連続時間定式化を得ることで、逆時間遷移核を定めることである。ベイズの定理を用い、次のように表す：
+
+\begin{align*}
+\begin{aligned}
+p(x_t\mid x_{t+\Delta t})
+&= p(x_{t+\Delta t}\mid x_t)\,\frac{p_t(x_t)}{p_{t+\Delta t}(x_{t+\Delta t})} \\
+&= p(x_{t+\Delta t}\mid x_t)
+\exp\bigl(\log p_t(x_t)-\log p_{t+\Delta t}(x_{t+\Delta t})\bigr). \quad (4.6.1)
+\end{aligned}
+\end{align*}
+
+
+前向き遷移核は式 (4.1.2) のように仮定される：
+\[
+p(x_{t+\Delta t}\mid x_t)=\mathcal{N}\bigl(x_{t+\Delta t};\, x_t+f(x_t,t)\Delta t,\, g^2(t)\Delta t\, I\bigr).
+\]
+
+
+\textbf{Taylor 展開。} 指数項を扱うため、一次 Taylor 展開を適用する。鍵となる洞察は、空間と時間の双方で点 $(x_t,t)$ のまわりで展開することである：
+
+\begin{align*}
+\begin{aligned}
+\log p_{t+\Delta t}(x_{t+\Delta t})
+&= \log p_t(x_t)
++ \nabla_x\log p_t(x_t)\cdot(x_{t+\Delta t}-x_t) \\
+&\quad + \frac{\partial\log p_t(x_t)}{\partial t}\Delta t
++ O(\|h\|_2^2),
+\end{aligned}
+\end{align*}
+
+
+ここで $h:=(x_{t+\Delta t}-x_t,\Delta t)$ である。したがって：
+
+\begin{align*}
+\begin{aligned}
+\log p_t(x_t)-\log p_{t+\Delta t}(x_{t+\Delta t})
+&= -\nabla_x\log p_t(x_t)\cdot(x_{t+\Delta t}-x_t) \\
+&\quad - \frac{\partial\log p_t(x_t)}{\partial t}\Delta t
++ O(\|h\|_2^2). \quad (4.6.2)
+\end{aligned}
+\end{align*}
+
+
+拡散過程では $x_{t+\Delta t}-x_t=O_p(\sqrt{\Delta t})$ であるため、二次の空間 Taylor 項は一般に $O_p(\Delta t)$ のオーダーである。したがって、次の計算は主要オーダーのヒューリスティックとして理解すべきである。
+
+\textbf{逆遷移への代入。} 式 (4.1.2) と式 (4.6.2) を式 (4.6.1) に代入すると：
+
+\begin{align*}
+\begin{aligned}
+p(x_t\mid x_{t+\Delta t})
+&= \frac{1}{(2\pi g^2(t)\Delta t)^{D/2}}
+\exp\Biggl(
+-\frac{\|x_{t+\Delta t}-x_t-f(x_t,t)\Delta t\|_2^2}{2g^2(t)\Delta t}
+\Biggr) \\
+&\quad\cdot\exp\Biggl(
+-\nabla_x\log p_t(x_t)\cdot(x_{t+\Delta t}-x_t)
+-\frac{\partial\log p_t(x_t)}{\partial t}\Delta t
++ O(\Delta t)
+\Biggr).
+\end{aligned}
+\end{align*}
+
+
+\textbf{代数操作。} 鍵となるステップは、指数における平方完成である。次をもつ：
+
+\begin{align*}
+\begin{aligned}
+&-\frac{\|x_{t+\Delta t}-x_t-f(x_t,t)\Delta t\|_2^2}{2g^2(t)\Delta t}
+-\nabla_x\log p_t(x_t)\cdot(x_{t+\Delta t}-x_t) \\
+&= -\frac{
+\bigl\|x_{t+\Delta t}-x_t-f(x_t,t)\Delta t\bigr\|_2^2
++ 2g^2(t)\Delta t\,\nabla_x\log p_t(x_t)\cdot(x_{t+\Delta t}-x_t)
+}{2g^2(t)\Delta t}.
+\end{aligned}
+\end{align*}
+
+
+$\delta:=x_{t+\Delta t}-x_t$、$\mu:=f(x_t,t)\Delta t$ とする。すると：
+
+\begin{align*}
+\begin{aligned}
+&\|\delta-\mu\|_2^2 + 2g^2(t)\Delta t\,\nabla_x\log p_t(x_t)\cdot\delta \\
+&= \|\delta\|_2^2 - 2\delta\cdot\mu + \|\mu\|_2^2
++ 2g^2(t)\Delta t\,\nabla_x\log p_t(x_t)\cdot\delta \\
+&= \|\delta\|_2^2
+- 2\delta\cdot\bigl[\mu-g^2(t)\Delta t\,\nabla_x\log p_t(x_t)\bigr]
++ \|\mu\|_2^2 \\
+&= \bigl\|\delta-\bigl[\mu-g^2(t)\Delta t\,\nabla_x\log p_t(x_t)\bigr]\bigr\|_2^2
+- \bigl\|g^2(t)\Delta t\,\nabla_x\log p_t(x_t)\bigr\|_2^2.
+\end{aligned}
+\end{align*}
+
+
+戻して代入すると：
+\[
+\|\delta-\bigl[f(x_t,t)\Delta t-g^2(t)\Delta t\,\nabla_x\log p_t(x_t)\bigr]\|_2^2
+=\bigl\|x_{t+\Delta t}-x_t-\bigl[f(x_t,t)-g^2(t)\nabla_x\log p_t(x_t)\bigr]\Delta t\bigr\|_2^2.
+\]
+
+
+したがって、
+
+\begin{align*}
+\begin{aligned}
+p(x_t\mid x_{t+\Delta t})
+&= \frac{1}{(2\pi g^2(t)\Delta t)^{D/2}}
+\exp\Biggl(
+-\frac{
+\bigl\|x_{t+\Delta t}-x_t-\bigl[f(x_t,t)-g^2(t)\nabla_x\log p_t(x_t)\bigr]\Delta t\bigr\|_2^2
+}{2g^2(t)\Delta t}
+\Biggr) \\
+&\quad\cdot\exp\bigl(O(\Delta t)\bigr) \\
+&= \mathcal{N}\Bigl(
+x_t;\,
+x_{t+\Delta t}-\bigl[f(x_t,t)-g^2(t)\nabla_x\log p_t(x_t)\bigr]\Delta t,\,
+g^2(t)\Delta t\, I
+\Bigr) \\
+&\quad\cdot\bigl(1+O(\Delta t)\bigr).
+\end{aligned}
+\end{align*}
+
+
+平方完成からの追加項 $\|g^2(t)\Delta t\,\nabla_x\log p_t(x_t)\|_2^2$ は $O((\Delta t)^2)$ であり、誤差項に吸収できる。同様に、時間導関数項 $\dfrac{\partial\log p_t(x_t)}{\partial t}\Delta t$ は $O(\Delta t)$ であり、連続極限で消える。
+
+**$\Delta t\to 0$ 極限。** $\Delta t\approx 0$ につれ、滑らかさ仮定の下で次の近似が成り立つ：
+\begin{align*}
+\begin{aligned}
+f(x_t,t)&\approx f(x_{t+\Delta t},t+\Delta t), \\
+g(t)&\approx g(t+\Delta t), \\
+\nabla_x\log p_t(x_t)
+&\approx\nabla_x\log p_{t+\Delta t}(x_{t+\Delta t})
+=s(x_{t+\Delta t},t+\Delta t).
+\end{aligned}
+\end{align*}
+
+
+これらの近似といくつかの整理を用いると、
+
+\begin{align*}
+\begin{aligned}
+&p(x_t\mid x_{t+\Delta t}) \\
+&\approx\frac{1}{(2\pi g^2(t)\Delta t)^{D/2}}
+\exp\Biggl(
+-\frac{
+\bigl\|
+x_t-x_{t+\Delta t}
+-\bigl[f(x_{t+\Delta t},t+\Delta t)-g^2(t+\Delta t)s(x_{t+\Delta t},t+\Delta t)\bigr]\Delta t
+\bigr\|_2^2
+}{2g^2(t+\Delta t)\Delta t}
+\Biggr)
+\end{aligned}
+\end{align*}
+
+
+が得られる。
+
+これは、$p(x_t\mid x_{t+\Delta t})$ がおおよそ次をもつ正規分布であることを含意する：
+
+\begin{itemize}
+\item \textbf{平均}: $x_{t+\Delta t}-\bigl[f(x_{t+\Delta t},t+\Delta t)-g^2(t+\Delta t)s(x_{t+\Delta t},t+\Delta t)\bigr]\Delta t$,
+\item \textbf{共分散}: $g^2(t+\Delta t)\Delta t\, I$.
+\end{itemize}
+
+
+$\Delta t\to 0$ の極限をとると、式 (4.1.6) に与えられた逆時間連続 SDE を「導出」する。
+
+\end{document}

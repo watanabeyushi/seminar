@@ -1,0 +1,369 @@
+5.1     Flow-Based Models: Normalizing Flows and Neural ODEs
+
+
+In this section, we will introduce Flow-Based Models, including Normalizing Flows
+(NFs) (Rezende and Mohamed, 2015) and Neural Ordinary Differential Equations
+(NODEs) (Chen et al., 2018).
+    NFs enable flexible and tractable probability density estimation by applying a
+series of invertible transformations to a simple base distribution. NODEs extend
+this framework to continuous time, where the transformation is governed by an
+ODE. By treating the transformations as continuous-time dynamics, NODEs
+provide a smooth, scalable extension to the NF paradigm.
+
+
+
+
+                                      𝐟 −1 𝐱
+                    𝐱
+
+                                                               𝐳
+
+                                       𝐟 𝐳
+
+
+
+
+Figure 5.2: Illustration of sample movement of NF under an invertible map. It consists of
+a sequence of invertible functions f : z 7→ x that transform latent variable z into a data x,
+together with the inverse mapping f −1 : x 7→ z that reconstructs the data. An NF resembles an
+encoder–decoder structure, but with the encoder realized as a smooth invertible map and the
+decoder given exactly by its inverse. The corresponding change in density can be computed via
+the change-of-variables formula, as given in Equation (5.0.1).
+                                                               Source: Created by the authors.
+
+
+
+
+5.1.1    Normalizing Flows
+
+NFs (Rezende and Mohamed, 2015) model a complex data distribution pdata (x)
+by transforming a simple prior pprior (z) (e.g., standard Gaussian N (0, I)) via an
+invertible mapping
+
+                                      fϕ : RD → RD ,
+
+5.1. Flow-Based Models: Normalizing Flows and Neural ODEs                                137
+
+
+with x = fϕ (z) and z ∼ pprior . Here, x and z share the same dimension. Using the
+change-of-variables formula in Equation (5.0.1), the model likelihood is1
+                                                                ∂fϕ−1 (x)
+                     log pϕ (x) = log pprior (z) + log det                  .         (5.1.1)
+                                                                    ∂x
+
+Training Objective. Parameters ϕ are learned by maximizing the likelihood over
+data:
+                             LNF (ϕ) = Ex∼pdata [log pϕ (x)] .                        (5.1.2)
+Computing the Jacobian determinant in Equation (5.1.1) can be costly, scaling as
+O(D3 ) in general.
+
+Constructing Invertible Transformations. A single complex invertible network
+can be expensive due to its Jacobian determinant. Conversely, simple transforms
+(e.g., linear) are efficient but lack expressivity.
+    To balance this, NFs employ a sequence of L trainable invertible mappings
+{fk }L−1
+     k=0 , each with efficiently computable Jacobians:
+
+                                fϕ = fL−1 ◦ fL−2 ◦ · · · ◦ f0 .
+Each fk is parameterized by a neural network, though we omit the explicit depen-
+dence on ϕ for notational simplicity.
+   Samples transform via
+                           xk+1 = fk (xk ),       k = 0, . . . , L − 1,               (5.1.3)
+with z = x0 ∼ pprior and x = xL , corresponding to data. The resulting (log-)density
+is derived as
+                                           L−1
+                                           Y           ∂fk −1
+                   pϕ (x) = pprior (x0 )         det          , or equivalently,
+                                           k=0
+                                                       ∂xk
+                                                                                      (5.1.4)
+                                                  L−1
+                                                  X        ∂fk −1
+               log pϕ (x) = log pprior (x0 ) +     log det        .
+                                               k=0
+                                                           ∂xk
+
+
+Examples of Invertible Flows. Extensive literature has focused on designing
+single-layer flow constructions that enable efficient computation of the Jacobian.
+Below, we introduce two representative types: Planar Flows (Rezende and Mo-
+hamed, 2015) and Residual Flows (Chen et al., 2019; Behrmann et al., 2019), with
+the latter motivating the developments in Section 5.1.2.
+   1
+     If the map is further constrained to be the gradient of a convex potential, fϕ = ∇ψϕ with
+ψϕ convex, then Equation (5.1.1) reduces to the Monge–Ampère relation in Equation (7.2.4).
+This PDE characterizes the optimal transformation of one distribution into another under the
+quadratic cost. See Chapter 7 and (Huang et al., 2021) for further details.
+
+138                                      Flow-Based Perspective: From NFs to Flow Matching
+
+
+                         fL−1                             f1                 f0
+              xL                   ···         x2                  x1                  x0
+                          −1
+                         fL−1                           f1−1                 f0−1
+
+Figure 5.3: Illustration of a NF. An NF consists of a stack of invertible maps fϕ = fL−1 ◦fL−2 ◦· · ·◦f0 .
+The transformation maps latent samples x0 ∼ pprior to data samples xL ∼ pdata .
+                                                                        Source: Created by the authors.
+
+
+   Planar Flows: Planar flows (Rezende and Mohamed, 2015) apply a simple
+transformation
+                                    f (z) = z + uh(w⊤ z + b),
+where u, w ∈ RD , b ∈ R, and h(·) is an activation function. The parameters are
+appropriately constrained or reparameterized to ensure that the transformation is
+invertible. Its Jacobian determinant has the simple form
+
+                                   ∂f (z)
+                             det          = 1 + h′ (w⊤ z + b) w⊤ u ,
+                                    ∂z
+making the change-of-variables computation efficient.
+
+
+      Residual Flows:       Define the transform f as
+
+                                           f (z) = z + v(z),                                     (5.1.5)
+
+with v contractive (Lipschitz constant < 1). This ensures invertibility via the
+Banach fixed-point theorem.
+   The log-determinant of the Jacobian reduces to a trace expansion:
+
+                             ∂f (z)           ∂f (z)
+                                                              
+                     log det        = log det
+                              ∂z               ∂z
+                                                      ∂f (z)
+                                                              
+                                           = Tr log
+                                                       ∂z
+                                                          ∂v(z)
+                                                               
+                                           = Tr log I +
+                                                             ∂z
+                                              ∞
+                                                                 ∂v(z) k
+                                             X (−1)  k+1              !
+                                           =              Tr              ,                      (5.1.6)
+                                             k=1
+                                                   k              ∂z
+
+making evaluation efficient via trace estimators (Hutchinson, 1989).
+
+
+Sampling and Inference. Sampling from NFs is straightforward: draw x0 ∼ pprior
+and compute x = fϕ (x0 ). Exact likelihoods are obtained from Equation (5.1.4).
+
+5.1. Flow-Based Models: Normalizing Flows and Neural ODEs                                       139
+
+                                                                   dx(t)
+        xk + 1 = fk (xk ) : = xk + v k (xk , k)                     dt = v (x(t), t)
+
+
+
+
+Figure 5.4: Discrete- vs. continuous-time normalizing flows. (Left) A discrete NF transports
+samples by a finite sequence of invertible maps xk+1 = fk (xk ), yielding stepwise, non-crossing
+trajectories (dots with arrows). (Right) A continuous NF (Neural ODE) evolves states along
+integral curves of dx(t)
+                    dt
+                         = vϕ (x(t), t), where black paths with tangent arrows are shown over the
+gray vector field.
+                                                                      Source: Created by the authors.
+
+
+5.1.2    Neural ODEs
+From Discrete-Time NFs to Continuous-Time NFs (Neural ODEs). A discrete
+NF transports samples through a composition of L invertible maps. To obtain a
+meaningful continuous-depth limit, we write each layer as a small residual update:
+                                                                                  T
+                 xk+1 = xk + ∆t vϕ (xk , tk ),            tk = k∆t,        ∆t =     .
+                                                                                  L
+Here, vϕ specifies the direction in which each point is moved, while ∆t controls
+the size of one layer.
+    The geometric meaning of this limit is illustrated in Figure 5.5. As L increases,
+the same source-to-target transport is divided into more near-identity bijections.
+The sample trajectories are resolved more finely, and the deformation of the
+surrounding reference grid becomes progressively smoother.
+    As L → ∞ and ∆t → 0, the discrete layer index becomes continuous time,
+yielding the ODE
+                               dx(t)
+                                     = vϕ (x(t), t).
+                                 dt
+This continuous-depth model is known as a Neural ODE or Continuous Normalizing
+Flow.
+
+Formal Setup of Neural ODEs. A Neural ODE defines a continuous transforma-
+tion through:
+                                  dx(t)
+                                        = vϕ (x(t), t),     t ∈ [0, T ]                      (5.1.7)
+                                   dt
+
+140                                  Flow-Based Perspective: From NFs to Flow Matching
+
+               L=1                             L = 20                             L = 40
+
+
+
+
+              L = 60                           L = 80                             L→∞
+
+
+
+
+Figure 5.5: From discrete bijections to a continuous transport flow. Each panel shows a transport
+built by composing L invertible layers. Starting from a source distribution (Gaussian), the layers
+gradually move the colored samples toward a target distribution with three modes. The orange
+reference grid shows how the surrounding space is deformed during this transport. With only a
+few layers, each layer makes a relatively large and discrete change. As L increases, the transport
+is divided into more, smaller updates, so the sample trajectories and grid deformation become
+smoother. If the total transport time T is fixed and each layer has step size ∆t = T /L, then,
+as L → ∞, the stacked bijections approach a continuous time-dependent flow. The transported
+density evolves according to the continuity equation in Equation (5.2.8).
+                                           Source: Created by the authors with AI-assisted coding.
+
+
+where:
+
+      ■   x(t) ∈ RD is the state at time t; we sometimes write xt for brevity;
+
+      ■   vϕ (x(t), t) is a neural network parameterized by ϕ.
+
+    Goal of NODE. Starting from the initial condition x(0) ∼ pprior , the ODE
+evolves the state continuously over time, inducing a family of marginal distributions
+pϕ (xt , t) (similar to PF-ODEs!)2 .
+    2
+     We adopt a flipped time convention, with t = 0 denoting the prior (source) and t = 1 the
+data (target) distribution. The prior is interchangeably written as pϕ (x(0), 0), pprior (x(0), 0), or
+simply pprior (z).
+
+5.1. Flow-Based Models: Normalizing Flows and Neural ODEs                               141
+
+
+    The goal is to learn the neural vector field vϕ , which intuitively represents
+a velocity that transports points along continuous trajectories in data space. By
+learning this velocity, the terminal distribution at t = T matches the target
+distribution pdata (·). This continuous transformation unifies discrete normalizing
+flows and neural ODEs within a single framework.
+
+Continuous-Time Change-of-Variables Formula. Analogous to Equation (5.0.1)
+or Equation (5.1.4), Chen et al. (2018) derived a continuous-time analogue of
+the change-of-variables formula. For the time-dependent density pϕ (x(t), t) of a
+process x(t) evolving under Equation (5.1.7), the so-called Instantaneous Change-
+of-Variables Formula is
+                        d
+                           log pϕ (x(t), t) = −∇x · vϕ (x(t), t).
+                        dt
+Here, the derivative is taken along the ODE trajectory x(t).
+   Therefore, if x(0) ∼ pprior and the ODE transports the prior from t = 0 to
+t = T , integrating this identity gives
+                                                    Z T
+         log pϕ (x(T ), T ) = log pprior (x(0)) −         ∇x · vϕ (x(t), t) dt.      (5.1.8)
+                                                     0
+This expression provides likelihood evaluation through numerical integration, which
+in turn enables maximum likelihood training of the model.
+    Although this formula may appear unfamiliar at first, it is closely connected
+to the Fokker–Planck equation. In particular, it can be understood as the along-
+trajectory form of the continuity equation, which is the deterministic, zero-diffusion
+case of the Fokker–Planck equation (see Chapter B). It can also be interpreted as the
+continuous-time limit of the discrete change-of-variables formula in Equation (5.1.4).
+We summarize the result below.
+
+   Lemma 5.1.1: Instantaneous Change of Variables
+
+   Let z(t) be a continuous random process with time-dependent density
+   p(z(t), t), and suppose it evolves according to the ODE
+                                   dz(t)
+                                         = F(z(t), t).
+                                    dt
+   Assuming sufficient regularity so that the ODE flow and the evolving density
+   are well defined, the log-density along the trajectory satisfies
+                          d
+                             log p(z(t), t) = −∇z · F(z(t), t).                   (5.1.9)
+                          dt
+
+Proof for Lemma.
+
+142                              Flow-Based Perspective: From NFs to Flow Matching
+
+   This follows from the continuity equation together with the chain rule. We
+   present detailed alternative derivations in Section D.3.                 ■
+
+    Connection to Discrete-Time Formula.                     The NODE likelihood in Equa-
+tion (5.1.8),
+                                                             Z T
+           log pϕ (x(T ), T ) = log pprior (x(0), 0) −             ∇x · vϕ (x(t), t) dt,
+                                                               0
+
+can be seen as the continuous-time analogue of the discrete normalizing flow
+formulation in Equation (5.1.4):
+                                                           L−1
+                                                           X               ∂fk
+                   log pϕ (xL ) = log pprior (x0 ) −             log det       .
+                                                           k=0
+                                                                           ∂xk
+
+The integral mirrors the summation, and the trace operator replaces the log-
+determinant, as discussed in Equation (5.1.6). These parallels are further explored
+in the proof of the lemma.
+
+Training NODEs. Based on Equation (5.1.8), NODEs learn a parameterized
+velocity field vϕ such that the terminal distribution
+
+                                    pϕ (·, T ) ≈ pdata ,
+
+where trajectories evolve from latent variables x(0) ∼ pprior via the ODE flow.
+Training follows the MLE framework from Equation (1.1.2):
+                                                                          
+                        LNODE (ϕ) := Ex∼pdata log pϕ (x, T ) .
+
+    Exact Log-Likelihood Computation. To compute log pϕ (x, T ) for data point
+x, we integrate the change-of-variables formula equation 5.1.8:
+                                                  Z T
+           log pϕ (x, T ) = log pprior (z(0)) −            ∇z · vϕ (z(t), t) dt.           (5.1.10)
+                                                   0
+
+Here, z(t) solves the ODE reversely from t = T to t = 0:
+                                   dz(t)
+                                         = vϕ (z(t), t)
+                                    dt
+with z(T ) = x. The prior term log pprior (z(0)) is tractable for standard distributions.
+This enables exact likelihood-based training and evaluation in neural ODEs.
+
+     Gradient-Based Optimization. Maximizing LNODE requires backpropagation
+through the ODE solver. The adjoint sensitivity method (Pontryagin, 2018; Chen et
+al., 2018) computes gradients via an auxiliary ODE with O(1) memory complexity,
+but NODE training remains expensive due to numerical integration at each step.
+
+5.1. Flow-Based Models: Normalizing Flows and Neural ODEs                        143
+
+
+Inference with NODEs. Sampling with a trained model vϕ× proceeds by drawing
+x(0) ∼ pprior and integrating forward (by numerical solvers):
+                                            Z T
+                        x(T ) = x(0) +              vϕ× (x(t), t) dt.
+                                                0
+
+The terminal state x(T ) approximates a sample from pdata .
+   Moreover, we note that for any vector field F, the following identity holds:
+                                         ∂F
+                                               
+                               Tr                   = ∇z · F.
+                                        ∂z(t)
+Hence, the divergence can be estimated efficiently using stochastic trace estimators,
+such as Hutchinson’s estimator (Hutchinson, 1989), without explicitly constructing
+the full Jacobian. This makes likelihood evaluation much more practical in high-
+dimensional settings. However, because the trace is then estimated from random
+samples, the resulting numerical log-likelihood estimate is stochastic rather than
+an exact evaluation of the divergence.
+   Having seen in Figure 5.5 how many small bijections approach a continuous
+transport flow, we now ask a practical question:
+Question 5.1.1
+   How can we learn its velocity field without repeatedly solving an ODE during
+   training?
+
+This question leads naturally to Flow Matching, which learns the velocity field
+directly through a simulation-free regression objective and provides the flow-based
+perspective on diffusion models.
+
+144                                Flow-Based Perspective: From NFs to Flow Matching

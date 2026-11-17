@@ -1,0 +1,74 @@
+7.1     Prologue of Distribution-to-Distribution Translation
+
+Diffusion models fix the terminal distribution to a standard Gaussian, pprior .
+However, many applications require distribution-to-distribution translation: trans-
+forming a source distribution psrc into a different target ptgt . Examples include
+converting sketches to photorealistic images or translating between artistic styles.
+    Modern diffusion methods provide practical ways to achieve this. One-endpoint
+methods such as SDEdit (Meng et al., 2021b) begin with a source image at t = 0,
+diffuse it to an intermediate step t, and then use a pre-trained diffusion model for
+the target domain to reverse the process. This produces an output that matches
+the style and content of the target distribution.
+    Two-endpoint methods, like Dual Diffusion Bridge (Su et al., 2022), instead
+connect the two domains through a shared latent distribution, typically a Gaussian
+at t = 1. A forward probability–flow ODE transports samples from psrc into this
+latent space, while a reverse ODE trained on the target domain maps them back
+to ptgt . Beyond such sampling-time approaches, the Flow Matching framework
+described in Section 5.2 offers a training-based alternative: it directly learns an
+ODE flow that continuously moves mass from psrc to ptgt .
+    Crucially, transforming between distributions requires more than two separately
+trained models. It demands a principled mapping that aligns the dynamics at both
+endpoints and does so in the “cheapest” (cost-efficient) way.
+    In this section, rather than surveying the many diffusion-based translation
+applications, we shift our focus to the mathematical foundations of this classic
+distribution-to-distribution problem. In particular, we highlight optimal transport
+(OT) and its entropic variant, the Schrödinger bridge (SB), which have long been
+studied in the theoretical community as canonical formulations of cost-efficient (in
+mathematical sense) distributional transformation.
+    At its core, the fundamental question is:
+Question 7.1.1
+      Given two probability distributions, what is the most efficient way to transform
+      one into the other while minimizing the total cost?
+
+Here, the cost, c(x, y), is a non-negative function that assigns a penalty for moving
+a unit of mass from a point x to a point y. A common choice is the squared
+distance, c(x, y) = ∥x − y∥2 .
+    This section provides a brief overview to clarify how diffusion-based approaches,
+including flow matching, connect to classical and regularized optimal transport.
+The central question we aim to explore is:
+Question 7.1.2
+      Is a diffusion model a form of optimal transport connecting pdata and pprior ,
+
+212                              (Optional) Diffusion Models and Optimal Transport
+
+
+   and in what sense?
+
+     To address this question, we first clarify what “optimality” means in Section 7.2.
+We review classical optimal transport (OT) in the static Monge–Kantorovich form
+(Equation (7.2.1)) and its dynamic Benamou–Brenier formulation (Equation (7.2.3);
+minimizing kinetic energy subject to the continuity equation), as well as the entropy
+regularized variant (entropic OT ) in Equation (7.2.5), which is equivalent to the
+Schrödinger Bridge Problem (Equation (7.2.8)). In the dynamic view, OT induces
+a deterministic flow satisfying the continuity equation, whereas SB induces a
+controlled diffusion whose marginals evolve by the Fokker-Planck equation. We
+provide a high level map between these formulations in Section 7.3.
+     We then split the discussion into two parts. First, in Section 7.4, we explain
+that the fixed forward noising SDE used in standard diffusion models is not, by
+itself, a Schrödinger bridge between arbitrary psrc and ptgt : the forward process
+is a chosen reference diffusion and both forward-in-time or reverse-time SDE do
+not, in general, enforce exact endpoint matching to a prescribed target. Hence
+it is not entropic OT optimal unless one explicitly solves the SB problem with
+those endpoints; while it is an optimal solution to the half-bridge problem as it is
+anchored with one starting point.
+     Second, in Section 7.5, we return to the generative setting with psrc = pprior
+(Gaussian) and ptgt = pdata . The PF-ODE defines a deterministic map that
+transports pprior to pdata by construction. However, this flow is generally not an OT
+map for a prescribed transport cost (e.g., quadratic W2 ): it realizes one admissible
+deterministic coupling among many and does not minimize the Benamou–Brenier
+action. What follows is we discuss if the “rectify flow” procedure (Section 5.4.1)
+can lead to a OT map; however, in general, there is no such theoretical guarantee.
+Therefore, the exact characterization between diffusion model’s PF-ODE map and
+OT remains a challenging and unsolved problem.
+
+7.2. Taxonomy of the Problem Setups                                                                  213

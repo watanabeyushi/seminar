@@ -1,0 +1,279 @@
+3.1     Energy-Based Models
+
+For readers already familiar with EBMs, this section is meant as a concise refresher
+and a bridge to the score-based view of diffusion.
+
+3.1.1    Modeling Probability Distributions Using Energy Functions
+Let x ∈ RD denote a data point. EBMs define a probability density via an energy
+function Eϕ (x), parameterized by ϕ, which assigns lower energy to more likely
+configurations. The resulting distribution is given by
+                           exp(−Eϕ (x))
+                                                        Z
+                 pϕ (x) :=              ,      Zϕ :=          exp(−Eϕ (x)) dx,
+                               Zϕ                        RD
+
+where Zϕ is called the partition function ensuring normalization:
+                                      Z
+                                           pϕ (x) dx = 1.
+                                      RD
+
+
+
+exp −𝐸𝝓 𝒙                                               exp −𝐸𝝓 𝒙
+
+
+
+              Push down   Pull up
+                                               After
+                                             training
+
+
+
+            Bad data      Good data                                 Bad data     Good data
+
+                                      𝐱                                                      𝐱
+Figure 3.1: Illustration of EBM training. The model lowers density (raises energy) at “bad” data
+points (red arrows), and raises density (lowers energy) at “good” data points (green arrows).
+                                                                 Source: Created by the authors.
+
+
+    In this view, points with lower energy correspond to higher probability, much
+like a ball rolling down into a valley. The partition function Zϕ ensures that all
+probabilities add up to one, and as a result only the relative values of energy
+matter. For instance, adding a constant to all energies multiplies both numerator
+and denominator by the same factor, leaving the distribution unchanged.
+    Moreover, because the partition function Zϕ enforces that probabilities sum to
+one, it follows mathematically that decreasing the energy within a region increases
+its probability, while the probability of its complement decreases accordingly. Thus,
+EBMs obey a strict global trade-off: making one valley deeper inevitably makes
+others shallower, and probability mass is redistributed across the entire space
+rather than assigned independently to each region.
+
+66                                         Score-Based Perspective: From EBMs to NCSN
+
+
+Challenges of Maximum Likelihood Training in EBMs. In principle, EBMs can
+be trained by maximum likelihood, which naturally balances fitting the data with
+global regularization (see Equation (1.1.2)):
+                                       "                           #
+                                               exp(−Eϕ (x))
+               LMLE (ϕ) = Epdata (x)       log                                             (3.1.1)
+                                                   Zϕ
+                                                               Z
+                         = − Epdata [Eϕ (x)] − log                     exp(−Eϕ (x)) dx,
+                               |       {z        }
+                             lowers energy of data
+                                                         |                 {z          }
+                                                               global regularization
+           R
+with Zϕ = exp(−Eϕ (x)) dx. The first term lowers the energy of real data, while
+the second enforces normalization via the partition function.
+    However, in high dimensions computing log Zϕ and its gradient is intractable,
+as it requires expectations under the model distribution. This motivates alternative
+objectives that either approximate the term, such as contrastive divergence (Hinton,
+2002), or avoid it altogether through score matching.
+    In what follows, we first introduce the notion of the score function in Sec-
+tion 3.1.2 and present score matching as a tractable training objective that bypasses
+the partition function in Section 3.1.3, and then discuss Langevin dynamics as a
+practical sampling method with score functions in Section 3.1.4.
+
+3.1.2   Motivation: What Is the Score?
+For a density p(x) on RD , the score function is the gradient of the log-density:
+
+                        s(x) := ∇x log p(x),              s : RD → RD .
+
+Intuitively, the score forms a vector field that points toward regions of higher
+probability, providing a local guide to where the data is most likely to occur (see
+Figure 3.2).
+
+Why Model Scores Instead of Densities? Modeling the score offers both theo-
+retical and practical benefits:
+
+   1. Freedom from Normalization Constants. Many distributions are defined
+only up to an unnormalized density p̃(x), e.g., exp(−Eϕ (x)) in EBMs:
+                                   p̃(x)
+                                                          Z
+                          p(x) =         ,           Z=        p̃(x) dx.
+                                     Z
+While computing Z is intractable, the score depends only on p̃:
+
+                 ∇x log p(x) = ∇x log p̃(x) − ∇x log Z = ∇x log p̃(x),                     (3.1.2)
+                                                     |    {z       }
+                                                          =0
+
+since Z is constant in x. This bypasses the partition function entirely.
+
+3.1. Energy-Based Models                                                                            67
+
+
+
+
+Figure 3.2: Illustration of score vector fields. Score vector fields ∇x log p(x) indicate directions of
+increasing density.
+                                                                     Source: Created by the authors.
+
+
+   2. A Complete Representation. The score function fully characterizes the
+underlying distribution. Since it is the gradient of the log-density, the density can
+be recovered (up to a constant) via
+                                            Z 1
+               log p(x) = log p(x0 ) +            s(x0 + t(x − x0 ))⊤ (x − x0 ) dt,
+                                             0
+
+where x0 is a reference point and log p(x0 ) is fixed by normalization. Thus, modeling
+the score is as expressive as modeling p(x) itself, while often more tractable for
+generative modeling.
+
+3.1.3    Training EBMs via Score Matching
+                                                       ϕ    exp(−E (x))
+In EBMs, the density is defined as pϕ (x) =          Zϕ    . Maximum likelihood
+training requires computing Zϕ , which is generally intractable. A key observation
+is that the model score of pϕ simplifies to: −∇x Eϕ (x), independent of Zϕ (see
+Equation (3.1.2)).
+    Score matching (Hyvärinen and Dayan, 2005) leverages the fact that scores
+depend only on the energy function. Instead of fitting normalized probabilities, it
+trains EBMs by aligning the model score with the (unknown) data score:
+                                                                                   2
+                 LSM (ϕ) = 12 Epdata (x) ∇x log pϕ (x) − ∇x log pdata (x) 2 .                  (3.1.3)
+
+68                                        Score-Based Perspective: From EBMs to NCSN
+
+
+
+
+Figure 3.3: Illustration of Langevin sampling. Langevin sampling using the score function
+∇x log pϕ (x) to guide trajectories toward high-density regions via the update in Equation (3.1.5)
+(indicating by arrows).
+                                                                  Source: Created by the authors.
+
+
+   Although the data score is inaccessible, integration by parts yields an equivalent
+expression involving only the energy and its derivatives (see Proposition 3.2.1 for
+more details):
+                                    h                                        i
+             LSM (ϕ) = Epdata (x) − Tr ∇2x Eϕ (x) + 12 ∥∇x Eϕ (x)∥22 + C,
+                                                       
+
+
+where ∇2x Eϕ (x) is the Hessian of Eϕ and C is a constant independent of ϕ.
+    This formulation is attractive because it eliminates the partition function and
+avoids sampling from the model during training. Its main drawback is the need
+for second-order derivatives: although one only needs the trace of the Hessian
+(Tr ∇2x Eϕ ), rather than the full Hessian matrix, exact computation of this
+           
+
+term generally requires aggregating second-derivative information across input
+coordinates, so its cost typically increases with the input dimension D. We will
+revisit approaches to addressing this limitation later in the chapter.
+
+3.1.4    Langevin Sampling with Score Functions
+
+Sampling from EBMs, defined by the energy function Eϕ (x), can be performed
+using Langevin dynamics. We first present the discrete-time Langevin update and
+then its continuous-time limit as a stochastic differential equation (SDE). Finally,
+we discuss the physical intuition behind how Langevin dynamics enables efficient
+exploration of complex energy landscapes.
+
+3.1. Energy-Based Models                                                                          69
+
+
+Discrete-Time Langevin Dynamics.                The discrete-time Langevin update is
+                                                    p
+                 xn+1 = xn − η∇x Eϕ (xn ) +             2ηϵn ,       n = 0, 1, 2, . . . ,    (3.1.4)
+
+where x0 is initialized from some distribution (often Gaussian), η > 0 is the step
+size, and ϵn ∼ N (0, I) is Gaussian noise. The noise enables exploration beyond
+local minima by adding stochasticity.
+    Since the score function can be computed as
+
+                                 ∇x log pϕ (x) = −∇x Eϕ (x).
+
+the update can equivalently be written as
+                                                                     p
+                          xn+1 = xn + η∇x log pϕ (xn ) +                 2ηϵn ,              (3.1.5)
+
+where the score function guides the samples toward high-density regions. This
+formulation is central to diffusion models, as will be detailed later.
+
+Continuous-Time Langevin Dynamics. As the step size η approaches zero,
+the discrete Langevin updates naturally converge to a continuous-time process
+described by the Langevin Stochastic Differential Equation (SDE)1 :
+                                                  √
+                    dx(t) = ∇x log pϕ (x(t)) dt + 2 dw(t),             (3.1.6)
+
+where w(t) denotes a standard Brownian motion (also known as a Wiener process2 ).
+It is important to understand that the discrete update rule in Equation (3.1.4)
+serves as the Euler–Maruyama discretization of this continuous SDE.
+    Under standard regularity assumptions (e.g., pϕ ∝ e−Eϕ with a confining,
+sufficiently smooth Eϕ ), the distribution of x(t) converges (exponentially fast) to
+pϕ as t → ∞; thus we can sample by simulating (solving) the SDE Equation (3.1.6).
+
+Why Langevin Sampling? A natural way to understand Langevin sampling is
+through the lens of physics, where the energy function Eϕ (x) defines a potential
+landscape that shapes the behavior of particles. According to Newtonian dynamics,
+    1
+                        √
+      With the factor 2, the Langevin dynamics leave pϕ unchanged in time. Namely, pϕ is
+stationary: if x(0) ∼ pϕ then x(t) ∼ pϕ for all t ≥ 0. Equivalently, pϕ is the stationary solution of
+the Fokker–Planck equation (see Chapter B):
+                                                                 2
+                                 ∂t ρ = −∇ · (ρ∇ log pϕ ) + σ2 ∆ρ.
+                         2                                       √
+Setting ρ = pϕ gives ( σ2 − 1)∆pϕ = 0, which holds only if σ = 2.
+    2
+      Brownian
+           √ increments satisfy √  w(t + η) − w(t) ∼ N (0, ηI). Euler–Maruyama therefore uses a
+                                                                               √
+step noise 2[w(t + η) − w(t)] = 2ηϵn with ϵn ∼ N (0, I), which explains the η factor.; this is
+the source of the square-root scaling. For a detailed introduction to Brownian motion and SDEs,
+please refer to Chapter A.
+
+70                                     Score-Based Perspective: From EBMs to NCSN
+
+
+the motion of a particle under the force field derived from this energy is described
+by the ordinary differential equation (ODE)
+                                                         
+                               dx(t) = −∇x Eϕ x(t) dt,
+
+which deterministically drives the particle downhill toward a local minimum of
+the energy function. However, such deterministic dynamics can become trapped in
+local minima, preventing exploration of the full data distribution.
+    To overcome this limitation, Langevin dynamics introduces stochastic pertur-
+bations, resulting in the SDE
+                                                 √
+                      dx(t) = −∇x Eϕ x(t) dt + 2 dw(t) ,
+                                                         |   {z   }
+                                                      injected noise
+
+where w(t) is a standard Brownian motion. The noise term allows the particle to
+escape local minima by crossing energy barriers, making the trajectory a stochastic
+process whose stationary distribution converges to the Boltzmann distribution
+
+                                   pϕ (x) ∝ e−Eϕ (x) .
+
+    From this perspective, EBMs can be viewed as learning a force field that pushes
+samples toward regions of high probability. Langevin sampling is particularly useful
+for EBMs because it provides a practical method to generate samples from the
+model distribution pϕ (x) without explicitly computing the partition function. By
+iteratively applying the Langevin update, one obtains samples that approximate
+the target distribution.
+
+Inherent Challenges of Langevin Sampling. Langevin dynamics, a widely used
+MCMC-based sampler, faces serious limitations in high-dimensional spaces. Its
+efficiency is highly sensitive to the choice of step size η, noise scale, and the number
+of iterations required to approximate the target distribution accurately.
+     At the heart of this inefficiency lies the issue of poor “mixing time”: In complex
+data distributions with many isolated modes, Langevin sampling often requires an
+extremely long time to transition between regions of high probability. This problem
+becomes significantly worse as dimensionality increases, leading to prohibitively
+slow convergence.
+     One can think of sampling as exploring a vast and rugged landscape with many
+distant valleys, each corresponding to a different data mode. Langevin dynamics,
+relying on local stochastic updates, struggles to traverse between these valleys
+efficiently. As a result, it often fails to capture the full diversity of the distribution.
+     This inefficiency hints the need for more structured and guided sampling
+methods that can navigate complex data manifolds more effectively than purely
+random exploration.
+
+3.2. From Energy-Based to Score-Based Generative Models                                     71

@@ -1,0 +1,228 @@
+6.1       Conditional Tricks: The Secret Sauce of Diffusion Models
+
+Until now, we have explored diffusion models from three seemingly distinct origins:
+variational, score-based, and flow based perspectives. Each was originally motivated
+by different goals and led to its own training objectives (with a fixed t):
+      ■   Variational View: Learn a parametrized density pϕ (xt−∆t |xt ) to approximate
+          the oracle reverse transition p(xt−∆t |xt ) by minimizing:
+                                                                                  
+                     JKL (ϕ) := Ept (xt ) DKL p(xt−∆t |xt )∥pϕ (xt−∆t |xt ) ;
+
+      ■   Score-Based View: Learn a score model sϕ (xt , t) to approximate the marginal
+          score ∇x log pt (xt ) via:
+                                              h                                i
+                        JSM (ϕ) := Ept (xt ) ∥sϕ (xt , t) − ∇x log pt (xt )∥22 ;
+
+      ■   Flow-Based View: Learn a velocity model vϕ (xt , t) to match the oracle
+          velocity vt (xt ) (e.g., defined by Equation (5.2.9)) by minimizing:
+                                                  h                       i
+                           JFM (ϕ) := Ept (xt ) ∥vϕ (xt , t) − vt (xt )∥22 .
+
+    At first glance, these objectives seem hopelessly intractable, since they all
+require access to oracle quantities that are fundamentally unknowable in general.
+But here comes the exciting twist: each method independently arrives at the same
+elegant solution to this problem: conditioning on the data x0 . This technique
+transforms each intractable training target into a tractable one.
+    This elegant “conditioning technique” rewrites the objectives as expectations
+over the known Gaussian conditionals pt (xt |x0 ), yielding tractable conditional
+targets and training objectives that are gradient-equivalent to their marginal
+counterparts:
+      ■   Variational View (Equation (2.2.3)):
+                                                                                       
+               JKL (ϕ) = Ex0 Ept (xt |x0 ) DKL p(xt−∆t |xt , x0 )∥pϕ (xt−∆t |xt ) +C;
+                          |                             {z                              }
+                                                      JCKL (ϕ)
+
+      ■   Score-Based View (Equation (3.3.3)):
+                                              h                                     i
+                 JSM (ϕ) = Ex0 Ept (xt |x0 ) ∥sϕ (xt , t) − ∇xt log pt (xt |x0 )∥22 +C;
+                              |                          {z                         }
+                                                      JDSM (ϕ)
+
+      ■   Flow-Based View (Equation (5.2.10)):
+                                                  h                            i
+                    JFM (ϕ) = Ex0 Ept (xt |x0 ) ∥vϕ (xt , t) − vt (xt |x0 )∥2 +C.
+                                  |                      {z                    }
+                                                      JCFM (ϕ)
+
+180                                        A Unified and Systematic Lens on Diffusion Models
+
+
+To build a unified view, we next revisit the conditional KL, score, and velocity
+objectives in a systematic manner. Crucially, these objectives are not only tractable
+but also equivalent to their original forms up to a constant vertical shift. The
+conditional versions (JCKL , JDSM , JCFM ) differ from the originals (JKL , JSM , JFM )
+only by a constant that is independent of the model parameters. Consequently,
+each conditional objective has the same minimizers as its original counterpart
+within the same model class.
+   To see what these minimizers ideally recover, suppose the model is expressive
+enough to represent the exact oracle. Despite their different objectives, all three
+perspectives then share the same conceptual pattern:
+                                                                                  
+
+                                                            {z oracle} .
+                   marginal oracle = Ex0 ∼p(·|xt ) conditional       
+                   |        {z        }             |
+                   generally intractable                     tractable given x0
+
+That is, conditioning on the clean sample x0 gives a tractable target, and averaging
+these conditional targets over the possible clean samples consistent with xt recovers
+the desired marginal oracle. Concretely,
+
+
+      p∗ (xt−∆t |xt ) = Ex0 ∼p(·|xt ) p(xt−∆t |xt , x0 )
+                                                            
+                                                                     = p(xt−∆t |xt ),
+            ∗                                                   
+           s (xt , t) = Ex0 ∼p(·|xt ) ∇xt log pt (xt |x0 )           = ∇xt log pt (xt ),   (6.1.1)
+            ∗                                       
+           v (xt , t) = Ex0 ∼p(·|xt ) vt (xt |x0 )                   = vt (xt ).
+
+    For the variational view, the first identity follows from marginalizing the
+conditional reverse transition over x0 , and the KL objective is minimized by the
+resulting marginal reverse transition. For score and velocity matching, the squared-
+error objectives are least-squares regressions whose population minimizers are the
+corresponding conditional expectations. These identities describe the unrestricted
+population oracles; a restricted neural model need not represent them exactly.
+Below is a concrete example of a scenario with a finite number of data points.
+
+Example: Closed-Form Oracle Targets on a Finite Dataset
+   To make Equation (6.1.1) more concrete, suppose the data distribution is the
+   empirical measure
+                                        N
+                                     1 X
+                               p̂0 =       δ (i) ,
+                                     N i=1 x0
+             (i)
+   where {x0 }N
+              i=1 denotes the finite training set.
+     In Equation (6.1.1), the notation
+                                               x0 ∼ p(·|xt )
+   means that we average over the posterior distribution of the clean sample given
+
+6.1. Conditional Tricks: The Secret Sauce of Diffusion Models                                                 181
+
+  the noisy observation xt . Equivalently, for any quantity h(x0 ),
+                                                    Z
+                        Ex0 ∼p(·|xt ) [h(x0 )] =         h(x0 ) p(x0 |xt ) dx0 .
+
+      By Bayes’ rule,
+                                              pt (xt |x0 ) pdata (x0 )
+                           p(x0 |xt ) = R                                    .
+                                             pt (xt |x̃0 ) pdata (x̃0 ) dx̃0
+  Under the standard Gaussian diffusion forward process,
+                                                                          
+                                      (i)                            (i)
+                             pt (xt |x0 ) = N xt ; αt x0 , σt2 I ,
+
+  so the conditional likelihood is explicit. However, at the population level, the
+  posterior p(x0 |xt ) still requires averaging over the full data distribution pdata .
+     If we now replace pdata by the empirical measure
+                                                     N
+                                                  1 X
+                                       p̂0 =           δ (i) ,
+                                                  N i=1 x0
+
+  then the posterior p(x0 |xt ) is supported only on the training examples, and its
+            (i)
+  mass at x0 is
+                                            (i)                                  N
+                 (i)             pt (xt |x0 )                                    X
+        p(x0 = x0 |xt ) = P                  (j)
+                                                        =: wi (xt , t),                    wi (xt , t) = 1.
+                                N
+                                j=1 pt (xt |x0 )                                 i=1
+
+  Hence the posterior expectation above reduces to the finite sum
+                                                        N
+                                                        X                      (i)
+                         Ex0 ∼p(·|xt ) [h(x0 )] =             wi (xt , t)h(x0 ).
+                                                        i=1
+
+  Thus, in the finite-dataset case, the abstract posterior averaging in Equa-
+  tion (6.1.1) becomes a concrete weighted average over the training set, with
+  weights wi (xt , t). We now make these three cases explicit.
+
+  Variational View.       The oracle reverse transition becomes
+                                            N
+                                                                                     (i)
+                       p∗ (xt−∆t |xt ) =
+                                            X
+                                                  wi (xt , t)p(xt−∆t |xt , x0 ).
+                                            i=1
+
+  Here each conditional reverse kernel
+                                                               (i)
+                                       p(xt−∆t |xt , x0 )
+
+  is itself available in closed form under Gaussian diffusion; in fact, it is Gaussian as
+  shown in Lemma 2.2.2. So the true reverse kernel is simply a posterior-weighted
+  mixture of explicit Gaussian bridges.
+
+182                               A Unified and Systematic Lens on Diffusion Models
+
+  Score-Based View. Likewise, the oracle score becomes
+                                      N
+                                                                            (i)
+                     s∗ (xt , t) =
+                                      X
+                                            wi (xt , t)∇xt log pt (xt |x0 ).
+                                      i=1
+
+  The conditional score is explicit:
+                                                            (i)
+                                           (i)     xt − αt x0
+                          ∇xt log pt (xt |x0 ) = −              .
+                                                       σt2
+  Therefore,
+                                                         N
+                                                                                  !
+                     ∗             1                     X                 (i)
+                    s (xt , t) = − 2          xt − αt          wi (xt , t)x0          .
+                                  σt                     i=1
+  So the marginal score points from the noisy sample toward a posterior-weighted
+  average of training examples.
+
+  Flow-Based View.       The same phenomenon appears for flow matching:
+                                            N
+                            ∗
+                                            X                         (i)
+                           v (xt , t) =           wi (xt , t)vt (xt |x0 ).
+                                            i=1
+
+  Again, the building blocks are explicit. The corresponding conditional velocity
+  field has closed form:
+                                (i)               (i)   σt′          (i) 
+                         vt (xt |x0 ) = αt′ x0 +            xt − αt x0 .
+                                                        σt
+  Hence the oracle velocity is also an explicit posterior-weighted average over the
+  dataset.
+     Taken together, these formulas show that, on a finite dataset, all three oracle
+  targets reduce to explicit posterior-weighted averages of closed-form conditional
+  quantities.
+
+  Remark on Memorization. The formulas above characterize the exact oracle
+  targets induced by the empirical distribution p̂0 , rather than by the unknown
+  population distribution pdata . If the model learned these empirical targets
+  perfectly at every noise level, and if the reverse process were computed without
+  error, then generation would exactly reproduce the empirical distribution p̂0 .
+  Since p̂0 assigns probability only to the training examples, the generated samples
+  would be drawn from the training set itself. In this idealized sense, perfect
+  fitting of the empirical oracle amounts to memorization.
+      However, a practically trained diffusion model, need not realize this oracle
+  exactly: it is learned with finite model capacity and finite optimization, and
+  its generated distribution is further affected by model approximation and
+
+6.1. Conditional Tricks: The Secret Sauce of Diffusion Models                 183
+
+  numerical sampling errors. Therefore, the finite-dataset calculation establishes
+  memorization as an exact empirical solution, but does not imply that every
+  practically trained model necessarily memorizes its training set.
+                                                                                ■
+    The common conditional reformulation is no coincidence: by making training
+tractable, it reveals a profound unification. Variational diffusion, score-based
+SDEs, and flow matching are simply different facets of the same principle. Three
+perspectives, one insight, elegantly connected. We will continue to explore their
+equivalence throughout the rest of this chapter.
+
+184                                  A Unified and Systematic Lens on Diffusion Models

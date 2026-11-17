@@ -1,0 +1,448 @@
+4.1     Score SDE: Its Principles
+
+
+          t≈0                         t = 0.33                                              t = 0.67              t≈1
+
+
+
+
+                            Filled contours: density pt (x)   Red arrows: score ∇x log pt (x)   ×: mode centers
+
+
+
+Figure 4.1: Illustration of the time-dependent score landscape. As the noise level increases, the
+perturbed density pt (x) evolves from a multimodal distribution (data) concentrated near the data
+modes to a broad nearly unimodal distribution (prior). Accordingly, the score field ∇x log pt (x)
+changes from a sharply local vector field that pulls samples toward nearby modes to a smooth
+global field that points toward the overall center of mass. This time-dependent score field is the
+key object learned in score-based diffusion models (i.e., Score SDE).
+                                                        Source: Created by the authors with AI-assisted coding.
+
+
+    The use of multiple noise scales has been a crucial ingredient in the success of
+NCSN and DDPM frameworks. In this section, we introduce the foundation of the
+Score SDE (Song et al., 2020c), which elevates this idea by considering a continuum
+of noise levels. A continuous-time limit of forward and reverse diffusion processes
+had already been noted by Sohl-Dickstein et al. (2015), but Song et al. (2020c) make
+this perspective central by formulating the data evolution as a stochastic/ordinary
+differential equation, where the noise level increases smoothly over time. Central
+to this formulation is the time-dependent score function ∇x log pt (x): at each
+noise level t, it points toward regions of higher density under the current noisy
+distribution pt , and it is precisely this quantity that determines how to reverse the
+diffusion. As Figure 4.1 illustrates, the score field evolves from sharply converging
+toward individual data modes at small t to pointing gently toward the global
+center at large t. This continuous-time formulation not only unifies prior discrete-
+time models but also provides a principled and flexible foundation for generative
+modeling: learning this family of score functions across all noise levels reduces
+generation to the problem of solving differential equations.
+
+
+4.1.1    Motivation: From Discrete to Continuous-Time Processes
+
+We revisit the forward noise injection schemes of NCSN and DDPM. NCSN uses
+a sequence of increasing noise levels {σi }L
+                                           i=1 . Each clean sample x0 ∼ pdata is
+perturbed as
+                            xσi = x0 + σi ϵi ,                                   ϵi ∼ N (0, I).
+
+96                                         Diffusion Models Today: Score SDE Framework
+
+
+DDPM instead injects noise incrementally with a variance schedule {βi }L  1
+                                                                       i=1 :
+                            p                     p
+                     xi =       1 − βi xi−1 +         βi ϵi ,     ϵi ∼ N (0, I).
+   We view them together on a discrete time grid, where the sequential update
+from xt to xt+∆t takes the form2 :
+                                                                           s
+                            q
+                                 2                                               dσt2
+ NCSN: xt+∆t = xt +             σt+∆t − σt2 ϵt                  ≈ xt +                ∆tϵt
+                                                                                  dt
+                     q                      q              1             q
+DDPM: xt+∆t = 1 − β(t)∆txt + β(t)∆tϵt ≈ xt − β(t)xt ∆t + β(t)∆tϵt ,
+                                                           2
+where ϵt ∼ N (0, I). Interestingly, both noise injection processes follow a common
+structural pattern:
+                                                       √
+                       xt+∆t ≈ xt + f (xt , t)∆t + g(t) ∆t ϵt ,               (4.1.1)
+with f : RD × R → RD and g : R → R given by:
+                                                                  s
+                                                                      dσ 2 (t)
+                    NCSN:         f (x, t) = 0,          g(t) =
+                                                                        dt
+                                        1                 q
+                   DDPM:    f (x, t) = − β(t) x,   g(t) = β(t).
+                                        2
+     This formulation corresponds to the following Gaussian transition:
+                                                                                      
+                 p(xt+∆t |xt ) := N xt+∆t ; xt + f (xt , t)∆t, g 2 (t)∆t I ,                 (4.1.2)
+where, by a slight abuse of notation, we treat xt as a fixed sample and xt+∆t as a
+random variable.
+    As ∆t → 0 (which can be conceptually understood as preparing infinitely many
+layers of noises), the discrete-time process converges to a continuous time SDE
+evolving forward in time3 :
+                             dx(t) = f (x(t), t) dt + g(t) dw(t),
+where w(t) is a standard Wiener process (or Brownian motion).
+
+Remark.
+
+     1
+                                                                         p
+       In Section 2.2, the DDPM forward step is written as xi = 1 − βi2 xi−1 + βi ϵi , where βi
+                                                               p
+denotes the standard deviation of the injected noise and αi := 1 − βi2 . Here and throughout this
+chapter, we follow the convention of√Song et al. (2020c),
+                                                      √     where βi instead denotes the variance
+of the injected noise, so that xi = 1 − βi xi−1 + βi ϵi . The two conventions are related by
+  (here)      (Ch. 2) 2
+                     
+βi       = βi           and yield identical dynamics.
+     2
+       For convenience, we use x(t) and xt interchangeably (and similarly for other time-dependent
+variables) to denote samples at time t.
+     3
+       The forward kernel in Equation (4.1.2) converges, as ∆t → 0, to the solution of the
+corresponding Itô SDE. A fully rigorous proof relies on advanced results which we defer to the
+literature.
+
+4.1. Score SDE: Its Principles                                                                          97
+
+
+                 𝐱𝑡                                                                 𝐱 𝑡+𝛥𝑡
+
+
+
+                                             Add noise
+
+
+                                  𝒩 𝐱 𝑡+𝛥𝑡 ; 𝐱 𝑡 + 𝐟 𝐱 𝑡 , 𝑡 Δ𝑡, 𝑔2 𝑡 Δ𝑡𝐈
+
+
+
+
+Figure 4.2: Illustration of the discrete-time noise-adding step. It adds noise from t to t + ∆t
+with mean drift f (xt , t) and diffusion coefficient g(t).
+                                                                            Source: Created by the authors.
+
+
+   While a full formal definition is not necessary here, a Wiener process is a
+   continuous-time stochastic process w(t) that starts at zero, has independent
+   increments, and satisfies that for any s < t, the increment w(t) − w(s) is
+   normally distributed with mean zero and variance t − s. It represents the
+   accumulation of independent Gaussian fluctuations over time, and although it
+   is almost surely continuous, it is nowhere differentiable.
+       Over an infinitesimal time interval [t, t + dt], the increment of a Wiener
+   process is defined as
+                             dw(t) := w(t + dt) − w(t),
+   which is modeled as a Gaussian random variable with zero mean and variance
+   dt:
+                               dw(t) ∼ N (0, dtI).
+
+
+    A brief introduction to the foundations of SDEs is provided in Section A.2,
+with a more advanced discussion in Chapter C. However, we can conceptually
+understand the connection between the discrete and continuous formulations as
+follows:
+
+    ■   x(t + ∆t) − x(t) ≈ dx(t),
+
+    ■ ∆t ≈ dt,
+      √
+    ■   ∆tϵt ∼ N (0, ∆tI) ≈ dw(t).
+
+Once the drift f (x, t) and diffusion g(t) are specified, the forward time SDE
+automatically induces a reverse time SDE that transports the terminal noise
+distribution back to the data distribution. The reverse dynamics involve only
+a single unknown term, surprisingly the score function at each continuous-time
+
+98                                        Diffusion Models Today: Score SDE Framework
+
+
+level. This identifies score matching as the training objective; once the score is
+learned, sampling amounts to numerically integrating the reverse time SDE with
+the learned score.
+    While Section 4.3 presents practical implementations, we first examine the
+theoretical foundations of the forward and reverse processes in Section 4.1.2 and
+Section 4.1.3.
+
+4.1.2    Forward-Time SDEs: From Data to Noise
+
+
+
+
+     p0 = pdata    t=0                                                        t=T    pT pprior
+
+Figure 4.3: (1D) Visualization of the forward process in a diffusion model. The process starts from
+initial points sampled (denoted as “×”) from a complex bimodal data distribution (p0 = pdata )
+and evolves toward a simple, unimodal Gaussian prior (pT ≈ pprior ). The background heatmap
+illustrates the evolving marginal probability density, pt , which smooths over time. Sample
+trajectories are shown evolving from t = 0 to t = T , comparing the stochastic forward SDE
+process (blue paths) with its deterministic counterpart, the PF-ODE (white paths). Note that
+the PF-ODE is a deterministic transport map for densities, not generally the mean of sample
+paths started from a single point.
+                                                                  Source: Created by the authors.
+
+   With this formulation, earlier methods based on discrete time, such as NCSN (Song
+and Ermon, 2019) and DDPM (Sohl-Dickstein et al., 2015; Ho et al., 2020), can
+be unified under the continuous-time framework through a stochastic process x(t)
+governed by a forward SDE defined on the interval [0, T ]:
+
+                   dx(t) = f (x(t), t) dt + g(t) dw(t),        x(0) ∼ pdata .           (4.1.3)
+
+Here, f (·, t) : RD → RD is the drift, g(t) ∈ R is the scalar diffusion coefficient, and
+w(t) denotes a standard Wiener process. We refer to this as the forward SDE,
+which describes how clean data is gradually perturbed into noise over time.
+
+4.1. Score SDE: Its Principles                                                                       99
+
+
+    Once the drift f and diffusion coefficient g are specified, the forward pro-
+cess is fully determined, describing how the data variable is progressively cor-
+rupted through the injection of Gaussian noise. In particular, two families of
+time-dependent densities are induced:
+
+Perturbation Kernels.            The conditional law
+
+                                              pt (xt |x0 )
+
+describes how a clean data sample x0 ∼ pdata evolves into its noisy counterpart xt
+at time t. In general, the drift term f (x, t) in Equation (4.1.3) can be an arbitrary
+function of x, but a common and analytically convenient choice is to assume it is
+affine:
+                                    f (x, t) = f (t)x,                         (4.1.4)
+where f (t) is a scalar function of t, typically taken to be non-positive. Under this
+structure, the conditional process remains Gaussian given x0 , and the perturbation
+kernel admits a closed-form solution obtained by solving the associated mean–
+variance ODEs (Särkkä and Solin, 2019) (see also Section 4.4.3). In particular,
+                                                                         
+                             pt (xt |x0 ) = N xt ; m(t), P (t)ID ,
+
+with
+                    Z t                                 Z t        Z t             
+       m(t) = exp          f (u) du x0 ,        P (t) =          exp 2        f (u) du g 2 (s) ds,
+                       0                                     0            s
+
+and initial conditions m(0) = x0 , P (0) = 0.
+    This explicit form allows one to sample xt given x0 directly, without numerically
+integrating the SDE, hence the term simulation-free. Both NCSN and DDPM fall
+into this affine-drift setting.
+    In the remainder, we develop the general theory for arbitrary drifts f (x, t), but
+will return to the affine drift when closed-form analysis is useful.
+
+Marginal Densities. The time-marginal density pt (xt ) is obtained by integrating
+over the perturbation kernel:
+                             Z
+               pt (xt ) :=        pt (xt |x0 )pdata (x0 ) dx0 ,    with p0 = pdata .             (4.1.5)
+
+     By choosing the coefficients f (t) and g(t) appropriately, the forward process
+gradually adds noise until the influence of the initial state is effectively forgotten.
+As T becomes large, the conditional distribution pT (xT |x0 ) no longer depends on
+x0 , because its mean evolves as
+                                    Z T             
+                 m(T ) = exp                f (u) du x0 −→ 0,            as T → ∞,
+                                        0
+
+100                                          Diffusion Models Today: Score SDE Framework
+
+
+provided f (u) is non-positive so that the exponential factor decays. At the same
+time, the variance grows and stabilizes to match a chosen prior distribution.
+Consequently, the marginal
+                                        Z
+                           pT (xT ) =        pT (xT |x0 )pdata (x0 ) dx0 ,
+
+which initially represents a complicated mixture over data samples, converges to a
+simple prior pprior , typically Gaussian. In this limit,
+
+                   pT (xT ) ≈ pprior (xT )     and    pT (xT |x0 ) ≈ pprior (xT ),
+
+so the forward process maps any data distribution into a tractable prior, providing
+a convenient starting point for reversal and generation.
+
+4.1.3     Reverse-Time Stochastic Process for Generation
+
+
+
+
+      p0 = pdata   t=0                                                         t = T pT pprior
+Figure 4.4: Visualization of the reverse-time stochastic process for data generation. It begins
+from samples drawn from a simple prior distribution (pprior ) at t = T (denoted as “×”), which
+are evolved backward in time using a reverse-SDE. The resulting trajectories terminate at t = 0
+and collectively form the target bimodal data distribution (p0 = pdata ). The background heatmap
+illustrates how the probability density is gradually transformed from a simple Gaussian into the
+complex target distribution.
+                                                                     Source: Created by the authors.
+
+    Intuitively, data generation from noise can be achieved by “reversing” the
+forward process: starting from a random point sampled from the prior distribution
+and evolving it backward in time to obtain a generated sample. For deterministic
+systems (that is, ODEs), this idea works naturally. Since no randomness is involved,
+reversing time simply means tracing the trajectory of a point in the opposite
+
+4.1. Score SDE: Its Principles                                                               101
+
+
+direction along the same path as in the forward process4 . In contrast, SDEs
+incorporate stochasticity at every time step, meaning that a single point can evolve
+along many plausible random trajectories. As a result, reversing such processes is
+more subtle5 .
+    While individual stochastic trajectories are not reversible, the remarkable
+insight is that the distribution over these trajectories can be reversed. This is
+formalized by a foundational result from Anderson (1982), which shows that the
+time-reversed process {x̄(t)}t∈[0,T ] 6 of the forward process in Equation (4.1.3) is
+itself governed by a well-defined SDE. This reverse-time process evolves from T to
+0, and its dynamics are given by:
+
+                     h                                    i
+           dx̄(t) = f (x̄(t), t)−g 2 (t)∇x log pt (x̄(t)) dt + g(t) dw̄(t),            (4.1.6)
+                                                        x̄(T ) ∼ pprior ≈ pT .
+
+
+Here, w̄(t) denotes a standard Wiener process in reverse time, defined as w̄(t) :=
+w(T − t) − w(T ).
+
+Remark.
+   Throughout this chapter, t denotes the original diffusion clock: t = 0 corresponds
+   to data and t = T to noise. Accordingly, the reverse-time SDE in Equation (4.1.6)
+   is integrated from t = T down to t = 0, so dt < 0 along the reverse process.
+   Equivalently, one may introduce a forward-running reverse clock s := T − t;
+   unless stated otherwise, we keep the original clock t.
+    To build intuition for Equation (4.1.6), we present a concrete example in
+Section 4.2.2 with a Gaussian data distribution and linear–Gaussian dynamics.
+This setting is analytically tractable: one can derive the time-reversal formula
+directly using basic calculus and linear algebra, without invoking the full general
+theory of Anderson (1982).
+    Note that the presence of stochasticity (g ̸= 0) introduces an additional
+correction term, −g 2 (t)∇x log pt (x̄(t)), which accounts for the effect of diffusion
+and ensures that the reversed dynamics correctly reproduce the evolution of
+marginal distributions induced by the forward SDE (see Section 4.2).
+
+Conceptually, Why Does the Reverse Process Work? Section 4.6.2 presents
+an intuitive derivation of the reverse-time SDE by connecting it to the DDPM
+   4
+     Technically, this corresponds to solving the ODE with a time-flipping substitution t ↔ T − t.
+   5
+     Naively flipping time does not yield the correct reverse process.
+   6
+     We use the “bar” notation to distinguish the reverse process {x̄(t)}t∈[0,T ] from the forward
+process {x(t)}t∈[0,T ] , defined by the forward-time SDE.
+
+102                                   Diffusion Models Today: Score SDE Framework
+
+
+variational framework (optional but insightful). Here, we provide complementary
+intuition for how the reverse-time dynamics recover structured data from noise.
+    At first glance, the presence of Brownian noise in the reverse time process
+may seem paradoxical. If the forward diffusion spreads data into increasingly
+noisy configurations, it is unclear how reversing this process, particularly one that
+introduces additional randomness through w̄(t), can produce clean, structured
+samples concentrated near the data manifold. The key point is that the reverse
+time SDE does not inject arbitrary randomness. The diffusion term g(t) dw̄(t) is
+always coupled with the score–driven drift −g 2 (t)∇x log pt (x̄(t)). Together, these
+terms balance one another: the score guides trajectories toward regions of higher
+density, while the noise introduces controlled stochasticity that allows exploration
+without overwhelming the dynamics.
+    To see this more clearly, return to the Langevin intuition in Equation (3.1.6).
+When f (t) ≡ 0, Equation (4.1.6) reads
+
+                   dx̄(t) = −g 2 (t)∇x log pt x̄(t) dt + g(t) dw̄(t).
+                                                     
+
+
+Reparameterize time forward via s := T − t (so dt = − ds), and rename the
+Brownian motion in law so that dw̄(t) = − dws . Writing x̄s := x̄(T − s) and
+πs := pT −s then gives
+
+         dx̄s = g 2 (T − s)∇ log πs x̄s ds + g(T − s) dws
+                                      
+                                          q
+                                                             τ (s) := 12 g 2 (T − s).
+                                 
+              = 2τ (s)∇ log πs x̄s ds +       2τ (s) dws ,
+
+This has the Langevin form with a time-varying temperature τ (s), targeting the
+evolving density πs . By Tweedie’s formula (Equation (3.3.6)), the score direction
+∇ log πs points toward the conditional clean signal at each time slice, so the drift
+continually “pulls back” denoised structure.
+    Crucially, g(t) is annealing along the reverse trajectory. Early on (s ≈ 0, i.e.,
+t ≈ T ), g(T − s) is typically larger, so the injected noise is stronger and the process
+explores broadly. As s increases, g(T − s) decreases, the stochastic term weakens,
+and the score term dominates, pulling samples into high-density regions of πs ; by
+s = T (i.e., t = 0), trajectories concentrate near the data manifold.
+
+Overview of Reverse-Time SDE Capabilities. It is fascinating how the time-
+dependent score function
+                         s(x, t) := ∇x log pt (x)
+naturally appears in Equation (4.1.6). Once the forward coefficients f (t) and g(t)
+are specified, the score is the only remaining unknown in the reverse dynamics.
+This highlights its central role: with the score in hand, the reverse process is
+determined, and sampling amounts to numerically integrating Equation (4.1.6)
+with the learned score.
+
+4.1. Score SDE: Its Principles                                                           103
+
+
+    Since the oracle score generally lacks a closed-form expression, we adopt the
+approach of Chapter 3 and train a neural network sϕ (x, t) to approximate it via
+score matching; see Section 4.3.1 for details. Substituting s(x, t) with sϕ (x, t) in
+Equation (4.1.6) then specifies the reverse dynamics completely.
+    Generation corresponds to solving the reverse-time SDE reversely from t = T ,
+starting with xT ∼ pprior , to t = 0. Importantly, Anderson (1982) proves that the
+marginal densities of the forward and reverse processes coincide, ensuring that
+samples at t = 0 approximately follow pdata when pprior ≈ pT . We will explore this
+further in Section 4.3.2.
+
+4.1.4     Deterministic Process (Probability Flow ODE) for Generation
+Although the SDE in Equation (4.1.6) introduces stochasticity and potentially
+increases the diversity of generated samples, a question arises:
+Question 4.1.1
+   Is it necessary to sample using the SDE in Equation (4.1.6)?
+
+    Inspired by Maoutsa et al. (2020), Song et al. (2020c) also introduced a
+deterministic process, an ODE, that evolves samples with the same marginal
+distributions as the forward SDE. This process {x̃(t)}t∈[0,T ] 7 , called the Probability
+Flow ODE (PF-ODE), is given by:
+
+                      d                        1
+                         x̃(t) = f (x̃(t), t) − g 2 (t)∇x log pt (x̃(t)).          (4.1.7)
+                      dt                       2
+
+   Analogous to the SDE case, one can replace the true score with a learned
+approximation and integrate the reverse-time ODE from t = T to t = 0 to generate
+samples. Concretely, the generated sample (solution of PF-ODE at time t = 0)
+takes the form
+                            Z 0h
+                                                 1                          i
+                 x̃(T ) +        f (x̃(τ ), τ ) − g 2 (τ )∇x log pτ (x̃(τ )) dτ,
+                             T                   2
+where the initial condition x̃(T ) ∼ pprior . Since this integral is intractable in closed
+form, practical generation relies on numerical solvers (e.g., Euler method, see
+Equation (4.3.4)).
+   Compared to the reverse-time SDE, the PF-ODE offers two key advantages:
+
+   ■    The ODE can be integrated in either direction, from t = 0 to t = T or
+        from t = T to t = 0, using the same formulation of the equation, provided
+        the corresponding initial condition is specified at the chosen endpoint. This
+   7
+    We use a tilde to distinguish processes associated with the forward and reverse-time SDEs.
+Going forward, we omit this notational distinction for simplicity.
+
+104                                   Diffusion Models Today: Score SDE Framework
+
+
+          bidirectionality contrasts with SDEs, which generally admit only forward
+          time integration.
+
+      ■   It benefits from a wide range of well-established, off-the-shelf numerical
+          solvers developed for ODEs.
+
+    We emphasize that the PF-ODE is not obtained by simply removing the
+diffusion term in Equation (4.1.6); notably, the factor of 12 in its drift term has
+a principled origin. At a high level, Equation (4.1.7) arises by choosing the drift
+of an ODE such that its evolution preserves the same marginal densities as the
+forward SDE in Equation (4.1.3). The underlying principle (i.e., Fokker-Planck
+Equation (Øksendal, 2003)) ensuring this alignment of marginals will be detailed
+in the next section.
+
+4.2. Matching Marginals in Forward/Reverse-Time SDEs and PF-ODE                  105

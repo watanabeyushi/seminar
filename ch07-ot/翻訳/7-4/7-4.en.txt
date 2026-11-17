@@ -1,0 +1,169 @@
+7.4     Is Diffusion Model’s SDE Optimal Solution to SB Problem?
+
+7.4.1    Diffusion models as a Special Case of Schrödinger Bridges
+SB framework extends (score-based) diffusion models by enabling nonlinear in-
+terpolation between arbitrary source and target distributions. It achieves this by
+adding control drift terms derived from scalar potentials Ψ(x, t) and Ψ(x,
+                                                                      b    t), which
+guide a reference diffusion process to match prescribed endpoint marginals (see
+Equation (7.2.12)) and follow the decomposition:
+
+                   ∇ log Ψ(x, t) + ∇ log Ψ̂(x, t) = ∇ log pSB
+                                                           t (x).
+
+This generalization allows the model to move beyond standard Gaussian priors
+and generate samples from broader distributions.
+
+Connection to Diffusion Models. Diffusion models arise as a special case of the
+SB framework. Suppose the potential is constant, Ψ(x, t) ≡ 1. Under this assump-
+tion, the second PDE in Equation (7.2.12) reduces to the standard Fokker–Planck
+equation, whose solution is the marginal density of the reference process:
+
+                                  Ψ(x,
+                                  b    t) = pSB
+                                             t (x).                          (7.4.1)
+
+The corresponding SB forward SDE thus becomes the uncontrolled reference
+process:
+                        dxt = f (xt , t) dt + g(t) dwt ,
+and the SB backward SDE simplifies to:
+                       h                               i
+                dxt = f (xt , t) − g 2 (t)∇ log pSB
+                                                 t (xt ) dt + g(t) dw̄t ,
+
+which matches Anderson’s reverse-time SDE used in diffusion models. This corre-
+spondence shows that diffusion models can be interpreted as the zero-control limit
+of SB, where no additional drift is introduced by the potentials.
+
+Boundary Conditions and Generality. The above reduction is purely formal unless
+the boundary constraints are compatible. For arbitrary source/target (psrc , ptgt ),
+the PDE boundary conditions in Equation (7.2.12) are generally not satisfied
+by the choice Ψ ≡ 1. Full SB resolves this by learning nontrivial potentials that
+induce a nonlinear control drift, bending the reference dynamics to match any
+prescribed endpoints. By contrast, diffusion models fix one endpoint to a simple
+prior (typically Gaussian) and learn only the reverse-time score to reach the data.
+With this perspective, SB is the more flexible umbrella: with nontrivial potentials
+it bridges arbitrary endpoints; with Ψ ≡ 1 it collapses to the diffusion-model
+case above. We additionally remark that in the standard linear diffusion model,
+pT ≈ pprior holds only as T → ∞, so the match to the prior is merely approximate.
+
+232                              (Optional) Diffusion Models and Optimal Transport
+
+
+7.4.2   Diffusion Models as Schrödinger Half-Bridges
+In this section, we explain why diffusion models are not full Schrödinger bridges, but
+can instead be understood through the relaxed notion of Schrödinger half-bridges.
+A half-bridge enforces only one endpoint constraint (either pprior or pdata ) rather
+than both, making it a one-sided variant of the full bridge. Before formalizing this
+connection, we introduce the definition of Schrödinger half-bridges, building on
+the general formulation in Equation (7.2.7) with arbitrary psrc and ptgt . We will
+then return to diffusion models and show how the half-bridge viewpoint naturally
+applies when the endpoints are given by pprior and pdata .
+
+Schrödinger Half-Bridges The SB problem asks for a stochastic process whose
+law is closest (in KL divergence) to a simple reference process, while matching two
+endpoint distributions psrc and ptgt . Solving the full bridge requires enforcing both
+boundary conditions, which is often computationally difficult. A useful relaxation
+is the half-bridge problem: instead of matching both endpoints, we match only one
+of them.
+    Formally, let R be the reference path distribution. The forward half-bridge
+seeks a path distribution P minimizing
+
+                                  min         DKL (P ∥ R),
+                                P :P0 =psrc
+
+subject to the single constraint P0 = psrc . Similarly, the backward half-bridge
+constrains only the terminal distribution,
+
+                                  min         DKL (P ∥ R).
+                               P :PT =ptgt
+
+In words, the forward half-bridge asks: among all processes starting from the
+desired initial distribution, which one looks most like the reference? The backward
+half-bridge asks the same question for processes ending at the desired terminal
+distribution. By combining these two relaxations iteratively, one can approximate
+the full SB.
+
+Diffusion Models Miss Exact Endpoint Matching. A key difference between
+diffusion models and the SB framework lies in the treatment of the terminal
+distribution pT . In standard diffusion models, the forward SDE is typically linear
+in xt (see Equation (4.4.2)) and designed so that pT approximates the prior only
+as T → ∞:
+                                     pT ≈ pprior .
+At finite time, however, pT is the distribution of αT x0 +σT ϵ and therefore generally
+still depends on pdata ; it need not coincide exactly with the prescribed Gaussian
+prior (see Section C.1.5).
+
+7.4. Is Diffusion Model’s SDE Optimal Solution to SB Problem?                             233
+
+
+    In contrast, the SB framework enforces exact marginal matching at a finite
+time T by introducing an additional control drift of the form g 2 (t)∇x log Ψ(x, t).
+This ensures that the terminal distribution precisely satisfies pT = pprior , regardless
+of the initial data distribution p0 = pdata . In summary:
+
+    ■   Diffusion Models: pT ≈ pprior , asymptotically as T → ∞,
+
+    ■   Schrödinger Bridge: pT = pprior exactly at finite T , enabled by solving for
+        the control potentials Ψ and Ψ.
+                                     b
+
+
+Diffusion Schrödinger Bridge. The fixed forward noising process can be viewed
+as a forward Schrödinger half-bridge anchored at pdata relative to the chosen
+reference dynamics. Its terminal marginal is the distribution produced by that
+reference process and is generally only approximately pprior ; hence it is not the full
+bridge between the prescribed pair (pdata , pprior ).
+    To address this, the Diffusion Schrödinger Bridge (DSB) (De Bortoli et al.,
+2021) alternates between matching both endpoint marginals by following the idea
+of the Iterative Proportional Fitting (IPF) algorithm, an alternating projection
+method. This extends diffusion models to solve the full SB problem as follows8 :
+
+    ■   Step 0: Reference Process. Initialize with P (0) := Rfwd , the reference
+        forward SDE:
+
+                              dxt = f (xt , t)dt + g(t)dwt ,       x0 ∼ pdata .
+                        (0)                                (0)
+        This ensures P0       = pdata , but typically PT         ̸= pprior .
+
+    ■   Step 1: Backward Pass. Compute the process P (1) that matches pprior at
+        time T while staying close to P (0) :
+
+                                  P (1) = arg min DKL (P ∥P (0) ).
+                                           P :PT =pprior
+
+        This is achieved via approximating the oracle score function with a neural
+        network sϕ× , which results in the reverse-time SDE:
+                                 h                                i
+                       dxt = f (xt , t) − g 2 (t)sϕ× (xt , t) dt + g(t)dw̄t ,
+
+        simulated backward from xT ∼ pprior .
+                                                     (1)                                   (1)
+    ■   Iteration. The process P (1) satisfies PT = pprior , but its initial marginal P0
+        typically deviates from pdata . IPF addresses this by learning a forward SDE
+                    (1)
+        to adjust P0 back to pdata , followed by another backward pass to enforce
+   8
+    Although this description uses pdata and pprior , the DSB framework applies to any pair of
+endpoint distributions.
+
+234                             (Optional) Diffusion Models and Optimal Transport
+
+
+      pprior . This alternation continues, refining the process until convergence to
+      the optimal bridge P ∗ , which satisfies both P0∗ = pdata and PT∗ = pprior .
+      De Bortoli et al. (2021) prove convergence under mild conditions.
+
+    The DSB formulation above is historically important and conceptually clear,
+but its practical implementation can be computationally demanding. The forward–
+backward projections are carried out iteratively, so that each IPF iteration requires
+solving a separate score-matching problem, while approximation errors may also
+accumulate across rounds. More broadly, a growing body of work seeks to alleviate
+these difficulties by developing Schrödinger bridge formulations with improved
+stability and scalability, and in some cases with reduced dependence on repeat-
+edly fitting separate diffusion models throughout the iterative procedure. We
+do not discuss these developments in detail here, but mention them to orient
+interested readers to a broader literature on practical SB methods (shi2023dsbm;
+liu2024gsbm).
+
+7.5. Is Diffusion Model’s ODE an Optimal Map to OT Problem?                                    235

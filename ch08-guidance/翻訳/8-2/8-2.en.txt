@@ -1,0 +1,118 @@
+8.2     Classifier Guidance
+
+8.2.1    Foundation of Classifier Guidance
+Let c denote a conditioning variable drawn from a distribution p(c), such as a
+class label, caption, or other auxiliary information. Our goal is to draw samples
+from p0 (x|c). In diffusion-based conditional generation, we realize this goal by
+running the reverse-time dynamics whose time marginals are pt (·|c). The drift of
+these dynamics depends on the conditional score
+                               ∇xt log pt (xt |c),       t ∈ [0, T ].
+Hence a standard and effective route2 is to estimate this quantity.
+   A fundamental insight, based on Bayes’ rule, is that the conditional score can
+be decomposed as:
+                                             pt (xt )pt (c|xt )
+                                                                 
+          ∇xt log pt (xt |c) = ∇xt log
+                                                   p(c)
+                            = ∇xt log pt (xt ) + ∇xt log pt (c|xt ) − ∇xt log p(c)
+                            = ∇xt log pt (xt ) + ∇xt log pt (c|xt ),                  (8.2.1)
+                                |      {z         }     |         {z       }
+                               unconditional score       classifier gradient
+
+where pt (c|xt ) indicates a probability of c conditioned on xt which predicts the
+condition c from the noisy input xt at time t.
+    This decomposition3 motivates the Classifier Guidance (CG) approach proposed
+by Dhariwal and Nichol (2021). To separate the population identity from the learned
+classifier used in practice, first consider the oracle quantities. For a guidance scale
+ω ≥ 0, define at each fixed time t
+                              peCG,ω
+                                t    (xt |c) ∝ pt (xt )pt (c|xt )ω .                  (8.2.2)
+Its score is
+                 sCG (xt , t, c; ω) := ∇xt log peCG,ω
+                                                 t    (xt |c)
+                                    = ∇xt log pt (xt ) + ω∇xt log pt (c|xt ).         (8.2.3)
+Thus ω scales the classifier-guidance direction. When ω = 1, Bayes’ rule gives
+peCG,1
+  t    (xt |c) = pt (xt |c), and Equation (8.2.3) recovers the exact conditional score.
+For a general ω, peCG,ω
+                     t      provides a fixed-time tempered interpretation of the guided
+field; whether it also forms the marginal path of the guided sampler is discussed
+in Section 8.4.2.
+    The scalar ω ≥ 0 modulates the influence of the classifier:
+    2
+      One could in principle obtain p0 (x|c) from an unconditional generator via rejection or
+importance sampling if p(c|x) were available and well calibrated. This is rarely practical for
+high-dimensional or rare conditions.
+    3
+      In the last identity, ∇xt log p(c) = 0 because p(c) does not depend on xt .
+
+8.2. Classifier Guidance                                                                        253
+
+
+   ■    ω = 1: recovers the true conditional score ∇xt log pt (xt |c).
+
+   ■    ω > 1: amplifies the classifier signal, typically increasing conditional fidelity
+        (often at the expense of diversity).
+
+   ■    0 ≤ ω < 1: down-weights the classifier signal, typically increasing sample
+        diversity while weakening conditioning.
+
+
+Practical Approximation in CG. In practice, CG is a training-free method (w.r.t.
+the diffusion model) for steering a pre-trained unconditional diffusion model,
+
+                                    sϕ× (xt , t) ≈ ∇xt log pt (xt ).
+
+CG is applied only at sampling time, without modifying the diffusion model itself.
+To enable this, a time-dependent classifier pψ (c|xt , t) is trained separately to
+predict the condition c from noisy inputs xt at different noise levels t. The classifier
+is trained in a standard way by minimizing the cross-entropy loss:
+                                                           h                       i
+                     Et∼U [0,T ],(x,c)∼pdata ,ϵ∼N (0,I) − log pψ (c|xt , t) ,                (8.2.4)
+
+where (x, c) ∼ pdata denotes paired labeled data, and xt = αt x + σt ϵ is the noisy
+input at time t. The classifier must be trained across noise levels and typically
+receives t, or an equivalent noise-level representation, as input so that it can
+approximate pt (c|xt ) throughout the diffusion path.
+    After training, the classifier provides scores that serves as a surrogate for the
+true likelihood gradient:
+
+                         ∇xt log pψ× (c|xt , t) ≈ ∇xt log pt (c|xt ).
+
+
+8.2.2     Inference with CG
+
+At inference time, the learned classifier gradient ∇xt log pψ× (c|xt , t) is added to
+the unconditional score estimate and scaled by ω, yielding a learned approximation
+to the oracle field in Equation (8.2.3):
+
+   sCG
+    model (xt , t, c; ω) :=     sϕ× (xt , t)      +ω ∇xt log pψ× (c|xt , t) ≈ sCG (xt , t, c; ω).
+                                |     {z   }          |          {z            }
+                              uncond. direction           guidance direction
+
+The unconditional score estimate in the reverse-time SDE or PF-ODE is then
+replaced by sCG
+             model (xt , t, c; ω), thereby steering the generative trajectory toward
+samples that align with the condition c.
+
+254                                                Guidance and Controllable Generation
+
+
+8.2.3       Advantages and Limitations
+CG provides a simple and flexible mechanism for conditional generation, allowing
+for explicit control over the strength of conditioning via ω. It can be used with any
+pre-trained unconditional diffusion model, requiring only an additional classifier
+for conditioning.
+    However, the approach has notable limitations:
+
+      ■   Training Cost: The classifier must be trained to operate across all noise
+          levels, which is computationally expensive.
+
+      ■   Robustness: Classifiers must generalize well to severely corrupted inputs xt ,
+          especially for large t, which can be challenging.
+
+      ■   Separate Training: Since the classifier is trained independently of the diffusion
+          model, it may not align perfectly with the learned data distribution.
+
+8.3. Classifier-Free Guidance                                                                       255

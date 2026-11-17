@@ -1,0 +1,22 @@
+\input{../../../common/translation-preamble}
+\begin{document}
+{\color{gray}\footnotesize 出典: §3.5\par}
+\vspace{0.2em}
+\section*{3.5 要約：NCSN と DDPM の比較的見方}
+
+
+
+まず図 3.7 で NCSN と DDPM のグラフィカルモデルを比較し、主要な相違と類似を表 3.1 に要約する。
+
+\translationfigure{table-3-1.jpg}{表3.1: NCSN と DDPM の比較}
+
+
+\textbf{共有されるボトルネック。} 定式化は異なるにもかかわらず、NCSN と DDPM の双方は密な時間離散化に依存する。これは重要な制約をもたらす：サンプリングはしばしば数百から数千の反復を要し、生成が遅く計算集約的になる。
+
+\begin{propositionbox}[問い 3.5.1]
+拡散モデルのサンプリングをどのように加速できるか？
+\end{propositionbox}
+
+
+この課題には、より効率的なサンプラーを展開する第 9 章；数百のサンプリングステップを要する事前学習済み拡散モデルをより少ないステップの生徒生成器へ圧縮する第 10 章；拡散に触発された原理の下で高速な少数ステップ生成器をゼロから直接学習する方法を研究する第 11 章で立ち戻る。
+\end{document}

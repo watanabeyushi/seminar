@@ -1,0 +1,124 @@
+3.6     Closing Remarks
+
+This chapter has charted a second major path to diffusion models, beginning from
+the score-based perspective rooted in Energy-Based Models (EBMs). We started
+by identifying the core challenge of EBMs—the intractable partition function—and
+introduced the score function, ∇x log p(x), as a powerful tool that circumvents
+this issue entirely.
+    Our journey led us from classic score matching to its more scalable and robust
+variant, Denoising Score Matching (DSM). Through DSM, we saw how perturbing
+data with noise enables a tractable training objective, once again leveraging
+a conditioning strategy to create a simple regression target. Furthermore, we
+established a profound connection between score estimation and the act of denoising
+via Tweedie’s formula, which showed that the score provides the precise direction
+needed to estimate a clean signal from its noisy observation.
+    This principle was then extended from a single noise level to a ladder of noise
+levels with Noise Conditional Score Networks (NCSN), which learn a single score
+model conditioned on multiple noise scales and generate samples via annealed
+Langevin dynamics. The next chapter takes the additional step from this discrete
+ladder to a continuum of noise levels through the Score SDE framework.
+    This convergence is no coincidence; it hints at a deeper, unified mathematical
+structure. The limitations of these discrete-time models motivate the need for a
+more general framework. In the next chapter, we will take this crucial step:
+
+     1. We will move into a continuous-time perspective, showing that both DDPMs
+        and NCSNs can be elegantly unified as different discretizations of a single,
+        powerful process described by a Stochastic Differential Equation (SDE).
+
+     2. This Score SDE framework will formally connect the variational and score-
+        based views, recasting the problem of generation as one of solving a differential
+        equation.
+
+    This unifying lens will not only provide profound theoretical clarity but also un-
+lock a new class of advanced numerical methods designed to tackle the fundamental
+challenge of slow sampling.
+
+                                         4
+      Diffusion Models Today: Score SDE Framework
+
+
+
+
+                 There is only one precise way of presenting the laws, and that is by
+                 means of differential equations. They have the advantage of being
+                 fundamental and, so far as we know, precise.
+                                                                   Richard P. Feynman
+
+    So far, we have studied diffusion models from two perspectives: the variational
+view and the score-based view, the latter naturally emerging from the EBM
+formulation. We now take the next step and move to the continuous-time framework.
+At its core lies the Score SDE (Song et al., 2020c), which provides a continuous-time
+view that brings DDPM and NCSN under the same framework.
+    Instead of working with only a finite sequence of noise levels, we imagine
+inserting more and more intermediate levels between data and noise. In the
+continuous-time limit, the noise level varies smoothly with time, giving the basic
+picture
+                forward SDE                           reverse dynamics
+         pdata −−−−−−−−→ pT ≈ pprior ,         pprior −−−−−−−−−−→ pdata .
+
+The forward SDE describes how data is gradually corrupted into noise, playing the
+continuous-time role of the noise schedule in DDPM or the sequence of noise levels
+in NCSN. Once this forward process is specified, the main challenge is generation
+in the opposite direction: starting from a simple noise distribution, how can we
+recover the data distribution?
+    The key quantity is the time-dependent score
+
+                                    ∇x log pt (x),
+
+which describes the local geometry of the noisy distribution at every time t. Once
+this score is known, or approximated by a neural network, it determines the
+reverse-time dynamics used for generation, transforming noise into data. This
+
+                                          93
+
+94                                    Diffusion Models Today: Score SDE Framework
+
+
+leads to two complementary descriptions: a stochastic reverse-time SDE and a
+deterministic probability flow ODE (PF-ODE). Although their sample trajectories
+are different, they can follow the same evolution of marginal distributions.
+    This continuous-time view turns generation into the problem of solving differ-
+ential equations, opening the door to a broad set of tools from stochastic processes,
+differential equations, and numerical analysis. In particular, once the generative
+dynamics are written as an SDE or ODE, standard numerical methods can be used
+to simulate them, while more advanced solvers can improve sampling efficiency
+and accuracy. This perspective therefore provides not only a unified mathematical
+description of diffusion models, but also a practical foundation for understanding
+and designing faster sampling methods developed later in this book.
+
+     After this chapter, you will be able to...
+      ■ understand how the discrete noise levels of DDPM and NCSN lead to a
+        continuous-time forward SDE that gradually transforms data into noise;
+      ■ understand how generation from noise back to data can be described
+
+
+        either by a stochastic reverse-time SDE or by a deterministic probability
+        flow ODE (PF-ODE);
+      ■ explain how the reverse-time SDE and PF-ODE can follow the same
+
+
+        sequence of marginal distributions even though their individual sample
+        trajectories are different, and understand how the Fokker–Planck equation
+        describes the continuous-time evolution of probability densities;
+      ■ understand how the time-dependent score is learned by denoising score
+
+
+        matching and then used for sampling through the reverse-time SDE or
+        PF-ODE;
+      ■ understand how the PF-ODE can also be run forward for inversion and
+
+
+        track changes in probability density through the continuous change-of-
+        variables formula, enabling likelihood evaluation;
+      ■ recognize VE and VP SDEs as two important instances of the same
+
+
+        continuous-time diffusion framework, connecting back to NCSN and
+        DDPM.
+     Reader route. Readers new to stochastic differential equations may consult
+     the differential-equation appendices in Chapter A as needed. For a first pass,
+     focus on the roles of the forward SDE, reverse-time SDE, and PF-ODE,
+     together with their training and sampling procedures. The Gaussian example
+     and optional derivations can be revisited after the main picture is clear.
+
+4.1. Score SDE: Its Principles                                                                                          95

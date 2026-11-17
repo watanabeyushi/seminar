@@ -1,0 +1,457 @@
+2.1     Variational Autoencoder
+
+How can a neural network learn to generate realistic data? A natural starting point
+is the autoencoder, which consists of two networks: a deterministic encoder that
+compresses an input to a low-dimensional latent code, and a deterministic decoder
+that reconstructs the input from this code. Training minimizes the reconstruction
+error between the original input and its reconstruction. While this setup enables
+accurate reconstruction, the latent space is unstructured: randomly sampling
+latent codes usually produces meaningless outputs, limiting the model’s use for
+generation.
+    The Variational Autoencoder (VAE) (Kingma and Welling, 2013) solves this
+by imposing a probabilistic structure on the latent space. This transforms the
+model from a simple reconstruction tool into a true generative model, capable of
+producing novel and realistic data.
+
+2.1.1    Probabilistic Encoder and Decoder
+
+
+
+                        Encoder                               Decoder
+          x
+                        qθ (z|x)
+                                                z
+                                                              pϕ (x|z)               x′
+
+Figure 2.1: Illustration of a VAE. It consists of a stochastic encoder qθ (z|x) that maps data x to
+a latent variable z, and a decoder pϕ (x|z) that reconstructs data from the latent.
+                                                                  Source: Created by the authors.
+
+
+
+Construction of Decoder (Generator). In VAEs, we distinguish between two
+types of variables: observed variables x, which correspond to the data we see (e.g.,
+an image), and latent variables z, which capture the hidden factors of variation
+(e.g., object shape, color, or style). The model assumes that each observation x is
+generated from a latent variable sampled from a simple prior distribution, typically
+a standard Gaussian, z ∼ pprior := N (0, I).
+    To map z back to data space, we define a decoder (generator) distribution
+pϕ (x|z). In practice, this decoder is kept simple, often a factorized Gaussian (see
+Section 2.1.3) or similar distribution, so that learning focuses on extracting useful
+latent features rather than memorizing data. Intuitively, directly generating pixels
+one by one is extremely hard; instead, the latent variable provides a compact
+representation, from which decoding the exact pixel arrangement becomes much
+easier. New samples are drawn by first sampling z ∼ pprior and then decoding via
+x ∼ pϕ (x|z).
+
+40                                   Variational Perspective: From VAEs to DDPMs
+
+
+   The VAE thereby defines a latent-variable generative model through the
+marginal likelihood:
+                                        Z
+                             pϕ (x) =       pϕ (x|z)p(z) dz.
+
+
+Ideally, the decoder parameters ϕ are learned by maximizing this marginal like-
+lihood, as in maximum likelihood estimation (see Equation (1.1.2)). However,
+because the integral over z is intractable for expressive, non-linear decoders, direct
+MLE is computationally infeasible, motivating the variational approach used in
+VAEs.
+
+
+
+Construction of Encoder (Inference Network). To connect our intractable
+generator to real data, consider the reverse question: given an observation x, what
+latent codes z could have produced it? By Bayes’ rule, the posterior distribution is
+
+                                             pϕ (x|z)p(z)
+                             pϕ (z|x) =                   .
+                                                 pϕ (x)
+
+The difficulty is that the denominator involves the marginal likelihood pϕ (x),
+which requires integrating over all latent variables and is intractable for nonlinear
+decoders. Thus, exact inference of z from x is computationally prohibitive.
+    The “variational” step in VAEs addresses this by replacing the intractable
+posterior with a tractable approximation. We introduce an encoder (or inference
+network) qθ (z|x), parameterized by a neural network, whose role is to serve as a
+learnable proxy:
+
+                                qθ (z|x) ≈ pϕ (z|x).
+
+In practice, the encoder maps each observed data point x to a distribution over
+latent codes, providing a feasible and trainable pathway from x back to z that
+enables learning.
+
+
+
+2.1.2   Training via the Evidence Lower Bound (ELBO)
+
+We now define a computable training objective. While we cannot directly optimize
+log pϕ (x), we can maximize a lower bound on it—the Evidence Lower Bound
+(ELBO):
+
+2.1. Variational Autoencoder                                                                     41
+
+
+   Theorem 2.1.1: Evidence Lower Bound (ELBO)
+   For any data point x, the log-likelihood satisfies:
+
+                                  log pϕ (x) ≥ LELBO (θ, ϕ; x),
+
+   where the ELBO is given by:
+
+           LELBO = Ez∼qθ (z|x) [log pϕ (x|z)] − DKL (qθ (z|x)∥p(z)) .                  (2.1.1)
+                     |               {z          }     |            {z             }
+                         Reconstruction Term               Latent Regularization
+
+
+Proof for Theorem.
+  The ELBO arises from Jensen’s inequality:
+                                                            pϕ (x, z)
+                              Z                        Z
+           log pϕ (x) = log        pϕ (x, z)dz = log        qθ (z|x)  dz
+                                                             qθ (z|x)
+                                         pϕ (x, z)                     pϕ (x, z)
+                                                                              
+                     = log Ez∼qθ (z|x)               ≥ Ez∼qθ (z|x) log             .
+                                         qθ (z|x)                      qθ (z|x)
+                                                                                                 ■
+   The ELBO objective naturally decomposes into two parts:
+   ■   Reconstruction: Encourages accurate recovery of x from its latent code z.
+       With Gaussian encoder and decoder assumptions, this term reduces exactly
+       to the familiar reconstruction loss of an autoencoder (cf. Section 2.1.3).
+       However, as in autoencoders, optimizing this term alone risks memorizing
+       the training data, motivating an additional regularization.
+
+   ■   Latent KL: Encourages the encoder distribution qθ (z|x) to stay close to a
+       simple Gaussian prior pprior (z). This regularization shapes the latent space
+       into a smooth and continuous structure, enabling meaningful generation by
+       ensuring that samples drawn from the prior can be reliably decoded.
+
+This trade-off ensures both faithful reconstructions and coherent sampling.
+
+Information-Theoretic View: ELBO as a Divergence Bound. The ELBO ob-
+jective has a natural information-theoretic interpretation. Recall that maximum
+likelihood training amounts to minimizing the KL divergence
+
+                                     DKL (pdata (x)∥pϕ (x)),
+
+which measures how well the model distribution approximates the data distribution.
+Since this term is intractable in general, the variational framework introduces a
+joint comparison.
+    Specifically, consider two joint distributions:
+
+42                                            Variational Perspective: From VAEs to DDPMs
+
+
+     ■   The generative joint, pϕ (x, z) = p(z)pϕ (x|z), which describes how the model
+         generates data;
+     ■   The inference joint, qθ (x, z) = pdata (x)qθ (z|x), which couples real data with
+         its inferred latent.
+
+Comparing these distributions yields the inequality
+
+                     DKL (pdata (x)∥pϕ (x)) ≤ DKL (qθ (x, z)∥pϕ (x, z)),                (2.1.2)
+
+sometimes referred to as the chain rule for KL divergence. Intuitively, comparing
+only marginals (x) can hide mismatches that are revealed when the full latent–data
+joint is considered.
+    Formally, one can expand the joint KL as
+
+                    DKL (qθ (x, z)∥pϕ (x, z))
+                    |               {z           }
+                         Total Error Bound
+                              "                           #
+                                      pdata (x)qθ (z|x)
+                 =Eqθ (x,z)       log
+                                       pϕ (x)pϕ (z|x)
+                               "                                                #
+                                       pdata (x)
+                 =Epdata (x)       log           + DKL (qθ (z|x)∥pϕ (z|x))
+                                        pϕ (x)
+
+                                                                                   
+                 = DKL (pdata ∥pϕ ) + Epdata (x) DKL (qθ (z|x)∥pϕ (z|x)) ,
+                     |        {z         }   |                      {z              }
+                    True Modeling Error                       Inference Error
+
+where the first term is the true modeling error and the second is the inference
+error, i.e., the gap between the approximate and true posteriors. The latter is
+always non-negative, which explains Equation (2.1.2).
+    Finally, note that
+
+                 log pϕ (x) − LELBO (θ, ϕ; x) = DKL (qθ (z|x)∥pϕ (z|x)) .
+
+Thus the inference error is exactly the gap between the log-likelihood and the
+ELBO. Maximizing the ELBO therefore corresponds to directly reducing inference
+error, ensuring that training minimizes a meaningful part of the overall bound.
+
+2.1.3      Gaussian VAE
+A standard formulation of the VAE employs Gaussian distributions for both the
+encoder and decoder.
+
+Encoder Part. The encoder qθ (z|x) is typically modeled as a Gaussian distribution
+as:                                                     
+                   qθ (z|x) := N z; µθ (x), diag(σθ2 (x)) ,
+
+2.1. Variational Autoencoder                                                                 43
+
+
+where µθ : RD → Rd and σθ : RD → Rd+ are deterministic outputs of the encoder
+network.
+
+Decoder Part. The decoder is typically modeled as a Gaussian distribution with
+fixed variance:
+                      pϕ (x|z) := N x; µϕ (z), σ 2 I ,
+                                                    
+
+where µϕ : Rd → RD is a neural network, and σ > 0 is a small constant controlling
+the variance.
+   Under this assumption, the reconstruction term in the ELBO simplifies as
+                                          1            h
+                                                                       2
+                                                                         i
+              Eqθ (z|x) [log pϕ (x|z)] = −   E           ∥x − µ ϕ (z)∥     + C,
+                                         2σ 2 qθ (z|x)
+where C is a constant independent of θ and ϕ. The ELBO objective thus reduces
+to:
+                            1
+                                               
+                                              2                               
+           min Eqθ (z|x)      2
+                                ∥x − µ ϕ (z)∥     + DKL qθ (z|x)∥pprior (z) ,
+            θ,ϕ            2σ
+where the KL term admits a closed-form solution due to the Gaussian assumption.
+Training the VAE therefore reduces to minimizing a regularized reconstruction
+loss.
+
+2.1.4    Drawbacks of Standard VAE
+Despite the theoretical appeal of the VAE framework, it suffers from a critical
+drawback: it often produces blurry outputs1 .
+
+Blurry Generations in VAEs. To understand this phenomenon, consider a fixed
+Gaussian encoder qenc (z|x), and a decoder of the form
+                                 pdec (x|z) = N (x; µ(z), σ 2 I),
+where µ(z) denotes the decoder network. With an arbitrary encoder, optimizing
+the ELBO reduces (up to an additive constant) to minimizing the expected
+reconstruction error:
+                                                      h             i
+                         arg min Epdata (x)qenc (z|x) ∥x − µ(z)∥2 .
+                             µ
+
+This is a standard least squares problem in µ(z), and its solution is given in closed
+form by the conditional mean:
+                                     µ∗ (z) = Eqenc (x|z) [x],
+    1
+      The limitation we study here is specific to the common VAE setup introduced above: a simple
+Gaussian decoder trained through a squared reconstruction error. In this setting, the population-
+optimal decoder returns a conditional mean. If several visually different inputs correspond to
+overlapping latent regions, this averaging can appear as blur. This should not be read as a
+universal statement about every VAE architecture or observation model.
+
+44                                       Variational Perspective: From VAEs to DDPMs
+
+
+where qenc (x|z) is the encoder-induced posterior on inputs given latents, defined
+via Bayes’ rule:
+                    qenc (z|x) pdata (x)
+                                                             Z
+       qenc (x|z) =                      ,     qenc (z) :=       qenc (z|x) pdata (x) dx.
+                          qenc (z)
+     An equivalent form of the optimal generator via Bayes’ rule is:
+                         Epdata (x) [qenc (z|x) · x]  Ep (x) [qenc (z|x) · x]
+              µ∗ (z) =                               = data                    .
+                                  qenc (z)             Epdata (x) [qenc (z|x)]
+
+Now suppose that two distinct inputs x ̸= x′ are mapped to overlapping regions
+in latent space, i.e., the supports of qenc (·|x) and qenc (·|x′ ) intersect. Then µ∗ (z)
+averages over multiple, potentially unrelated inputs, which leads to blurry, non-
+distinct outputs. This averaging effect over conflicting modes is a fundamental
+reason for the characteristic blurriness in VAE-generated samples.
+
+2.1. Variational Autoencoder                                                                       45
+
+
+2.1.5   (Optional) From Standard VAE to Hierarchical VAEs
+
+To model complex data, Hierarchical Variational Autoencoders (HVAEs) (Vahdat
+and Kautz, 2020) enhance VAEs by introducing a hierarchy of latent variables.
+This deep, layered structure allows the model to capture data features at multiple
+levels of abstraction, significantly boosting expressive power and mirroring the
+compositional nature of real-world data.
+
+
+                  qθ (z1 |x)          qθ (z2 |z1 )                    qθ (zL |zL−1 )
+             x                   z1                   z2           ···               zL
+                 pϕ (x|z1 )           pϕ (z1 |z2 )                   pϕ (zL−1 |zL )
+
+Figure 2.2: Computation graph of the HVAE. It has a hierarchical structure with stacked,
+trainable encoders and decoders across multiple latent layers.
+                                                                       Source: Created by the authors.
+
+
+
+
+HVAE’s Modeling. Unlike standard VAEs that use a single latent code z, hi-
+erarchical VAEs (HVAEs) introduce multiple layers of latent variables arranged
+in a top-down hierarchy. Each latent layer conditions the one below it, forming
+a chain of conditional priors that captures structure at progressively finer levels
+of abstraction. This leads to the following top-down factorization of the joint
+distribution:
+
+                                                     L
+                                                     Y
+                     pϕ (x, z1:L ) = pϕ (x|z1 )            pϕ (zi−1 |zi )p(zL ).
+                                                     i=2
+
+This structure defines the marginal data distribution,
+                                              Z
+                               pHVAE (x) :=       pϕ (x, z1:L ) dz1:L .
+
+Generation proceeds progressively: starting from the top latent variable zL , each la-
+tent is decoded sequentially down to z1 , followed by generating the final observation
+x.
+    For encoding part, HVAEs utilize a structured, learnable variational encoder
+qθ (z1:L |x) that mirrors the generative hierarchy. A common choice is a bottom-up
+Markov factorization:
+                                                       L
+                                                       Y
+                         qθ (z1:L |x) = qθ (z1 |x)           qθ (zi |zi−1 ).
+                                                       i=2
+
+46                                          Variational Perspective: From VAEs to DDPMs
+
+
+HVAE’s ELBO.        Similar to Equation (2.1.1), ELBO is derived via Jensen’s
+inequality:
+                                            Z
+                  log pHVAE (x) = log           pϕ (x, z1:L ) dz1:L
+                                          pϕ (x, z1:L )
+                                            Z
+                                = log                   qθ (z1:L |x) dz1:L
+                                          qθ (z1:L |x)
+                                                      pϕ (x, z1:L )
+                                                                   
+                                = log Eqθ (z1:L |x)                                    (2.1.3)
+                                                      qθ (z1:L |x)
+                                                      pϕ (x, z1:L )
+                                                                   
+                                ≥ Eqθ (z1:L |x) log
+                                                      qθ (z1:L |x)
+                                =: LELBO (ϕ).
+Substituting the factorized forms yields:
+                                     "                                           #
+                                             p(zL ) L i=2 pϕ (zi−1 |zi )pϕ (x|z1 )
+                                                    Q
+             LELBO = Eqθ (z1:L |x)       log                                       .
+                                                qθ (z1 |x) Li=2 qθ (zi |zi−1 )
+                                                          Q
+
+    This hierarchical ELBO decomposes into interpretable terms, including a
+reconstruction term, adjacent-layer matching terms, and a top-level KL regularizer
+to the prior.
+    The leap from shallow to deep networks revolutionized machine learning, and a
+similar idea transformed generative models. HVAEs showed the power of using deep,
+stacked layers to build data. This concept of a layered hierarchy is a cornerstone of
+modern generative modeling, appearing again in score-based methods (Section 3.4)
+and normalizing flows (Section 5.1). The core insight is simple yet powerful:
+
+     Observation 2.1.1:
+     Stacking layers allows the model to generate data progressively, starting
+     with coarse details and adding finer ones at each step. This process makes
+     it far easier to capture the complex structure of high-dimensional data.
+
+
+Why Deeper Networks in a Flat VAE are Not Enough. There are two funda-
+mental limitations of a standard flat VAE that are not resolved by simply making
+the encoder and decoder deeper.
+   The first limitation is the variational family. In a standard VAE,
+
+                        qθ (z|x) = N z; µθ (x), diag(σθ2 (x)) ,
+                                                                      
+
+
+so for each fixed x the encoder posterior is a single Gaussian with diagonal
+covariance. Greater network depth improves the accuracy of µθ and σθ but does
+not expand the family; even a full covariance remains one unimodal ellipsoid. When
+pϕ (z|x) is multi-peaked, this family cannot match it, which loosens the ELBO and
+
+2.1. Variational Autoencoder                                                                    47
+
+
+weakens inference. Addressing this requires a richer posterior class, not merely
+deeper networks.
+    Second, if the decoder is too expressive, the model may suffer from posterior
+collapse. To see why, let us recall that the objective of the VAE is
+
+        Epdata (x) [LELBO (x)]
+                                                                                          
+              = Epdata (x)qθ (z|x) [log pϕ (x|z)] − Epdata (x) DKL qθ (z|x)∥p(z)
+              = Epdata (x)qθ (z|x) [log pϕ (x|z)] − Iq (x; z) − DKL (qθ (z)∥p(z)),
+
+where Iq (x; z) is the mutual information defined by
+                              h                i
+          Iq (x; z) = Eq(x,z) log qθq(z)
+                                     (z|x)                                            
+                                           = Epdata (x) DKL (qθ (z|x)∥q(z)) ,
+                                                   R
+and the aggregated posterior is qθ (z) = pdata (x)qθ (z|x) dx.
+    If the decoder class can model the data well without using z (i.e., it contains
+some pϕ (x|z) = r(x) close to pdata ), then a maximizer of the ELBO sets qθ (z|x) =
+p(z), so Iq (x; z) = 0 and qθ (z) = p(z). This “ignore z” solution does not disappear
+by making the networks deeper: (1) the learned code becomes independent of x
+(so it carries no data-dependent structure useful for downstream tasks), and (2)
+conditioning or moving in z has no effect on generated samples, so controllable
+generation fails.
+
+What Hierarchy Changes?            An HVAE introduces multiple latent levels,
+                                                       L
+                                                       Y
+                    pϕ (x, z1:L ) = pϕ (x|z1 )               pϕ (zi−1 |zi )p(zL ),
+                                                       i=2
+
+with ELBO
+
+         LELBO (x) = Eqθ (z1 |x) [log pϕ (x|z1 )]
+                                                                                  
+                       − Eqθ (z1:2 |x) log qθ (z1 |x) − log pϕ (z1 |z2 )
+                           L−1
+                           X                                                              
+                       −         Eqθ (z1:i+1 |x) log qθ (zi |zi−1 ) − log pϕ (zi |zi+1 )
+                           i=2
+                                           h                                   i
+                       − Eqθ (zL−1 |x) DKL (qθ (zL |zL−1 )∥p(zL )) .
+
+Here, we denote Eq := Epdata (x)qθ (z1:L |x) . Each latent level interacts only with its
+neighboring levels in the hierarchy: the encoder passes information upward through
+qθ (zi |zi−1 ), while the decoder passes information downward through pϕ (zi−1 |zi ).
+Accordingly, the ELBO decomposes into a reconstruction term, adjacent-layer
+matching terms, and a top-level KL regularizer to the prior. These properties stem
+from the hierarchical latent graph, not from simply deepening networks in a flat
+VAE.
+
+48                                   Variational Perspective: From VAEs to DDPMs
+
+
+What Will be Ahead? While HVAEs extend the VAE framework with multiple
+latent layers for expressiveness, their training poses unique challenges. Because the
+encoder and decoder must be optimized jointly, learning becomes unstable: lower
+layers and the decoder can already reconstruct x, leaving higher-level latents with
+little effective signal. Moreover, gradient information reaching deeper variables is
+often indirect and weak, making it difficult for them to contribute meaningfully.
+An additional difficulty lies in balancing model capacity, since overly expressive
+conditionals can dominate the reconstruction task and suppress the utility of higher
+latents.
+     Interestingly, the core idea of a deep, layered hierarchy finds a more powerful
+incarnation in variational diffusion models, a topic we explore in Section 2.2.
+Diffusion models inherit the progressive structure of HVAEs but elegantly sidestep
+their central weakness. By fixing the encoding process and focusing solely on
+learning the generative reversal, they unlock newfound stability and modeling
+flexibility, leading to a significant leap in the quality of generated outputs.
+     For notational simplicity, we deviate from the common VAE convention that
+uses q for the encoder and p for the generator. To avoid ambiguity, we denote
+distributions as p and will always specify their roles through appropriate subscripts
+or superscripts, clarifying them in context.
+
+2.2. Variational Perspective: DDPM                                                            49

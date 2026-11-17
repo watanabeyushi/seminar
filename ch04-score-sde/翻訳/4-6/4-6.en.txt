@@ -1,0 +1,200 @@
+4.6     (Optional) Fokker–Planck Equation and Reverse-Time SDEs
+        via Marginalization and Bayes’ Rule
+
+In this section, we offer a probabilistic perspective on the structure of the
+Fokker–Planck equation and the reverse-time SDE. By leveraging fundamen-
+tal tools such as the marginalization trick and Bayes’ rule, we illuminate the
+connection between the statistical formulation of stochastic processes and their
+corresponding differential equations.
+    We emphasize that the “derivation” presented here is not mathematically
+rigorous proofs, but rather heuristic arguments intended to convey the underlying
+connections.
+
+4.6.1    Fokker-Planck Equation from the Marginalization of Transition Kernels
+Given the forward transition probability as in Equation (4.1.2)
+                                                                             
+                 p(xt+∆t |xt ) = N xt+∆t ; xt + f (xt , t)∆t, g 2 (t)∆tI ,
+
+and the marginal distributions
+
+                                    pt (xt ),     pt+∆t (xt+∆t ),
+
+we aim to derive the Fokker-Planck equation that governs the time evolution of
+the marginal distribution pt .
+
+Change of Variables. By the Markov property, the marginal distribution at
+time t + ∆t can be expressed as an integral over the previous state xt (i.e.,
+Chapman-Kolmogorov equation):
+                                Z
+                                    N x; y + f (y, t)∆t, g 2 (t)∆tI pt (y) dy.
+                                                                      
+                pt+∆t (x) =
+
+We introduce a new variable
+
+                                      u := y + f (y, t)∆t,
+
+so the Gaussian is centered at u. For small ∆t, this map is invertible with
+
+                                                      ∂y
+      y = u − f (u, t)∆t + O(∆t2 ),             det      = 1 − (∇u · f )(u, t)∆t + O(∆t2 ).
+                                                      ∂u
+
+Hence, change-of-variable formula leads us to:
+                      Z                         
+        pt+∆t (x) =       N x; u, g 2 (t)∆tI ·
+          h                                                               i
+           pt (u) − ∆tf (u, t) · ∇u pt (u) − ∆t(∇u · f )(u, t)pt (u) du + O(∆t2 ),
+
+4.6. (Optional) Fokker–Planck Equation and Reverse-Time SDEs
+via Marginalization and Bayes’ Rule                                                            129
+
+Taylor Expansion. For any smooth function ϕ : RD → R and scale σ > 0, if
+z ∼ N (0, I), the following approximation holds (known as the Taylor–Gaussian
+smoothing formula):
+
+                                                                      σ2
+         Z
+             N (x; u, σ 2 I)ϕ(u) du = E [ϕ(x + σz)] = ϕ(x) +             ∆x ϕ(x) + O(σ 4 ).
+                                                                      2
+This is because Taylor expansion for:
+                                                            σ2 ⊤ 2
+                ϕ(x + σz) = ϕ(x) + σ∇x ϕ(x) · z +             z ∇x ϕ(x)z + O(σ 3 )
+                                                            2
+and E[z] = 0, E[zz⊤ ] = I.
+   Apply this with ϕ = pt , ϕ = f · ∇u pt , and ϕ = (∇u · f )pt , and use σ 2 = g 2 (t)∆t,
+we can obtain
+       pt+∆t (x) − pt (x)
+                                                                   g 2 (t)
+   = − ∆tf (x, t) · ∇x pt (x) − ∆t(∇x · f )(x, t)pt (x) +                  ∆t∆x pt (x) + O(∆t2 )
+                                                                      2
+                              g 2 (t)
+                                      ∆t∆x pt (x) + O(∆t2 ).
+                                  
+   = − ∆t∇x · f (x, t)pt (x) +
+                                 2
+Divide by ∆t and let ∆t → 0 to obtain the Fokker–Planck equation.
+    In Section C.1.4, we present the Itô–based derivation to complement the
+discrete–time view above.
+
+4.6.2        Why Does Reverse-Time SDE Take The Form?
+The rigorous derivation of the reverse-time SDE is technical and requires delving
+into the properties of the Fokker-Planck equation. However, the form of the reverse-
+time SDE can be understood intuitively through Bayes’ theorem. Here, we present
+a heuristic derivation to provide insight into why Equation (4.1.6) takes its form,
+with the appearance of score functions14 .
+
+Using Bayes’ Rule for Inversion. Our goal is to determine the reverse-time
+transition kernel by first considering the discrete-time case:
+                                           p(xt |xt+∆t ),
+and then taking ∆t → 0 to obtain the continuous-time formulation. Using Bayes’
+theorem, we express:
+                                             pt (xt )
+          p(xt |xt+∆t ) = p(xt+∆t |xt )
+                                          pt+∆t (xt+∆t )
+                        = p(xt+∆t |xt ) exp (log pt (xt ) − log pt+∆t (xt+∆t )) .           (4.6.1)
+  14
+       This derivation is inspired by the approach in this post.
+
+130                                         Diffusion Models Today: Score SDE Framework
+
+
+      The forward transition kernel is assumed to be as in Equation (4.1.2):
+                                                                            
+                   p(xt+∆t |xt ) = N xt+∆t ; xt + f (xt , t)∆t, g 2 (t)∆tI
+
+Taylor Expansion. To handle the exponential term, we apply a first-order Taylor
+expansion. The key insight is to expand around the point (xt , t) in both space and
+time:
+              log pt+∆t (xt+∆t ) = log pt (xt ) + ∇x log pt (xt ) · (xt+∆t − xt )
+                                 ∂ log pt (xt )
+                                    +           ∆t + O(∥h∥22 )
+                                      ∂t
+where h := (xt+∆t − xt , ∆t). Therefore:
+          log pt (xt ) − log pt+∆t (xt+∆t ) = −∇x log pt (xt ) · (xt+∆t − xt )
+                                          ∂ log pt (xt )
+                                               −         ∆t + O(∥h∥22 )      (4.6.2)
+                                               ∂t
+                                               √
+   For a diffusion process, xt+∆t − xt = Op ( ∆t), so the second-order spatial
+Taylor terms are generally of order Op (∆t). Accordingly, the following calculation
+should be understood as a leading-order heuristic.
+
+Substituting into the Reverse Transition. Substituting equations Equation (4.1.2)
+and Equation (4.6.2) into Equation (4.6.1):
+         p(xt |xt+∆t )
+                                                                    !
+                  1             ∥xt+∆t − xt − f (xt , t)∆t∥22
+       =                  exp −
+         (2πg 2 (t)∆t)D/2               2g 2 (t)∆t
+                                                           ∂ log pt (xt )
+                                                                                     
+               · exp −∇x log pt (xt ) · (xt+∆t − xt ) −                   ∆t + O(∆t) .
+                                                                ∂t
+
+Algebraic Manipulation.         The key step is to complete the square in the exponent.
+We have:
+          ∥xt+∆t − xt − f (xt , t)∆t∥22
+         −                              − ∇x log pt (xt ) · (xt+∆t − xt )
+                  2g 2 (t)∆t
+           ∥xt+∆t − xt − f (xt , t)∆t∥22 + 2g 2 (t)∆t∇x log pt (xt ) · (xt+∆t − xt )
+                                                                                   
+       =−
+                                          2g 2 (t)∆t
+Let δ := xt+∆t − xt and µ := f (xt , t)∆t. Then:
+               ∥δ − µ∥22 + 2g 2 (t)∆t∇x log pt (xt ) · δ
+             =∥δ∥22 − 2δ · µ + ∥µ∥22 + 2g 2 (t)∆t∇x log pt (xt ) · δ
+             =∥δ∥22 − 2δ · [µ − g 2 (t)∆t∇x log pt (xt )] + ∥µ∥22
+             =∥δ − [µ − g 2 (t)∆t∇x log pt (xt )]∥22 − ∥g 2 (t)∆t∇x log pt (xt )∥22
+
+4.6. (Optional) Fokker–Planck Equation and Reverse-Time SDEs
+via Marginalization and Bayes’ Rule                                                                131
+
+Substituting back:
+                        ∥δ − [f (xt , t)∆t − g 2 (t)∆t∇x log pt (xt )]∥22
+                    =∥xt+∆t − xt − [f (xt , t) − g 2 (t)∇x log pt (xt )]∆t∥22 .
+Therefore,
+                                  1
+    p(xt |xt+∆t ) =
+                         (2πg 2 (t)∆t)D/2
+                                                                                           !
+                                ∥x    − xt − [f (xt , t) − g 2 (t)∇x log pt (xt )]∆t∥22
+                         · exp − t+∆t
+                                                    2g 2 (t)∆t
+                         · exp(O(∆t))
+                                                                                          
+                    = N xt ; xt+∆t − [f (xt , t) − g 2 (t)∇x log pt (xt )]∆t, g 2 (t)∆tI
+                         · (1 + O(∆t)).
+The additional term ∥g 2 (t)∆t∇x log pt (xt )∥22 from completing the square is O((∆t)2 )
+and can be absorbed into the error term. Similarly, the time derivative term
+∂ log pt (xt )
+     ∂t        ∆t is O(∆t) and will vanish in the continuous limit.
+
+Taking ∆t → 0 Limit. As ∆t ≈ 0, under smoothness assumptions, the following
+approximations hold:
+                         f (xt , t) ≈ f (xt+∆t , t + ∆t),
+                             g(t) ≈ g(t + ∆t),
+                ∇x log pt (xt ) ≈ ∇x log pt+∆t (xt+∆t ) = s(xt+∆t , t + ∆t).
+Using these approximations and some rearrangements, we obtain:
+     p(xt |xt+∆t )
+                1
+    ≈                        exp
+        (2πg 2 (t)∆t)D/2
+                                                                                          2
+             xt − xt+∆t − f (xt+∆t , t + ∆t) − g 2 (t + ∆t)s(xt+∆t , t + ∆t) ∆t
+                                                                                 
+                                                                                               2
+        −
+                                              2g 2 (t + ∆t)∆t
+     !
+         .
+
+This implies that p(xt |xt+∆t ) is roughly a normal distribution with:
+                         xt+∆t − f (xt+∆t , t + ∆t) − g 2 (t + ∆t)s(xt+∆t , t + ∆t) ∆t,
+                                                                                     
+             Mean:
+    Covariance:          g 2 (t + ∆t)∆tI.
+Taking the limit as ∆t → 0, we “derive” the reverse-time continuous SDE given in
+Equation (4.1.6).
+
+132                                  Diffusion Models Today: Score SDE Framework

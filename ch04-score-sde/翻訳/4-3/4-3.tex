@@ -1,0 +1,230 @@
+\input{../../../common/translation-preamble}
+\begin{document}
+{\color{gray}\footnotesize 出典: §4.3\par}
+\vspace{0.2em}
+
+\section*{4.3 Score SDE：その学習とサンプリング}
+
+
+\subsection*{4.3.1 学習}
+
+
+第3章と同様の哲学に基づき、オラクルスコア $\nabla_x\log p_t(x)$ を、すべての $t\in[0,T]$ にわたる時間条件付きニューラルネットワーク
+
+\[
+s_\phi=s_\phi(x,t)
+\]
+
+
+で近似し、式 (3.2.1) のようなスコアマッチング目的を最小化する：
+
+\[
+\mathcal{L}_{\mathrm{SM}}(\phi;\omega(\cdot))
+:= \tfrac12\,\mathbb{E}_{t\sim p_{\mathrm{time}}}\mathbb{E}_{x_t\sim p_t}
+\omega(t)\bigl\|s_\phi(x_t,t)-\nabla_x\log p_t(x_t)\bigr\|_2^2,
+\]
+
+
+ここで $p_{\mathrm{time}}$ はある時間分布（例: $[0,T]$ 上の一様）、$\omega(\cdot)$ は時間重み関数である。
+
+\translationfigure{fig-4-6.jpg}{図4.6: デノイジング・スコアマッチングのトリック。（左）固定されたノイズ付きサンプル $x_t$ に対し、周辺スコア $\nabla_{x_t}\log p_t(x_t)$ はノイズ付きサンプルがより尤もらしい領域を指す。それを直接計算するには、$x_t$ を生じうるすべての可能なクリーンサンプル $x_0$ からの寄与を結合する必要があり、一般に扱い不能である。（右）しかし学習中は、$x_t$ を生成するのに用いたクリーンサンプル $x_0$ が既知である。ガウス劣化では、対応する条件付きスコア $\nabla_{x_t}\log p_t(x_t\mid x_0)$ が閉形式で利用可能であり、回帰ターゲットとして一つの単純なベクトルを提供する。学習例にわたって、これらの条件付きスコアベクトルは周辺スコアへ平均される。こうしてデノイジング・スコアマッチングは、データ分布から可能なすべてのサンプルにわたる平均を要する一般に扱い不能なスコア $\nabla_{x_t}\log p_t(x_t)$ へ直接回帰することなく、望ましい周辺スコアを学習する。}
+
+
+扱い不能なオラクルスコア $\nabla_x\log p_t(x)$ への依拠を避けるため、式 (3.3.2) の DSM 損失が用いられる。データ点 $x_0$ で条件付けると、このアプローチは式 (D.2.4) を通じて解析的に扱いやすいスコア $\nabla_{x_t}\log p_t(x_t\mid x_0)$ の使用を可能にし、具体例は第4.4節に与えられる。具体的には、次の損失関数を活用する：
+
+\begin{align*}
+\begin{aligned}
+&\mathcal{L}_{\mathrm{DSM}}(\phi;\omega(\cdot)) := \\
+&\qquad\tfrac12\,\mathbb{E}_{t}\mathbb{E}_{x_0}\mathbb{E}_{p_t(x_t\mid x_0)}
+\omega(t)\bigl\|s_\phi(x_t,t)-\nabla_{x_t}\log p_t(x_t\mid x_0)\bigr\|_2^2, \quad (4.3.1)
+\end{aligned}
+\end{align*}
+
+
+ここで $x_0\sim p_{\mathrm{data}}$ である。式 (4.3.1) は式 (3.4.1) の連続時間対応物として解釈でき、離散の場合の和が積分で置き換えられる。
+
+定理 3.3.1 の結果と同様、式 (4.3.1) の最小化子は次のように一意に定まる：
+
+\begin{propositionbox}[命題 4.3.1: DSM の最小化子]
+最小化子 $s^*$ は、ほとんどすべての $x_t\sim p_t$ および $t\in[0,T]$ について
+
+\[
+s^*(x_t,t)
+= \mathbb{E}_{x_0\sim p(x_0\mid x_t)}\bigl[\nabla_{x_t}\log p_t(x_t\mid x_0)\bigr]
+= \nabla_{x_t}\log p_t(x_t) \quad (4.3.2)
+\]
+
+を満たす。
+\end{propositionbox}
+
+
+\textbf{命題の証明。}
+DSM 目的は最小二乗誤差問題として理解できる。具体的には、各時刻 $t$ において、最適スコア関数は対数条件付き密度の勾配の条件付き期待値で与えられ、ベイズの法則の下では対数周辺密度の勾配と等価である。詳細な証明は付録 D.2.6 を参照。■
+
+\subsection*{4.3.2 サンプリングと推論}
+
+
+\[
+s_{\phi^\times}:=s_{\phi^\times}(x,t)\approx\nabla_x\log p_t(x)
+\]
+
+
+を学習した後、逆時間 SDE（式 (4.1.6)）および PF-ODE（式 (4.1.7)）における扱い不能なオラクルスコア $\nabla_x\log p_t(x)$ を、学習された代理 $s_{\phi^\times}(x,t)$ で置き換える。この置換により、SDE または ODE のいずれかを通じた扱いやすい推論が可能になる。明確さのため、結果として得られる過程をそれぞれ $x_{\phi^\times}^{\mathrm{SDE}}(t)$ および $x_{\phi^\times}^{\mathrm{ODE}}(t)$ と区別するが、後の節ではこの区別を省略する。\footnote{これは本小節以降の記法を単純化するためである。}
+
+\textbf{経験的逆時間 SDE。} 式 (4.1.6) の真のスコアを学習済みスコアモデル $s_{\phi^\times}$ で置き換えることで、生成に用いるパラメータ化された逆時間 SDE が得られる：
+
+\[
+dx_{\phi^\times}^{\mathrm{SDE}}(t)
+= \Bigl[f\bigl(x_{\phi^\times}^{\mathrm{SDE}}(t),t\bigr)
+- g^2(t)s_{\phi^\times}\bigl(x_{\phi^\times}^{\mathrm{SDE}}(t),t\bigr)\Bigr]dt
++ g(t)\, d\bar{w}(t). \quad (4.3.3)
+\]
+
+
+\translationfigure{fig-4-7.jpg}{図4.7: Score SDE からのサンプリングの（2D）図示。前向き SDE は $dx(t)=\sqrt{2t}\,dw(t)$ と設計され、ドリフト $f\equiv 0$、拡散係数 $g(t)=\sqrt{2t}$ で $[0,T]$ 上にあり、二モードガウス混合 $p_0=p_{\mathrm{data}}$ を $p_T\approx p_{\mathrm{prior}}:=\mathcal{N}(0,T^2 I)$ へ発展させる。逆時間 SDE（青；式 (4.3.4) で解く）と PF-ODE（赤；式 (4.3.6) で解く）のサンプリング軌跡を示す。ランダム点 $x_T\sim p_{\mathrm{prior}}$（暗い「$\times$」）から始め、両軌跡は $t\to 0$ につれ $p_{\mathrm{data}}$ の台へ向かって動く。}
+
+
+サンプルを生成するため、まず事前分布 $p_{\mathrm{prior}}$ から初期値 $x_T$ を抽出し、次いで式 (4.3.3) を時間を $t=T$ から $t=0$ へ遡って数値的に解く。これに対する標準的な数値ソルバは Euler–Maruyama 法であり、次の離散更新則を与える：
+
+\[
+x_{t-\Delta t}
+\leftarrow x_t
+- \bigl[f(x_t,t)-g^2(t)s_{\phi^\times}(x_t,t)\bigr]\Delta t
++ g(t)\sqrt{\Delta t}\,\epsilon, \quad (4.3.4)
+\]
+
+
+ここで $\epsilon\sim\mathcal{N}(0,I)$、$\Delta t>0$ はステップサイズである。
+
+この更新則を反復すると最終サンプル $x_{\phi^\times}^{\mathrm{SDE}}(0)$ が得られる。スコアモデルが正確であれば、これらの生成サンプルの分布、記して $p_{\phi^\times}^{\mathrm{SDE}}(\,\cdot\,;0)$ は、真のデータ分布への近い近似を与える\footnote{理論的には、推定精度は $p_T$ と $p_{\mathrm{prior}}$ の間の不一致（典型的には無視できる）、モデル学習誤差、および数値離散化誤差に依存する（wang2024evaluating; De Bortoli, 2022）。ここでは形式的な上界は追わない。}：
+
+\[
+p_{\phi^\times}^{\mathrm{SDE}}(\,\cdot\,;0)\approx p_{\mathrm{data}}(\,\cdot\,).
+\]
+
+
+実際、VP 構成については、式 (2.2.14) の DDPM サンプリングスキームは、上の Euler–Maruyama 離散化と同じ連続時間逆 SDE 極限をもつ；第4.4節を参照。
+
+\textbf{経験的 PF-ODE。} PF-ODE は $p_{\mathrm{prior}}$ と $p_{\mathrm{data}}$ を結ぶ連続流れを定義し、サンプリング、符号化、および厳密尤度評価を可能にする。次節はこれらの各操作についてさらなる詳細を与える。
+
+\textbf{I. PF-ODE によるサンプリング。} 式 (4.1.7) のオラクルスコアを $s_{\phi^\times}$ で置き換えると、経験的 PF-ODE が得られる：
+
+\[
+\frac{d}{dt}x_{\phi^\times}^{\mathrm{ODE}}(t)
+= f\bigl(x_{\phi^\times}^{\mathrm{ODE}}(t),t\bigr)
+- \tfrac12 g^2(t)s_{\phi^\times}\bigl(x_{\phi^\times}^{\mathrm{ODE}}(t),t\bigr). \quad (4.3.5)
+\]
+
+
+サンプルを生成するため、まず事前分布 $p_{\mathrm{prior}}$ から初期サンプル $x_T$ を抽出する。次いで式 (4.3.5) の PF-ODE を時間を $t=T$ から $t=0$ へ遡って数値的に解く。この過程は次の積分を近似することと等価である：
+
+\[
+x_{\phi^\times}^{\mathrm{ODE}}(0)
+= x_T
++ \int_T^{0}\Bigl[
+f\bigl(x_{\phi^\times}^{\mathrm{ODE}}(\tau),\tau\bigr)
+- \tfrac12 g^2(\tau)s_{\phi^\times}\bigl(x_{\phi^\times}^{\mathrm{ODE}}(\tau),\tau\bigr)
+\Bigr]d\tau.
+\]
+
+
+この積分を解くと最終サンプル $x_{\phi^\times}^{\mathrm{ODE}}(0)$ が得られる。この決定論的過程を通じて生成されたサンプルの分布、記して $p_{\phi^\times}^{\mathrm{ODE}}(\,\cdot\,;0)$ は、データ分布への近似を与え、$p_{\phi^\times}^{\mathrm{ODE}}(\,\cdot\,;0)\approx p_{\mathrm{data}}$ となる。
+
+$\Delta t>0$ を離散化ステップサイズとする。標準的な数値積分アプローチは Euler 法であり、
+
+\[
+f(x_\tau,\tau)-\tfrac12 g^2(\tau)s_{\phi^\times}(x_\tau,\tau)
+\approx f(x_t,t)-\tfrac12 g^2(t)s_{\phi^\times}(x_t,t),
+\qquad \tau\in[t-\Delta t,t]
+\]
+
+
+と見積もり、次の更新則につながる：
+
+\[
+x_{t-\Delta t}
+\leftarrow x_t
+- \Bigl[f(x_t,t)-\tfrac12 g^2(t)s_{\phi^\times}(x_t,t)\Bigr]\Delta t. \quad (4.3.6)
+\]
+
+
+この接続により、次の核心的洞察をもって生成過程を再構成できる：
+
+\begin{propositionbox}[洞察 4.3.1: 生成 $\Leftrightarrow$ ODE／SDE 求解]
+拡散モデルからのサンプリングは、根本的に対応する確率流 ODE または逆時間 SDE を解くことと等価である。
+\end{propositionbox}
+
+
+この等価性は、問い 3.5.1 で提起された拡散モデルの遅いサンプリング速度に対する明確な説明を与える。生成は計算集約的である。なぜならこれらの微分方程式の数値ソルバは本質的に反復的であり、解軌跡を正確に近似するためにしばしば多くのステップを要するからである\footnote{例えば、DDPM と Score SDE は生成に典型的に 1,000 回の関数評価を用いる。}。しかし PF-ODE 定式化はまた、加速数値ソルバに関する広範な文献を活用できるという利点もある。これらの技法を探求して拡散モデルのサンプリングを高速化することが、第9章の主焦点である。
+
+\textbf{II. PF-ODE による反転。} 議論したように、SDE の場合と異なり、同じ式 (4.3.5) を時間前向き（$0$ から $T$）および逆（$T$ から $0$）の双方で解ける。前向きに解くとき、ODE 流れはすべての $t\in[0,T]$ にわたってデータをその（ノイズ付き）潜在表現へ写し、エンコーダの役割を果たす。この概念は、画像翻訳や編集など（Mokady et al., 2023; Su et al., 2022）、制御可能な生成のための強力な応用を可能にする。
+
+\textbf{III. PF-ODE による対数尤度評価。} PF-ODE はまた、データサンプルの尤度を評価することも可能にする。式 (5.1.9) から、ODE について、軌跡に沿った対数密度の変化はその速度場の発散によって定まることを思い出そう。
+
+学習された PF-ODE について、
+
+\[
+v_{\phi^\times}(x,t):=f(x,t)-\tfrac12 g^2(t)s_{\phi^\times}(x,t)
+\]
+
+
+と定義する。$x(t)$ が
+
+\[
+\frac{d}{dt}x(t)=v_{\phi^\times}\bigl(x(t),t\bigr)
+\]
+
+
+に従って発展するなら、その対数密度は
+
+\[
+\frac{d}{dt}\log p_{\phi^\times}^{\mathrm{ODE}}\bigl(x(t);t\bigr)
+= -\nabla_x\cdot v_{\phi^\times}\bigl(x(t),t\bigr)
+\]
+
+
+を満たす。
+
+観測サンプル $x_0$ の尤度を評価するため、PF-ODE を $t=0$ から $t=T$ へ前向きに走らせ、$x_0$ をモデル密度が扱いやすい事前である終端点へ写す。同時に、
+
+\[
+\delta(t):=\log p_{\phi^\times}^{\mathrm{ODE}}\bigl(x(t);t\bigr)-\log p_{\phi^\times}^{\mathrm{ODE}}(x_0;0)
+\]
+
+
+を定義することで対数密度変化を追跡できる。したがって $\delta(0)=0$ であり、状態と対数密度変化は一緒に次を通じて計算できる：
+
+\begin{align*}
+\frac{d}{dt}
+\begin{bmatrix} x(t) \\ \delta(t) \end{bmatrix}
+=
+\begin{bmatrix}
+v_{\phi^\times}(x(t),t) \\
+-\nabla_x\cdot v_{\phi^\times}(x(t),t)
+\end{bmatrix},
+\qquad
+\begin{bmatrix} x(0) \\ \delta(0) \end{bmatrix}
+=
+\begin{bmatrix} x_0 \\ 0 \end{bmatrix}. \quad (4.3.7)
+\end{align*}
+
+
+$t=T$ まで積分した後、終端密度は $p_{\mathrm{prior}}(x(T))$ である。したがって、
+
+\[
+\log p_{\phi^\times}^{\mathrm{ODE}}(x_0;0)=\log p_{\mathrm{prior}}\bigl(x(T)\bigr)-\delta(T).
+\]
+
+
+等価に、
+
+\[
+\log p_{\phi^\times}^{\mathrm{ODE}}(x_0;0)
+= \log p_{\mathrm{prior}}\bigl(x(T)\bigr)
++ \int_0^T \nabla_x\cdot v_{\phi^\times}\bigl(x(t),t\bigr)\, dt.
+\]
+
+
+こうして、生成と反転に用いられる同じ PF-ODE が、尤度評価のための連続変数変換公式も提供する。
+
+\end{document}

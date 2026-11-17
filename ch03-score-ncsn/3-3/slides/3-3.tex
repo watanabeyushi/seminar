@@ -84,7 +84,7 @@
 \end{frame}
 %=============================================
 \assuppl
-\begin{frame}{\supplmark：スライスドSMの限界}
+\begin{frame}{スライスドSMの限界}
     トレースは避けられるが、生の$p_{\mathrm{data}}$上で場を合わせる点は同じである。
     \begin{exampleblock}{脆さ}
         \begin{itemize}
@@ -187,7 +187,99 @@
 \end{frame}
 %=============================================
 \assuppl
-\begin{frame}{\supplmark：条件付けの技法（Insight 3.3.1）}
+\begin{frame}{条件付けでも周辺最適と同じ（気持ち）}
+    定理3.3.1が言っているのは、
+    「条件付き教師で学習しても、最適解は周辺スコアである」こと。
+    \begin{exampleblock}{なぜ重要か}
+        周辺$p_\sigma$のスコアは未知でも、
+        既知の$p_\sigma(\tilde{\bm{x}}|\bm{x})$だけを教師にすればよい。\\
+        これがDSMの実用性の核である（付録D.2.2）。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：D.2.2①　両損失を展開する}
+    \[
+        \resizebox{0.98\textwidth}{!}{$
+        \begin{aligned}
+        \mathcal{L}_{\mathrm{SM}}
+        &=
+        \tfrac12\mathbb{E}_{p_\sigma}
+        \bigl[
+        \|s_\phi\|_2^2
+        -
+        2 s_\phi^{\top}\nabla\log p_\sigma
+        +
+        \|\nabla\log p_\sigma\|_2^2
+        \bigr],\\
+        \mathcal{L}_{\mathrm{DSM}}
+        &=
+        \tfrac12\mathbb{E}_{p_{\mathrm{data}}p_\sigma(\cdot|\bm{x})}
+        \bigl[
+        \|s_\phi\|_2^2
+        -
+        2 s_\phi^{\top}\nabla\log p_\sigma(\cdot|\bm{x})
+        +
+        \|\nabla\log p_\sigma(\cdot|\bm{x})\|_2^2
+        \bigr].
+        \end{aligned}
+        $}
+    \]
+    差$\mathcal{L}_{\mathrm{SM}}-\mathcal{L}_{\mathrm{DSM}}$を3項に分けて見る。
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：D.2.2②　第1項（$\|s_\phi\|^2$）は一致する}
+    $p_\sigma(\tilde{\bm{x}})=\int p_\sigma(\tilde{\bm{x}}|\bm{x})p_{\mathrm{data}}(\bm{x})\,d\bm{x}$より
+    \[
+        \mathbb{E}_{p_\sigma}[\|s_\phi\|_2^2]
+        =
+        \mathbb{E}_{p_{\mathrm{data}}p_\sigma(\cdot|\bm{x})}[\|s_\phi\|_2^2].
+    \]
+    したがって差の第1項は$0$。
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：D.2.2③　第2項（クロス）も一致する}
+    \[
+        \resizebox{0.98\textwidth}{!}{$
+        \begin{aligned}
+        \mathbb{E}_{p_\sigma}
+        \bigl[s_\phi^{\top}\nabla\log p_\sigma\bigr]
+        &=
+        \int s_\phi^{\top}\nabla_{\tilde{\bm{x}}}
+        \Bigl(
+        \int p_\sigma(\tilde{\bm{x}}|\bm{x})p_{\mathrm{data}}(\bm{x})\,d\bm{x}
+        \Bigr)
+        d\tilde{\bm{x}}\\
+        &=
+        \mathbb{E}_{p_{\mathrm{data}}p_\sigma(\cdot|\bm{x})}
+        \bigl[s_\phi^{\top}\nabla\log p_\sigma(\tilde{\bm{x}}|\bm{x})\bigr].
+        \end{aligned}
+        $}
+    \]
+    （式D.2.1相当。）差の第2項も$0$。
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：D.2.2④　第3項は$\phi$に依らない定数}
+    残るのは
+    \[
+        \resizebox{0.98\textwidth}{!}{$
+        C
+        :=
+        \tfrac12\mathbb{E}_{p_\sigma}[\|\nabla\log p_\sigma\|_2^2]
+        -
+        \tfrac12\mathbb{E}_{p_{\mathrm{data}}p_\sigma(\cdot|\bm{x})}
+        [\|\nabla\log p_\sigma(\cdot|\bm{x})\|_2^2]
+        $}
+    \]
+    のみ。$C$は$p_{\mathrm{data}}$とノイズ核だけで決まり$\phi$に依らない。\\
+    よって$\mathcal{L}_{\mathrm{SM}}=\mathcal{L}_{\mathrm{DSM}}+C$。
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{条件付けの技法（Insight 3.3.1）}
     \begin{exampleblock}{共通の原理}
         データ点$\bm{x}$で条件付けると、
         扱いにくい損失がモンテカルロ可能な形になる。\\
@@ -207,7 +299,7 @@
 \end{frame}
 %=============================================
 \assuppl
-\begin{frame}{\supplmark：図3.5の読み方}
+\begin{frame}{図3.5の読み方}
     \begin{columns}[T,onlytextwidth]
         \begin{column}{0.48\textwidth}
             \begin{exampleblock}{左（×）}
@@ -226,7 +318,8 @@
     \vspace{0.35em}
     \begin{exampleblock}{ポイント}
         ノイズの入れ方を自分で決めるから、
-        条件付きスコアが計算可能になる。
+        条件付きスコアが計算可能になる。\\
+        定理3.3.1により、それでも周辺スコアの最適へ到達する。
     \end{exampleblock}
 \end{frame}
 %=============================================
@@ -393,6 +486,69 @@
     \]
 \end{frame}
 %=============================================
+\assuppl
+\begin{frame}{スコア方向に$\sigma^{2}$動かす＝デノイズ}
+    幾何的には、観測$\tilde{\bm{x}}$から周辺スコアの向きへ
+    $\sigma^{2}$だけ進むと、事後平均$\mathbb{E}[\bm{x}|\tilde{\bm{x}}]$に着く（$\alpha=1$）。
+    \begin{exampleblock}{DSMとの接続}
+        DSMが周辺スコアを当てれば、同じ式でデノイザが決まる。\\
+        だからスコア学習とノイズ除去学習は裏表である。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：D.2.3①　周辺とそのスコア}
+    一般形（時間依存）でも同様：
+    $x_t|x_0\sim\mathcal{N}(\alpha_t x_0,\sigma_t^{2}I)$として
+    \[
+        p_t(x_t)=\int p_t(x_t|x_0)p_0(x_0)\,dx_0,
+        \quad
+        \nabla\log p_t
+        =
+        \frac{1}{p_t}
+        \int
+        \nabla_{x_t}p_t(x_t|x_0)\,p_0(x_0)\,dx_0.
+    \]
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：D.2.3②　ガウス条件付きの勾配}
+    \[
+        \nabla_{x_t}p_t(x_t|x_0)
+        =
+        -
+        p_t(x_t|x_0)\,
+        \sigma_t^{-2}
+        (x_t-\alpha_t x_0).
+    \]
+    代入して整理すると
+    \[
+        \nabla\log p_t(x_t)
+        =
+        -
+        \sigma_t^{-2}
+        \bigl(
+        x_t
+        -
+        \alpha_t\,\mathbb{E}[x_0|x_t]
+        \bigr).
+    \]
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：D.2.3③　並べ替えてTweedie}
+    両辺に$\sigma_t^{2}$を掛けて移項すると
+    \[
+        \alpha_t\,\mathbb{E}[x_0|x_t]
+        =
+        x_t
+        +
+        \sigma_t^{2}\,
+        \nabla_{x_t}\log p_t(x_t).
+    \]
+    $\alpha_t=1$、$\sigma_t=\sigma$、$x_t=\tilde{\bm{x}}$と置けば式（3.3.6）。
+\end{frame}
+%=============================================
 \asmain
 \begin{frame}{スコア予測はデノイザを決める}
     DSMで$s_\phi(\tilde{\bm{x}},\sigma)\approx\nabla_{\tilde{\bm{x}}}\log p_{\sigma}(\tilde{\bm{x}})$なら
@@ -447,7 +603,7 @@
 \end{frame}
 %=============================================
 \assuppl
-\begin{frame}{\supplmark：SUREはきれいな信号なしでMSEを見積もる}
+\begin{frame}{SURE：きれいな信号なしでMSEを測る}
     $\tilde{\bm{x}}=\bm{x}+\sigma\bm{\epsilon}$に対するデノイザ$D$について
     \[
         \operatorname{SURE}(D;\tilde{\bm{x}})
@@ -459,14 +615,68 @@
         \tag{3.3.7}
     \]
     （末項の$D$は入力次元。デノイザと同じ記号なので注意。）
-    \begin{exampleblock}{意味}
+    \begin{exampleblock}{気持ち}
         右辺はノイズ付き$\tilde{\bm{x}}$だけで計算できる。\\
-        期待値をとると、未知のきれいな$\bm{x}$に対する真のMSEと一致する。
+        期待値をとると、未知のきれいな$\bm{x}$に対する真のMSEと一致する
+        （付録D.2.4・Stein）。
     \end{exampleblock}
 \end{frame}
 %=============================================
 \assuppl
-\begin{frame}{\supplmark：SURE最適＝Tweedieのデノイザ}
+\begin{frame}{\supplmark：D.2.4①　1次元Stein恒等式}
+    $z\sim\mathcal{N}(0,1)$、減衰条件のもと
+    \[
+        \mathbb{E}[f'(z)]=\mathbb{E}[z\,f(z)].
+    \]
+    標準正規密度$\varphi$は$\varphi'=-z\varphi$。部分積分で境界項を消すと上式になる。
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：D.2.4②　多次元とノイズ付きへの適用}
+    $z\sim\mathcal{N}(0,I)$、ベクトル場$u$について
+    \[
+        \mathbb{E}[\nabla_z\cdot u(z)]
+        =
+        \mathbb{E}[z^{\top}u(z)]
+        \tag{D.2.2}
+    \]
+    $\tilde{\bm{x}}=\bm{x}+\sigma z$と連鎖律より（固定$\bm{x}$の条件付きで）
+    \[
+        \mathbb{E}
+        \bigl[(\tilde{\bm{x}}-\bm{x})^{\top}a(\tilde{\bm{x}})\,\big|\,\bm{x}\bigr]
+        =
+        \sigma^{2}\,
+        \mathbb{E}
+        \bigl[\nabla_{\tilde{\bm{x}}}\cdot a(\tilde{\bm{x}})\,\big|\,\bm{x}\bigr]
+        \tag{D.2.3}
+    \]
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：D.2.4③　条件付きMSEからSUREへ}
+    $R(D;\bm{x})=\mathbb{E}[\|D(\tilde{\bm{x}})-\bm{x}\|_2^2|\bm{x}]$を
+    $\tilde{\bm{x}}$周りに展開し、クロス項に（D.2.3）を使うと
+    \[
+        \resizebox{0.98\textwidth}{!}{$
+        R(D;\bm{x})
+        =
+        \mathbb{E}
+        \bigl[
+        \|D-\tilde{\bm{x}}\|_2^2
+        +
+        2\sigma^{2}\,\nabla\cdot D
+        -
+        D\sigma^{2}
+        \,\big|\,\bm{x}
+        \bigr].
+        $}
+    \]
+    よって観測可能な
+    $\operatorname{SURE}(D;\tilde{\bm{x}})$（式3.3.7）の条件付き期待が$R$に一致する。
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{SURE最適＝Tweedieのデノイザ}
     期待SUREを最小化すると、Bayesデノイザ
     \[
         D^{\star}(\tilde{\bm{x}})
@@ -480,8 +690,10 @@
         \tag{3.3.8}
     \]
     に到達する。
-    $D(\tilde{\bm{x}})=\tilde{\bm{x}}+\sigma^{2}s_\phi(\tilde{\bm{x}},\sigma)$と置くと、
-    SURE最小化は（定数を除き）ノイズレベル$\sigma$でのHyv\"arinen形と一致する。
+    \begin{exampleblock}{位置づけ}
+        $D=\tilde{\bm{x}}+\sigma^{2}s_\phi$と置くと、
+        SURE最小化は（定数を除き）Hyv\"arinen形／DSMと同じ最適点を見る。
+    \end{exampleblock}
 \end{frame}
 %=============================================
 \assuppl

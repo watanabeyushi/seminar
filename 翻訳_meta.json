@@ -1,0 +1,361 @@
+{
+  "sections": {
+    "1": [
+      {
+        "file": "1-1.en.txt",
+        "section": "1.1",
+        "title": "What is Deep Generative Modeling?",
+        "lines": "890-1173",
+        "chars": 15069
+      },
+      {
+        "file": "1-2.en.txt",
+        "section": "1.2",
+        "title": "Prominent Deep Generative Models",
+        "lines": "1174-1348",
+        "chars": 9963
+      },
+      {
+        "file": "1-3.en.txt",
+        "section": "1.3",
+        "title": "Taxonomy of Modeling",
+        "lines": "1349-1395",
+        "chars": 2620
+      },
+      {
+        "file": "1-4.en.txt",
+        "section": "1.4",
+        "title": "Closing Remarks",
+        "lines": "1396-1847",
+        "chars": 20290
+      }
+    ],
+    "2": [
+      {
+        "file": "2-1.en.txt",
+        "section": "2.1",
+        "title": "Variational Autoencoder",
+        "lines": "1848-2306",
+        "chars": 23926
+      },
+      {
+        "file": "2-2.en.txt",
+        "section": "2.2",
+        "title": "Variational Perspective: DDPM",
+        "lines": "2307-2932",
+        "chars": 35109
+      },
+      {
+        "file": "2-3.en.txt",
+        "section": "2.3",
+        "title": "Closing Remarks",
+        "lines": "2933-3017",
+        "chars": 4416
+      }
+    ],
+    "3": [
+      {
+        "file": "3-1.en.txt",
+        "section": "3.1",
+        "title": "Energy-Based Models",
+        "lines": "3018-3298",
+        "chars": 14940
+      },
+      {
+        "file": "3-2.en.txt",
+        "section": "3.2",
+        "title": "From Energy-Based to Score-Based Generative Models",
+        "lines": "3299-3434",
+        "chars": 7055
+      },
+      {
+        "file": "3-3.en.txt",
+        "section": "3.3",
+        "title": "Denoising Score Matching",
+        "lines": "3435-3947",
+        "chars": 25942
+      },
+      {
+        "file": "3-4.en.txt",
+        "section": "3.4",
+        "title": "Multi-Noise Levels of Denoising Score Matching (NCSN)",
+        "lines": "3948-4157",
+        "chars": 10550
+      },
+      {
+        "file": "3-5.en.txt",
+        "section": "3.5",
+        "title": "Summary: A Comparative View of NCSN and DDPM",
+        "lines": "4158-4201",
+        "chars": 2494
+      },
+      {
+        "file": "3-6.en.txt",
+        "section": "3.6",
+        "title": "Closing Remarks",
+        "lines": "4202-4327",
+        "chars": 6842
+      }
+    ],
+    "4": [
+      {
+        "file": "4-1.en.txt",
+        "section": "4.1",
+        "title": "Score SDE: Its Principles",
+        "lines": "4328-4777",
+        "chars": 24093
+      },
+      {
+        "file": "4-2.en.txt",
+        "section": "4.2",
+        "title": "Matching Marginals in Forward/Reverse-Time SDEs and PF-ODE",
+        "lines": "4778-5204",
+        "chars": 21373
+      },
+      {
+        "file": "4-3.en.txt",
+        "section": "4.3",
+        "title": "Score SDE: Its Training and Sampling",
+        "lines": "5205-5455",
+        "chars": 13345
+      },
+      {
+        "file": "4-4.en.txt",
+        "section": "4.4",
+        "title": "Instantiations of SDEs",
+        "lines": "5456-5672",
+        "chars": 10714
+      },
+      {
+        "file": "4-5.en.txt",
+        "section": "4.5",
+        "title": "A Direct View Through Accumulated Perturbation Kernels",
+        "lines": "5673-5965",
+        "chars": 14780
+      },
+      {
+        "file": "4-6.en.txt",
+        "section": "4.6",
+        "title": "(Optional) Fokker–Planck Equation and Reverse-Time SDEs",
+        "lines": "5966-6167",
+        "chars": 10257
+      },
+      {
+        "file": "4-7.en.txt",
+        "section": "4.7",
+        "title": "Closing Remarks",
+        "lines": "6168-6341",
+        "chars": 8922
+      }
+    ],
+    "5": [
+      {
+        "file": "5-1.en.txt",
+        "section": "5.1",
+        "title": "Flow-Based Models: Normalizing Flows and Neural ODEs",
+        "lines": "6342-6712",
+        "chars": 18643
+      },
+      {
+        "file": "5-2.en.txt",
+        "section": "5.2",
+        "title": "Flow Matching Framework",
+        "lines": "6713-7299",
+        "chars": 33645
+      },
+      {
+        "file": "5-3.en.txt",
+        "section": "5.3",
+        "title": "Constructing Probability Paths and Velocities Between Distributions",
+        "lines": "7300-7951",
+        "chars": 34945
+      },
+      {
+        "file": "5-4.en.txt",
+        "section": "5.4",
+        "title": "(Optional) Properties of the Canonical Affine Flow",
+        "lines": "7952-8200",
+        "chars": 12598
+      },
+      {
+        "file": "5-5.en.txt",
+        "section": "5.5",
+        "title": "Closing Remarks",
+        "lines": "8201-8330",
+        "chars": 7138
+      }
+    ],
+    "6": [
+      {
+        "file": "6-1.en.txt",
+        "section": "6.1",
+        "title": "Conditional Tricks: The Secret Sauce of Diffusion Models",
+        "lines": "8331-8560",
+        "chars": 13211
+      },
+      {
+        "file": "6-2.en.txt",
+        "section": "6.2",
+        "title": "A Roadmap for Elucidating Training Losses in Diffusion Models",
+        "lines": "8561-8869",
+        "chars": 16944
+      },
+      {
+        "file": "6-3.en.txt",
+        "section": "6.3",
+        "title": "Equivalence in Diffusion Models",
+        "lines": "8870-9501",
+        "chars": 34725
+      },
+      {
+        "file": "6-4.en.txt",
+        "section": "6.4",
+        "title": "Beneath It All: The Fokker–Planck Equation",
+        "lines": "9502-9689",
+        "chars": 9976
+      },
+      {
+        "file": "6-5.en.txt",
+        "section": "6.5",
+        "title": "Closing Remarks",
+        "lines": "9690-9791",
+        "chars": 5449
+      }
+    ],
+    "7": [
+      {
+        "file": "7-1.en.txt",
+        "section": "7.1",
+        "title": "Prologue of Distribution-to-Distribution Translation",
+        "lines": "9792-9867",
+        "chars": 4946
+      },
+      {
+        "file": "7-2.en.txt",
+        "section": "7.2",
+        "title": "Taxonomy of the Problem Setups",
+        "lines": "9868-10424",
+        "chars": 31589
+      },
+      {
+        "file": "7-3.en.txt",
+        "section": "7.3",
+        "title": "Relationship of Variant Optimal Transport Formulations",
+        "lines": "10425-10764",
+        "chars": 19240
+      },
+      {
+        "file": "7-4.en.txt",
+        "section": "7.4",
+        "title": "Is Diffusion Model’s SDE Optimal Solution to SB Problem?",
+        "lines": "10765-10935",
+        "chars": 9374
+      },
+      {
+        "file": "7-5.en.txt",
+        "section": "7.5",
+        "title": "Is Diffusion Model’s ODE an Optimal Map to OT Problem?",
+        "lines": "10936-11318",
+        "chars": 18856
+      },
+      {
+        "file": "7-6.en.txt",
+        "section": "7.6",
+        "title": "Closing Remarks",
+        "lines": "11319-11453",
+        "chars": 7308
+      }
+    ],
+    "8": [
+      {
+        "file": "8-1.en.txt",
+        "section": "8.1",
+        "title": "Prologue",
+        "lines": "11454-11639",
+        "chars": 10557
+      },
+      {
+        "file": "8-2.en.txt",
+        "section": "8.2",
+        "title": "Classifier Guidance",
+        "lines": "11640-11759",
+        "chars": 6191
+      },
+      {
+        "file": "8-3.en.txt",
+        "section": "8.3",
+        "title": "Classifier-Free Guidance",
+        "lines": "11760-11869",
+        "chars": 5873
+      },
+      {
+        "file": "8-4.en.txt",
+        "section": "8.4",
+        "title": "Training-Free Guidance",
+        "lines": "11870-12297",
+        "chars": 22924
+      },
+      {
+        "file": "8-5.en.txt",
+        "section": "8.5",
+        "title": "From Reinforcement Learning to Direct Preference Optimization for",
+        "lines": "12298-12760",
+        "chars": 27702
+      },
+      {
+        "file": "8-6.en.txt",
+        "section": "8.6",
+        "title": "Closing Remarks",
+        "lines": "12761-12851",
+        "chars": 4457
+      }
+    ]
+  },
+  "copied_figs": [
+    "ch03-score-ncsn\\翻訳\\images\\fig-3-1.jpg",
+    "ch03-score-ncsn\\翻訳\\images\\fig-3-2.jpg",
+    "ch03-score-ncsn\\翻訳\\images\\fig-3-3.jpg",
+    "ch03-score-ncsn\\翻訳\\images\\fig-3-4.jpg",
+    "ch03-score-ncsn\\翻訳\\images\\fig-3-5.jpg",
+    "ch03-score-ncsn\\翻訳\\images\\fig-3-6.jpg",
+    "ch03-score-ncsn\\翻訳\\images\\fig-3-7.jpg",
+    "ch04-score-sde\\翻訳\\images\\fig-4-1.jpg",
+    "ch04-score-sde\\翻訳\\images\\fig-4-2.jpg",
+    "ch04-score-sde\\翻訳\\images\\fig-4-3.jpg",
+    "ch04-score-sde\\翻訳\\images\\fig-4-4.jpg",
+    "ch04-score-sde\\翻訳\\images\\fig-4-5.jpg",
+    "ch04-score-sde\\翻訳\\images\\fig-4-6.jpg",
+    "ch04-score-sde\\翻訳\\images\\fig-4-7.jpg",
+    "ch05-flow-matching\\翻訳\\images\\fig-5-1.jpg",
+    "ch05-flow-matching\\翻訳\\images\\fig-5-2.jpg",
+    "ch05-flow-matching\\翻訳\\images\\fig-5-3.jpg",
+    "ch05-flow-matching\\翻訳\\images\\fig-5-4.jpg",
+    "ch05-flow-matching\\翻訳\\images\\fig-5-5.jpg",
+    "ch05-flow-matching\\翻訳\\images\\fig-5-6.jpg",
+    "ch05-flow-matching\\翻訳\\images\\fig-5-7.jpg",
+    "ch05-flow-matching\\翻訳\\images\\fig-5-8.jpg",
+    "ch05-flow-matching\\翻訳\\images\\fig-5-10.jpg",
+    "ch05-flow-matching\\翻訳\\images\\fig-5-9.jpg",
+    "ch05-flow-matching\\翻訳\\images\\fig-5-11.jpg",
+    "ch06-unified\\翻訳\\images\\fig-6-1.jpg",
+    "ch06-unified\\翻訳\\images\\fig-6-2.jpg",
+    "ch07-ot\\翻訳\\images\\fig-7-1.jpg",
+    "ch07-ot\\翻訳\\images\\fig-7-2.jpg",
+    "ch07-ot\\翻訳\\images\\fig-7-3.jpg",
+    "ch07-ot\\翻訳\\images\\fig-7-4.jpg",
+    "ch07-ot\\翻訳\\images\\fig-7-5.jpg",
+    "ch07-ot\\翻訳\\images\\fig-7-6.jpg",
+    "ch08-guidance\\翻訳\\images\\fig-8-1.jpg",
+    "ch08-guidance\\翻訳\\images\\fig-8-2.jpg"
+  ],
+  "ch_intro": {
+    "1": 890,
+    "2": 1848,
+    "3": 3018,
+    "4": 4328,
+    "5": 6342,
+    "6": 8331,
+    "7": 9792,
+    "8": 11454
+  }
+}

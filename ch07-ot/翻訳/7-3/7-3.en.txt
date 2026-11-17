@@ -1,0 +1,338 @@
+7.3    Relationship of Variant Optimal Transport Formulations
+
+
+                                                                                 Endpoint
+                                                        SBε
+                                                                                 projection                          EOTε
+         SBε                                        (Path-Space
+                          pt = P ∗ (xt ∈ ·)                                   γ ∗ = (x0 , xT )# P ∗                      Z
+  (Stochastic Control)                              Formulation)                                           min                ∥x − y∥22 dγ +
+                                (i)                                                   (ii)            γ∈Γ(psrc ,ptgt )
+ See Equation (7.2.10).                             min        DKL (P ∥Rε )                                εDKL (γ∥psrc ⊗ ptgt )
+                                                P : P0 =psrc
+                                                   PT =ptgt
+
+
+      ε → 0 (iv)                                                                                                 ε → 0 (iii)
+
+
+        OT                                                                                                         OT
+(Dynamic Formulation)                                                                                     (Static Formulation)
+                                                ∗
+                                      pt = Ψt #γ where Ψt (x, y) = (1 − t)x + ty                                          Z
+  See Equation (7.2.3).
+                                                                                                            min               ∥x − y∥22 dγ
+                                                                                                       γ∈Γ(psrc ,ptgt )
+
+
+
+Figure 7.4: Relationship between variants of optimal transport with c(x, y) = ∥x − y∥22 and
+Reference Rε in SB. We summarize the relationships: (i) the stochastic-control and path-space
+KL formulations of SBε are equivalent; (ii) for the Brownian reference with the corresponding
+quadratic-cost normalization, the endpoint projection of SBε yields EOTε ; (iii) EOTε converges to
+static OT as ε → 0; and (iv) the appropriately rescaled Brownian-reference Schrödinger problem
+converges to dynamic OT as ε → 0.
+                                                                                             Source: Created by the authors.
+
+   Before delving into the technical details, it is helpful to clarify how the different
+formulations of optimal transport and its entropic regularizations are connected.
+At a high level, these problems can be viewed as related (see Figure 7.4 for their
+diagram for connection):
+
+  (i) Path-Space SB ⇐⇒ Stochastic-Control SB. The path-space KL formula-
+      tion of SBε and its stochastic-control formulation describe the same bridge
+      problem relative to the chosen reference process (see Section 7.2.3).
+
+ (ii) Brownian-Reference SB ⇐⇒ EOTε . For the Brownian reference
+                                    √
+                              dxt = ε dwt ,
+
+      with the corresponding quadratic-cost normalization, the endpoint coupling
+      induced by the optimal SB path law solves the associated EOTε problem
+      (see Section 7.3.1).
+
+ (iii) EOTε −→ Static OT. As ε → 0, the entropy-regularized endpoint coupling
+       approaches the corresponding classical OT problem, and the optimal values
+       converge to the OT value under the assumptions discussed in Section 7.3.2.
+
+ (iv) SBε −→ Dynamic OT. Under the corresponding small-noise scaling, the
+      Brownian-reference Schrödinger problem converges as ε → 0 to the Benamou–
+      Brenier dynamic formulation of OT (see Section 7.3.3).
+
+7.3. Relationship of Variant Optimal Transport Formulations                                                                                     225
+
+
+    Together, these non-trivial relationships provide a compact view across stochas-
+tic control, entropy-regularized, and classical OT frameworks.
+          ε = 0.01 (near OT)                                              ε = 0.5                       ε = 5.0 (near SB)
+  psrc
+                                             ptgt
+
+
+
+
+           coupling: exact OT (Hungarian)                            coupling: Sinkhorn γε∗ p              coupling: spread (high ε)
+             paths: straight (zero noise)                       paths: Brownian bridge, σ = ε/2   paths: wiggly bridges ≈ Schrödinger bridge
+
+
+
+
+Figure 7.5: Effect of the regularization parameter ε on entropic optimal transport (connections
+(iii) and (iv)). As ε increases, two things change simultaneously: the coupling γε∗ spreads mass to
+more distant targets, and the transport paths become increasingly stochastic. Left (ε = 0.01):
+paths are nearly straight and each source point maps to a single nearby target, recovering classical
+OT. Center (ε = 0.5): paths acquire visible fluctuations and the coupling begins to spread. Right
+(ε = 2.5): paths are highly stochastic, approaching the Schrödinger bridge regime; in the limit
+ε → ∞, the coupling degenerates to the independent product psrc ⊗ ptgt . The couplings are
+computed via the Sinkhorn algorithm (Hungarian algorithm for εp     → 0); conditional on endpoints,
+the paths are Brownian bridges with diffusion coefficient σ = ε/2 from the Mikami duality
+(Section 7.3.1).
+                                                               Source: Created by the authors with AI-assisted coding.
+
+
+
+7.3.1    SB and EOT are (Dual) Equivalent
+In this section, we present two complementary perspectives showing that SB are
+essentially equivalent to EOT. Unlike classical optimal transport, which produces a
+single deterministic map, SB yields a stochastic flow of particles: mass is transported
+probabilistically, with marginals evolving under diffusion-like dynamics.
+    From the static viewpoint, SB coincides with EOT, where the goal is to find
+a coupling between the two endpoint distributions that balances transport cost
+with entropy. From the dynamic viewpoint, SB describes a controlled diffusion
+process that remains as close as possible to a simple reference (such as Brownian
+motion) while still matching the desired endpoints. Each perspective independently
+establishes the equivalence, providing two consistent ways to understand SB/EOT
+as canonical formulations of distribution-to-distribution transformation.
+
+Static Schrödinger Bridge.                               Let
+                                            e ε (x, y) :=   1 −c(x,y)/ε
+                                            R                  e        psrc (x) ptgt (y),
+                                                            Zε
+with normalizing constant
+                                                    ZZ
+                                            Zε :=        e−c(x,y)/ε psrc (x) ptgt (y) dx dy.
+
+226                                  (Optional) Diffusion Models and Optimal Transport
+
+
+Then, for any admissible coupling γ ∈ Γ(psrc , ptgt ), a direct computation gives
+                 Z
+                                                        e ε − ε log Zε .
+                                                                          
+                      c dγ + εDKL γ∥psrc ⊗ptgt = εDKL γ∥R
+
+Therefore,
+                  nZ                                     o
+                                                                                        eε
+                                                                                                 
+        min             c dγ + εDKL γ∥psrc ⊗ptgt              =ε        min       DKL γ∥R
+   γ∈Γ(psrc ,ptgt )                                                γ∈Γ(psrc ,ptgt )                  (7.3.1)
+                                                                                      − ε log Zε ,
+
+so the entropic OT problem is equivalent, up to an additive constant, to the static
+Schrödinger Bridge problem
+
+                                       min                  e ε ).
+                                                     DKL (γ∥R
+                                  γ∈Γ(psrc ,ptgt )
+
+
+Dynamic Equivalence (Brownian Reference). We can also understand this
+equivalence from a dynamical viewpoint. A classical result (Mikami and Thieullen,
+2006) states that entropic OT with quadratic cost
+
+                                                     ∥y − x∥2
+                                     c(x, y) =
+                                                        2T
+is affinely equivalent to the SB problem where the reference path law Rε is Brownian
+motion on [0, T ],
+                                          √
+                                    dxt = ε dwt .
+Here, “affinely equivalent” means the optimal values differ by a positive scaling
+and an additive constant (independent of the decision variable), so the minimizers
+coincide. In particular, let P ∗ be the optimal path distribution for SB. The key
+connection to EOT is obtained by looking only at the two endpoints of this optimal
+stochastic process. If x[0:T ] ∼ P ∗ , then the endpoint pair (x0 , xT ) induces the
+coupling
+                                 γ ∗ := (x0 , xT )# P ∗ ,
+and γ ∗ is an optimal transport plan for the corresponding EOT problem.
+    Conversely, starting from an optimal EOT coupling γ ∗ , we may first sample a
+pair of endpoints (x0 , xT ) ∼ γ ∗ and then, conditioned on these endpoints, sample
+a trajectory from the reference diffusion conditioned to connect x0 to xT . Mixing
+these conditional diffusion paths according to γ ∗ recovers the optimal SB path
+distribution P ∗ .
+    In words, the optimal stochastic process from the dynamic SB problem induces
+the optimal endpoint coupling of the static EOT problem. Conversely, the optimal
+EOT coupling specifies how the endpoints should be paired, while the reference
+diffusion specifies the optimal stochastic path between each paired set of endpoints.
+
+7.3. Relationship of Variant Optimal Transport Formulations                      227
+
+
+    The key idea to derive this fact is that the KL divergence over paths can be
+broken down according to the endpoints, which means the Schrödinger bridge
+problem reduces to a KL divergence just over the joint distribution of (x0 , xT ).
+For Brownian motion the transition density between x and y has a Gaussian form,
+so its negative log is quadratic:
+                                             ∥y − x∥2
+                       −ε log pT (y | x) =            + const.
+                                                2T
+This shows that the endpoint KL is exactly the same as the entropic OT objective
+with quadratic cost, up to an irrelevant constant.
+
+SB with General Reference Determines the Endpoint EOT Cost. The connec-
+tion between SB and EOT is not restricted to Brownian motion. For a general
+well-posed reference process, its transition law tells us how “natural” it is under
+the reference dynamics to move from x at time 0 to y at time T . Endpoint pairs
+that are unlikely under the reference should therefore carry a larger transport cost.
+    More precisely, let pT (y|x) denote the transition density of the reference
+process over [0, T ]. Up to a scaling and additive terms that depend only on the
+fixed endpoint marginals, the corresponding endpoint cost takes the form
+
+                              c(x, y) ∝ − log pT (y|x).
+
+Thus, at the level of endpoint couplings, the reference dynamics induce the cost
+used by the corresponding EOT problem: likely transitions receive smaller cost,
+while unlikely transitions receive larger cost.
+    The full reference process contains additional information beyond this endpoint
+cost. Once an endpoint pair (x, y) is selected, the reference dynamics also determine
+the conditional stochastic paths used to connect those endpoints. In this sense,
+EOT determines how the endpoints are optimally paired, while SB additionally
+describes the stochastic transport between each paired set of endpoints.
+
+7.3.2   EOTε is Reduced to OT as ε → 0
+
+Let γε∗ denote the optimal plan for EOTε , and let γ ∗ denote an optimal plan of the
+unregularized OT problem in Equation (7.2.1). Under standard assumptions, as
+ε → 0 the EOT optimal values converge to the OT value, and any limiting entropic
+optimal plan is OT-optimal; when the OT optimizer is unique, the optimal plans
+converge to γ ∗ .
+    This convergence result is both fundamental and practically important. One
+of the reasons is that the entropy-regularized OT problem EOTε admits efficient
+numerical solutions via algorithms such as Sinkhorn. Thus, the result provides
+theoretical justification for using EOTε with small ε as a computationally tractable
+
+228                                (Optional) Diffusion Models and Optimal Transport
+
+
+proxy for the classical OT problem in Equation (7.2.1), even when the cost function
+c(x, y) is more general than the quadratic case.
+
+   Theorem 7.3.1: (Informal) EOTε Converges to OT.
+   Under standard assumptions ensuring the entropic OT limit, as ε → 0, the
+   optimal values converge:
+
+                       lim EOTε (psrc , ptgt ) = OT(psrc , ptgt ).
+                       ε→0
+
+   Moreover, any limiting optimal plan is an optimal coupling of the unregu-
+   larized OT problem. In particular, when the OT optimizer is unique, the
+   entropic optimal plans converge to that optimizer.
+
+Proof for Theorem.
+   For a rigorous proof, we refer to the literature (Mikami and Thieullen, 2008;
+   Peyré, Cuturi, et al., 2019). Below we provide a heuristic derivation of the value
+   convergence.
+      Let us denote the corresponding optimal values by
+                    Vε := EOTε (psrc , ptgt ),    V0 := OT(psrc , ptgt )
+   for notational simplicity.
+       The elementary upper-bound argument below applies when an OT-optimal
+   coupling has finite relative entropy with respect to psrc ⊗ ptgt . In general,
+   the rigorous value convergence can be established by approximating optimal
+   couplings with finite-entropy couplings, or more systematically through Γ-
+   convergence arguments.
+
+   Upper Bound. By optimality of γε∗ , its value Vε is bounded by the cost of
+   using the plan γ ∗ :
+                               Z
+                        Vε ≤       c dγ ∗ + εDKL (γ ∗ ∥psrc ⊗ ptgt ).
+
+  Assuming the KL term is a finite constant K, we get Vε ≤ V0 + εK. Taking the
+  limit superior yields lim supε→0 Vε ≤ V0 .
+
+  Lower Bound. Since the KL-divergence is non-negative, Vε ≥ c dγε∗ . By
+                                                                           R
+
+  definition of V0 as the minimal transport cost, any plan’s cost is at least V0 , so
+    c dγε∗ ≥ V0 . This implies Vε ≥ V0 for all ε > 0, and thus lim inf ε→0 Vε ≥ V0 .
+  R
+
+      Combining the upper and lower bounds shows the convergence of the optimal
+  value, limε→0 Vε = V0 . The corresponding convergence of optimal plans requires
+  additional compactness arguments: any limiting plan is OT-optimal, and full
+  convergence follows when the OT optimizer is unique.
+                                                                                    ■
+
+7.3. Relationship of Variant Optimal Transport Formulations                                  229
+
+
+7.3.3    SBε is Reduced to OT as ε → 0
+For direct comparison with Equation (7.2.3), we rescale time so that T = 1
+throughout this subsection. For each ε > 0, let vtε be a minimizer of the SB
+problem as in Equation (7.2.10), and let pεt be the marginal distribution of the
+controlled SDE xt induced by vtε . Then pεt satisfies the associated Fokker–Planck
+equation. In contrast, denote by (p0t , vt0 ) a minimizer of the Benamou–Brenier
+formulation of optimal transport (see Equation (7.2.3)).
+    The following theorem7 states that as ε → 0, the SB problem converges to the
+OT problem. This result is practically important for reasons similar to those in
+Theorem 7.3.1. The objective SBε can be efficiently solved using Sinkhorn type
+algorithms, yielding a numerically tractable and differentiable proxy for optimal
+transport. This is especially valuable in high dimensional or large scale settings,
+where direct solvers (e.g., based on the Benamou–Brenier formulation) become
+computationally expensive.
+
+   Theorem 7.3.2: (Informal) SBε Converges to OT.
+   As ε → 0, we have:
+
+                          lim 2ε SBε (psrc , ptgt ) = W22 (psrc , ptgt ),
+                          ε→0
+
+   where OT is of the Benamou–Brenier formulation as in Equation (7.2.3).
+   Moreover, under suitable compactness and regularity assumptions, the
+   marginals pεt and the corresponding velocity fields vtε converge, in the
+   appropriate weak sense, along subsequences to a limiting pair (p0t , vt0 ) that
+   solves the Benamou–Brenier problem. In particular, when the Benamou–
+   Brenier minimizer is unique, the optimal Schrödinger dynamics converge to
+   this OT solution in the corresponding limiting sense.
+
+Proof for Theorem.
+   A full rigorous proof of the convergence result is beyond our scope; we refer
+   the reader to Léonard (2012) and Léonard (2014) for detailed derivations.
+   Nevertheless, we can heuristically understand why this convergence may hold.
+      In the stochastic control formulation of the SB problem Equation (7.2.10),
+   the controlled SDE is given by:
+                                                 √
+                             dxt = vtε (xt ) dt + ε dwt .
+   As ε → 0, the noise term vanishes, and the SDE formally approaches a deter-
+    7
+      A rigorous formulation uses Γ-convergence of the appropriately rescaled Schrödinger func-
+tionals. Together with suitable compactness assumptions, this yields convergence of optimal values
+and corresponding limit points of minimizers. Since this requires more technical background, we
+omit the details here and state only the conceptual result.
+
+230                              (Optional) Diffusion Models and Optimal Transport
+
+   ministic ODE:
+                                     dxt = vt0 (xt ) dt.
+  Together with Equation (7.2.10), this suggests that the appropriately rescaled
+  SB objective converges to the Benamou–Brenier action:
+
+                        lim 2ε SBε (psrc , ptgt ) = W22 (psrc , ptgt ).
+                       ε→0
+
+      In parallel, the marginal density pεt satisfies the Fokker-Planck equation:
+                                                          ε
+                              ∂t pεt + ∇ · (pεt vtε ) =     ∆pεt .
+                                                          2
+  Again, as ε → 0, the diffusion term vanishes, and the equation formally reduces
+  to the continuity equation:
+                                                    
+                                 ∂t p0t + ∇ · p0t vt0 = 0.
+
+                                                                                    ■
+   Until now, we have presented the fundamental equivalences (under their re-
+spective assumptions) between EOT and SB, as well as their important connection
+to OT through a limiting process, illustrated in Figure 7.4. Next, we will explore
+how diffusion models connect to these concepts.
+
+7.4. Is Diffusion Model’s SDE Optimal Solution to SB Problem?                   231

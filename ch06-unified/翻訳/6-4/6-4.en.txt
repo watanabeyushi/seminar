@@ -1,0 +1,186 @@
+6.4    Beneath It All: The Fokker–Planck Equation
+
+
+
+                                         Forward Process
+                 Variational Approach:
+                                                Lemma 4.5.1              Forward SDE:
+                Defining p(xt |xt−∆t ), or
+                                                                 dx(t) = f (t)x(t) dt + g(t) dw(t)
+             pt (xt |x0 ) ⇔ xt = αt x0 + σt ϵ
+
+
+                                       Forward from pdata at t = 0
+
+
+                         Continuity Equation/Fokker-Planck Equation
+                                           for pt (x)
+
+
+
+                                         Reverse Process
+             Variational Approach:         ∆t → 0                    Reverse SDE:
+                  p(xt−∆t |xt )                            dx̄ = v∗ − 12 γ 2 (t)s∗ dt + γ(t) dw̄(t)
+                                                                                 
+               from Bayes’ rule           discretization
+
+                                                                   γ ̸≡ 0       γ≡0
+
+                                                                         PF-ODE:
+                                                                   dx(t) = v∗ (x(t), t) dt
+
+                                       Reverse from pprior at t = T
+
+
+Figure 6.2: Unified perspective connecting variational, SDE, and ODE formulations through
+the continuity equation, where all pt (x) evolve under a shared dynamic. The velocity field
+v∗ (x, t) = f (t)x − 12 g 2 (t)s∗ (x, t) is governed by the score function s∗ (x, t) := ∇x log pt (x).
+Coefficients f (t), g(t), σt , and αt are pre-defined time-dependent functions, and γ(t) is a tunable
+time-varying hyperparameter.
+                                                                            Source: Created by the authors.
+
+    In this section, we show that the three main perspectives of diffusion mod-
+els—variational, score-based, and flow-based—are not separate constructions but
+arise from a single unifying principle: the continuity (Fokker–Planck) equation
+that governs density evolution under a chosen forward process.
+    First, we recall that the analysis in Section 4.6 unifies the variational perspective,
+based on discrete kernels and Bayes’ rule, with the score-based SDE perspective of
+continuous dynamics. We establish this connection by showing that variational
+models act as consistent discretizations of the underlying forward and reverse
+SDEs. Specifically, the marginal densities calculated step-by-step via the discrete
+kernels evolve in a manner consistent with the Fokker–Planck equation that
+governs the continuous-time dynamics. This confirms that the two perspectives
+
+204                                A Unified and Systematic Lens on Diffusion Models
+
+
+are fundamentally equivalent.
+    We then connect the flow-based and score-based views. In Section 6.4.1, we
+show that an ODE flow determines a density path whose marginals can always be
+realized by a family of stochastic processes. This places deterministic flows and
+stochastic SDEs within the same family.
+    Together, these results unify the three perspectives under one framework (see
+Figure 6.2). At last, we conclude this chapter in Section 6.5.
+
+6.4.1   Connection of Flow-Based Approach and Score SDE
+
+A remarkable aspect of diffusion model lies in how different dynamic systems,
+deterministic or stochastic, can trace out the same evolution of probability dis-
+tributions. In this section, we reveal a natural and elegant connection between
+ODE-based flows of Section 5.2 and Score SDEs. Specifically, we show that the
+velocity field defining a generative ODE can be transformed into a stochastic
+counterpart that follows the same Fokker-Planck dynamics, providing a principled
+bridge between deterministic interpolation and stochastic sampling. This offers us
+a continuous family of models, ranging from ODEs to SDEs, that generate the
+same data distribution path.
+    We consider the continuous-time setup where the perturbation kernel is given
+by
+                            pt (xt |x0 ) = N (xt ; αt x0 , σt2 I),
+where x0 ∼ pdata . This conditional distribution induces a marginal density path
+pt (xt ) = Ex0 ∼pdata [p(xt |x0 )] as usual, with pT ≈ pprior .
+     To match this density path, consider the ODE
+                            dx(t)
+                                  = vt (x(t)),        t ∈ [0, T ],              (6.4.1)
+                             dt
+where vt (x) = E [αt′ x0 + σt′ ϵ|x] is the oracle velocity as shown in Equation (5.2.9)
+(noting that time is flipped to follow the diffusion model convention). Integrating
+equation 6.4.1 backward from x(T ) ∼ pprior yields samples from p0 .
+    Although this ODE suffices for generating high-quality samples, incorporating
+stochasticity may improve sample diversity. This motivates the following question:
+Question 6.4.1
+   Is there an SDE whose dynamics, starting from pprior , yield the same marginal
+   densities as the ODE in Equation (6.4.1)?
+
+This statement affirms that there exists a family of reverse-time SDEs that induce
+the same marginal density path as the corresponding PF-ODE. The densities
+induced by these SDEs satisfy the same Fokker–Planck equation for this path,
+
+6.4. Beneath It All: The Fokker–Planck Equation                                                  205
+
+
+and therefore their one time marginals coincide with the prescribed interpolation
+{pt }t∈[0,T ] 2 .
+
+    Proposition 6.4.1: Reverse-Time SDEs Generate the Same Marginals as
+                       Interpolations
+
+    Let γ(t) ≥ 0 be an arbitrary time-dependent coefficient. Consider the reverse-
+    time SDE, written in the original time variable t and integrated backward
+    from T to 0,
+                   h                                    i
+         dx̄(t) = v∗ (x̄(t), t) − 21 γ 2 (t)s∗ (x̄(t), t) dt + γ(t) dw̄(t),        t : T → 0.
+                                                                                          (6.4.2)
+
+    with terminal condition x̄(T ) ∼ pT . Then this process {x̄(t)}t∈[0,T ] matches
+    the prescribed marginals {pt }t∈[0,T ] induced by the ODE’s density path.
+    Here, s∗ (x, t) := ∇x log pt (x) is the score function, and it is related to the
+    velocity field v∗ (x, t) by
+                            1                                     1 αt v∗ (x, t) − αt′ x
+        v∗ (x, t) = f (t)x − g 2 (t)s∗ (x, t),     s∗ (x, t) =                           . (6.4.3)
+                            2                                     σt αt′ σt − αt σt′
+
+Proof for Proposition.
+   The reverse-time Fokker–Planck equation, written with respect to the original
+   time variable t while the process is integrated backward, is
+                                                           
+                            ∂t pt = −∇ ·      v∗ − 12 γ 2 s∗ pt − 21 γ 2 ∆pt .
+
+   Using the identity ∇ · (s∗ pt ) = ∆pt since s∗ = ∇ log pt , the second-order terms
+   cancel, yielding
+                                   ∂t pt = −∇ · (v∗ pt ),
+   i.e., the first-order continuity equation associated with the PF-ODE. Hence the
+   reverse-time SDE and the ODE induce the same marginal density path {pt }.
+   See Appendix A.2–A.3 of Ma et al. (2024).                                    ■
+    At the oracle level of Proposition 6.4.1, γ(t) can be chosen arbitrarily without
+changing the prescribed marginal density path: the γ-dependent drift and diffusion
+terms cancel exactly in the Fokker–Planck equation. Some representative choices
+are:
+    2
+        For completeness, a forward SDE representation (not needed here) is
+
+                                  dx(t) = f (t)x(t) dt + g(t) dw(t),
+
+with f (t) and g(t) related to (αt , σt ) via Equation (4.5.2).
+
+206                                     A Unified and Systematic Lens on Diffusion Models
+
+
+      ■   Setting γ(t) = 0 recovers the ODE in Equation (6.4.1).
+
+      ■   When γ(t) = g(t), Equation (6.4.2) becomes the reverse-time SDE in Equa-
+          tion (4.1.6), since the oracle velocity v(x, t) satisfies (see Proposition 6.3.1):
+
+                                  v∗ (x, t) = f (t)x − 21 g 2 (t)s∗ (x, t).
+
+      ■   Other choices for γ(t) have been explored; e.g., Ma et al. (2024) select γ(t)
+          to minimize the KL gap between pdata and the t = 0 density obtained by
+          solving Equation (6.4.2) from t = T .
+
+Following Score SDE, the trained velocity field vϕ× (x, t) can be converted into
+a parameterized score function sϕ× (x, t) via Equation (6.4.3). Plugging this into
+Equation (6.4.2) defines an empirical reverse-time SDE, which can be sampled by
+numerically integrating from t = T with x̄(T ) ∼ pprior .
+    This proposition highlights a remarkable flexibility of diffusion models: once
+a marginal density path {pt }t∈[0,T ] is induced by the forward process, it can be
+realized by an entire family of reverse-time dynamics, including the PF-ODE and
+the reverse-time SDEs
+
+              dx̄(t) = v∗ (x̄, t) − 12 γ 2 (t)s∗ (x̄, t) dt + γ(t) dw̄(t),
+                                                    
+                                                                              γ(t) ≥ 0,
+
+from t = T to t = 0. Although γ(t) changes the stochastic dynamics of individ-
+ual trajectories, the corresponding Fokker–Planck equations all reduce, for the
+prescribed density path, to the same governing density equation:
+
+                                 ∂t pt = −∇x · v∗ (x, t)pt (x) .
+                                                                  
+
+
+Indeed, using s∗ (x, t) = ∇x log pt (x), the additional γ-dependent drift and diffusion
+terms cancel at the density level. Thus, γ(t) controls the stochasticity of sample
+trajectories while preserving the same oracle one-time marginals, connecting the
+deterministic PF-ODE with a family of stochastic SDE counterparts, as illustrated
+in Figure 6.2.
+
+6.5. Closing Remarks                                                               207

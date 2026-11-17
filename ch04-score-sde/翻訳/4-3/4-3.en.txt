@@ -1,0 +1,249 @@
+4.3     Score SDE: Its Training and Sampling
+
+4.3.1     Training
+Building on the philosophy as in Chapter 3, we approximate the oracle score
+∇x log pt (x) using a time-conditioned neural network
+                                           sϕ = sϕ (x, t)
+across all t ∈ [0, T ], by minimizing a score-matching objective as in Equation (3.2.1):
+                            1               h                                   i
+        LSM (ϕ; ω(·)) := Et∼ptime Ext ∼pt ω(t) ∥sϕ (xt , t) − ∇x log pt (xt )∥22 ,
+                            2
+where ptime is some time distribution (e.g., uniform on [0, T ]), ω(·) is a time-
+weighting function.
+
+               Marginal                                           Conditional
+                  ∇ x log pt (x t )                                  ∇ x log pt (x t | x 0 )
+
+
+
+
+      sum over the whole data distribution                        one closed-form vector
+
+Figure 4.6: The denoising score matching trick. (Left) For a fixed noisy sample xt , the marginal
+score ∇xt log pt (xt ) points toward regions where noisy samples are more likely. Computing it
+directly requires combining the contributions from all possible clean samples x0 that could have
+produced xt , which is generally intractable. (Right) During training, however, the clean sample
+x0 used to generate xt is known. For Gaussian corruption, the corresponding conditional score
+∇xt log pt (xt |x0 ) is available in closed form, providing one simple vector as the regression target.
+Across training examples, these conditional score vectors average to the marginal score. Thus,
+denoising score matching learns the desired marginal score without directly regressing on the
+generally intractable score ∇xt log pt (xt ), whose evaluation requires averaging over all possible
+samples from the data distribution.
+                                             Source: Created by the authors with AI-assisted coding.
+
+    To avoid relying on the intractable oracle score ∇x log pt (x), the DSM loss in
+Equation (3.3.2) is employed. Conditioned on a data point x0 , this approach allows
+the use of the analytically tractable score ∇xt log pt (xt |x0 ) via Equation (D.2.4),
+with concrete examples given in Section 4.4. Specifically, we exploit the following
+loss function:
+
+114                                          Diffusion Models Today: Score SDE Framework
+
+
+              LDSM (ϕ; ω(·)) :=
+              1                     h                                           i            (4.3.1)
+                Et Ex0 Ept (xt |x0 ) ω(t) ∥sϕ (xt , t) − ∇xt log pt (xt |x0 )∥22 ,
+              2
+
+where x0 ∼ pdata . Equation (4.3.1) can be interpreted as the continuous-time
+counterpart of Equation (3.4.1), with the summation in the discrete case replaced
+by integration.
+    Similar to the result in Theorem 3.3.1, the minimizer of Equation (4.3.1) is
+uniquely determined as follows:
+
+   Proposition 4.3.1: Minimizer of DSM
+
+   The minimizer s∗ satisfies
+
+            s∗ (xt , t) = Ex0 ∼p(x0 |xt ) ∇xt log pt (xt |x0 ) = ∇xt log pt (xt ),
+                                                            
+                                                                                            (4.3.2)
+
+   for almost every xt ∼ pt and t ∈ [0, T ].
+
+Proof for Proposition.
+   DSM objective can be understood as a least-squares error problem. Specifically,
+   at each time t, the optimal score function is given by the conditional expectation
+   of the gradient of the log conditional density, which, under Bayes’ rule, is
+   equivalent to the gradient of the log marginal density. For a detailed proof, see
+   Appendix D.2.6.                                                                  ■
+
+4.3.2      Sampling and Inference
+After learning
+                                sϕ× := sϕ× (x, t) ≈ ∇x log pt (x),
+we replace the intractable oracle score ∇x log pt (x) in the reverse-time SDE (Equa-
+tion (4.1.6)) and PF-ODE (Equation (4.1.7)) with the learned proxy sϕ× (x, t).
+This substitution enables tractable inference via either the SDE or the ODE. For
+                                                    SDE (t) and xODE (t), respectively,
+clarity, we distinguish the resulting processes as xϕ×            ϕ×
+but will omit this distinction in later sections.10
+
+Empirical Reverse-Time SDE. By substituting the trained score model sϕ× for
+the true score in Equation (4.1.6), we obtain the parameterized reverse-time SDE
+used for generation:
+                     h                                          i
+         SDE          SDE          2        SDE
+       dxϕ × (t) = f xϕ× (t), t − g (t)sϕ× xϕ× (t), t                   dt + g(t) dw̄(t).      (4.3.3)
+  10
+       This is to simplify notation after this subsection.
+
+4.3. Score SDE: Its Training and Sampling                                                    115
+
+
+
+
+        √ (2D) Illustration of sampling from the Score SDE. The √
+Figure 4.7:                                                           forward SDE is designed as
+dx(t) = 2t dw(t), with drift f ≡ 0 and diffusion coefficient g(t) = 2t on [0, T ], evolves a two-
+mode Gaussian mixture p0 = pdata into pT ≈ pprior := N (0, T 2 I). Shown are sampling trajectories
+of the reverse-time SDE (blue; solved by Equation (4.3.4)) and the PF-ODE (red; solved by
+Equation (4.3.6)). Starting from a random point xT ∼ pprior (dark “×”), both trajectories move
+toward the support of pdata as t → 0.
+                                                                 Source: Created by the authors.
+
+
+To generate a sample, we first draw an initial value xT from the prior distribution
+pprior and then numerically solve Equation (4.3.3) backward in time from t = T to
+t = 0. A standard numerical solver for this is the Euler–Maruyama method, which
+provides the discrete update rule:
+                       h                              i         √
+         xt−∆t ← xt − f (xt , t) − g 2 (t)sϕ× (xt , t) ∆t + g(t) ∆t · ϵ,     (4.3.4)
+
+where ϵ ∼ N (0, I) and ∆t > 0 is the step size.
+                                                      SDE (0). If the score model is
+    Iterating this update rule yields a final sample xϕ ×
+
+accurate, the distribution of these generated samples, denoted pSDE
+                                                                  ϕ× (·; 0), provides
+a close approximation to the true data distribution :11
+
+
+                                    pSDE
+                                     ϕ× (·; 0) ≈ pdata (·).
+
+Indeed, for the VP construction, the DDPM sampling scheme in Equation (2.2.14)
+has the same continuous-time reverse-SDE limit as the Euler–Maruyama discretiza-
+tion above; see Section 4.4.
+  11
+     Theoretically, estimation accuracy depends on the discrepancy between pT and pprior (typi-
+cally negligible), model training error, and numerical discretization error (wang2024evaluating;
+De Bortoli, 2022). We do not pursue formal bounds here.
+
+116                                       Diffusion Models Today: Score SDE Framework
+
+
+Empirical PF-ODE. The PF-ODE defines a continuous flow connecting pprior and
+pdata , enabling sampling, encoding, and exact likelihood evaluation. The following
+section provides further details on each of these operations.
+
+   I. Sampling with PF-ODE. Replacing the oracle score in Equation (4.1.7)
+with sϕ× yields the empirical PF-ODE:
+               d ODE           
+                                 ODE
+                                           1                         
+                  xϕ× (t) = f xϕ  × (t), t −
+                                                             ODE
+                                                 g 2 (t)sϕ× xϕ × (t), t .  (4.3.5)
+               dt                              2
+To generate samples, we begin by drawing an initial sample xT from the prior
+distribution, pprior . We then numerically solve the PF-ODE from Equation (4.3.5)
+backward in time from t = T to t = 0. This process is equivalent to approximating
+the integral:
+                             Z 0 
+                                                          1
+                                                                                 
+                                                                                   
+          ODE                          ODE
+         xϕ × (0) = xT +          f   xϕ × (τ ), τ
+                                                                        ODE
+                                                         − g 2 (τ )sϕ× xϕ× (τ ), τ   dτ.
+                              T                           2
+Solving this integral yields a final sample, xϕ         ODE (0). The distribution of samples
+                                                          ×
+
+generated via this deterministic process, denoted pODE        ϕ× (·; 0), provides an approxi-
+                                                        ODE
+mation to the data distribution, such that pϕ× (·; 0) ≈ pdata .
+    Let ∆t > 0 denote a discretization step size. A standard numerical integration
+approach is the Euler method, which estimates
+                 1                                      1
+    f (xτ , τ ) − g 2 (τ )sϕ× (xτ , τ ) ≈ f (xt , t) − g 2 (t)sϕ× (xt , t), τ ∈ [t − ∆t, t],
+                 2                                      2
+leading to the following update rule:
+                                                      1 2
+                                                                       
+                     xt−∆t ← xt − f (xt , t) − g (t)sϕ× (xt , t) ∆t.                    (4.3.6)
+                                                      2
+    This connection allows us to reframe the process of generation with the following
+core insight:
+
+   Insight 4.3.1: Generation ⇔ ODE/SDE Solving
+
+   Sampling from diffusion models is fundamentally equivalent to solving a
+   corresponding probability flow ODE or a reverse-time SDE.
+
+    This equivalence provides a clear explanation for the slow sampling speeds
+of diffusion models, as raised in Question 3.5.1. Generation is computationally
+intensive because numerical solvers for these differential equations are inherently
+iterative, often requiring many steps to accurately approximate a solution trajec-
+tory12 . However, the PF-ODE formulation is also advantageous, as it allows us to
+leverage the extensive literature on accelerated numerical solvers. Exploring these
+techniques to speed up diffusion model sampling is the primary focus of Chapter 9.
+  12
+       For example, DDPM and Score SDE typically use 1, 000 function evaluations for generation.
+
+4.3. Score SDE: Its Training and Sampling                                               117
+
+
+    II. Inversion with PF-ODE. As discussed, unlike in the case of SDEs, we can
+solve the same Equation (4.3.5) both forward (from 0 to T ) and reverse (from T
+to 0) in time. When solving it forward, the ODE flow maps data to its (noisy)
+latent representations across all t ∈ [0, T ], which plays a role of an encoder. This
+concept enables powerful applications for controllable generation, such as image
+translation and editing and beyond (Mokady et al., 2023; Su et al., 2022).
+
+    III. Log-Likelihood Evaluation via PF-ODE. The PF-ODE also allows us to
+evaluate the likelihood of a data sample. Recall from Equation (5.1.9) that, for an
+ODE, the change in log-density along a trajectory is determined by the divergence
+of its velocity field.
+    For the learned PF-ODE, define
+                                               1
+                       vϕ× (x, t) := f (x, t) − g 2 (t)sϕ× (x, t).
+                                               2
+If x(t) evolves according to
+                                 d
+                                    x(t) = vϕ× (x(t), t),
+                                 dt
+then its log-density satisfies
+                      d
+                         log pODE
+                              ϕ× (x(t); t) = −∇x · vϕ× (x(t), t).
+                      dt
+   To evaluate the likelihood of an observed sample x0 , we run the PF-ODE
+forward from t = 0 to t = T , mapping x0 to a terminal point where the model
+density is the tractable prior. We can simultaneously track the log-density change
+by defining
+                     δ(t) := log pODE                 ODE
+                                  ϕ× (x(t); t) − log pϕ× (x0 ; 0).
+Thus, δ(0) = 0, and the state and log-density change can be computed together
+through
+                  "    #    "                     #           "     #   "   #
+                d x(t)      vϕ× (x(t), t)                      x(0)   x
+                        =                     ,                     = 0 .            (4.3.7)
+                dt δ(t)   −∇x · vϕ× (x(t), t)                  δ(0)   0
+
+   After integrating to t = T , the terminal density is pprior (x(T )). Therefore,
+
+                      log pODE
+                           ϕ× (x0 ; 0) = log pprior (x(T )) − δ(T ).
+
+Equivalently,
+                                                      Z T
+           log pODE
+                ϕ× (x0 ; 0) = log pprior (x(T )) +          ∇x · vϕ× (x(t), t) dt.
+                                                       0
+
+Thus, the same PF-ODE used for generation and inversion also provides a contin-
+uous change-of-variables formula for likelihood evaluation.
+
+118                                              Diffusion Models Today: Score SDE Framework

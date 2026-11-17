@@ -1,0 +1,511 @@
+3.3     Denoising Score Matching
+
+3.3.1    Motivation
+Although the alternative objective in Equation (3.2.2)
+                                                      1
+                                                                   
+                  LeSM (ϕ) = Ex∼pdata Tr ∇x sϕ (x) + ∥sϕ (x)∥22
+                                                          2
+is more tractable, it still requires computing the trace of the Jacobian, Tr(∇x sϕ (x)).
+Although this does not require forming the full Jacobian matrix, exact evaluation
+generally becomes more expensive as the input dimension D increases, since it
+requires aggregating derivative information across input coordinates. This can
+therefore be computationally expensive in high dimensions.
+    To address this, sliced score matching (Song et al., 2020b) replaces the trace
+term with a stochastic estimate based on random projections. We briefly outline
+the idea below.
+
+Sliced Score Matching and Hutchinson’s Estimator. Sliced score matching
+replaces the trace in score matching by averaging directional derivatives along
+random “slices”. Let u ∈ RD be an isotropic random vector (e.g., Rademacher or
+standard Gaussian) with E[u] = 0 and E[uu⊤ ] = I. By Hutchinson’s identity
+             Tr(A) = Eu [u⊤ Au],      and   Eu [(u⊤ sϕ (x))2 ] = ∥sϕ (x)∥22 ,
+we obtain the exact form
+                                  h                                  i
+                 LeSM (ϕ) = Ex,u u⊤ ∇x sϕ (x) u + 21 (u⊤ sϕ (x))2 .
+                                                
+
+This objective can be evaluated efficiently with automatic differentiation, using
+Jacobian- and vector-Jacobian-product operations (JVP/VJP) instead of explicitly
+computing large Jacobian or Hessian matrices. Averaging over K random probes
+yields an unbiased estimator with variance O(1/K), and the directional term
+u⊤ (∇x sϕ )u can be computed efficiently using JVP/VJP routines without explicit
+Jacobians. Intuitively, this means we only check the model’s behavior along random
+directions: the projected score is nudged to align with regions of higher data density,
+so data points become stationary in expectation.
+
+From Sliced to Denoising Score Matching. Sliced score matching sidesteps
+Jacobians but still relies on the raw data distribution. This makes it fragile: for
+image data lying on low-dimensional manifolds, the score ∇x log pdata (x) may be
+undefined or unstable, and the method only constrains the vector field at observed
+points, providing weak control in their neighborhoods. It further suffers from
+probe-induced variance and repeated JVP/VJP costs.
+   A more robust alternative, which we focus on here, is Denoising Score Matching
+(DSM) (Vincent, 2011), which offers a principled and scalable solution.
+
+76                                       Score-Based Perspective: From EBMs to NCSN
+
+
+3.3.2    Training
+Let us revisit the SM loss in Equation (3.2.1):
+                         1            h                             i
+                LSM (ϕ) = Ex∼pdata (x) ∥sϕ (x) − ∇x log pdata (x)∥22 ,
+                         2
+where the issue arises from the intractable term ∇x log pdata (x).
+
+Vincent (2011)’s Solution by Conditioning. To overcome the intractability of
+∇x log pdata (x), Vincent (2011) proposed injecting noise into the data x ∼ pdata
+via a known conditional distribution pσ (x̃|x) with scale σ. The neural network
+sϕ (x̃, σ) is trained to approximate the score of the marginal perturbed distribution
+                                         Z
+                             pσ (x̃) =       pσ (x̃|x)pdata (x) dx
+
+by minimizing the loss
+                              1      h                                i
+                 LSM (ϕ; σ) := Ex̃∼pσ ∥sϕ (x̃, σ) − ∇x̃ log pσ (x̃)∥22 .            (3.3.1)
+                              2
+   Even though ∇x̃ log pσ (x̃) is generally intractable, Vincent (2011) showed that
+conditioning on x ∼ pdata yields an equivalent, tractable objective—the Denoising
+Score Matching (DSM) loss:
+
+
+                    1                     h                                  i
+      LDSM (ϕ; σ) := Ex∼pdata ,x̃∼pσ (·|x) ∥sϕ (x̃, σ) − ∇x̃ log pσ (x̃|x)∥22 .   (3.3.2)
+                    2
+
+     The optimal minimizer s∗ of Equation (3.3.2) satisfies
+
+                                s∗ (x̃, σ) = ∇x̃ log pσ (x̃),
+
+which is also optimal for Equation (3.3.1).
+   For example, when pσ (x̃|x) is Gaussian noise with variance σ 2 ,
+
+                                pσ (x̃|x) = N (x̃; x, σ 2 I),
+
+the gradient ∇x̃ log pσ (x̃|x) has a closed form (see Equation (3.3.4)), making the
+regression target explicit and computationally tractable.
+    Moreover, as σ ≈ 0, pσ (x̃) ≈ pdata (x) and
+
+                      s∗ (x̃, σ) = ∇x̃ log pσ (x̃) ≈ ∇x log pdata (x),
+
+indicating the learned score approximates the original data score, enabling its use
+in generation.
+    We formalize this discussion on the gradient equivalence between LSM and
+LDSM in the following theorem:
+
+3.3. Denoising Score Matching                                                      77
+
+
+   Theorem 3.3.1: Equivalence of LSM and LDSM
+   For any fixed noise scale σ > 0, the following holds:
+
+                           LSM (ϕ; σ) = LDSM (ϕ; σ) + C,                 (3.3.3)
+
+   where C is a constant independent of the parameter ϕ. Furthermore, the
+   minimizer s∗ (·, σ) of both losses satisfies
+
+                  s∗ (x̃, σ) = ∇x̃ log pσ (x̃),   for almost every x̃.
+
+Proof for Theorem.
+   The equivalence follows from a direct computation: by expanding the MSE in
+   LSM and LDSM , all ϕ-dependent terms cancel, leaving only a constant difference
+   independent of ϕ.
+   The derivation of the minimizer follows the same argument as in Proposi-
+   tion 4.3.1. We defer the detailed derivation to Section D.2.2.               ■
+   This theorem, like Theorem 2.2.1 in DDPM, illustrates a key shared principle:
+
+
+   Insight 3.3.1: Conditioning Technique
+
+   The conditioning technique also appears in the variational view of diffu-
+   sion models in DDPM (see Theorem 2.2.1), where conditioning on a data
+   point x turns an intractable loss into a tractable one for Monte Carlo
+   estimation. A similar idea arises in the flow-based perspective (e.g., Flow
+   Matching (Lipman et al., 2022)), as we will see in Section 5.2.
+
+
+
+Special Case: Additive Gaussian Noise. We now consider the common case
+where Gaussian noise N (0, σ 2 I) with variance σ 2 is added to each data point
+x ∼ pdata :
+                         x̃ = x + σϵ, ϵ ∼ N (0, I),
+so that the corrupted data x̃ follows
+
+                               pσ (x̃|x) = N (x̃; x, σ 2 I).
+
+In this setting, the conditional score is analytically given by
+                                                    x − x̃
+                              ∇x̃ log pσ (x̃|x) =          .
+                                                     σ2
+Hence, the DSM loss simplifies to:
+
+78                                           Score-Based Perspective: From EBMs to NCSN
+
+
+                  𝐱 ∼ 𝑝data                                              𝐱෤ ∼ 𝑝𝜎 ⋅ |𝐱
+
+
+
+                                              Add noise
+
+
+                                              𝒩 𝟎, 𝜎 2 𝐈
+
+
+
+
+                 ∇𝐱 log𝑝data 𝐱                                        ✓ ∇ 𝐱෤ log𝑝𝜎 𝐱෤ |𝐱
+Figure 3.5: Illustration of DSM via the conditioning technique. By perturbing the data distribution
+pdata with small additive Gaussian noise N (0, σ 2 I), the resulting conditional distribution pσ (x̃|x) =
+N (x̃; x, σ 2 I) admits a closed-form score function.
+                                                                      Source: Created by the authors.
+
+
+
+                                                     "                           #
+                                    1                                 x − x̃ 2
+                       LDSM (ϕ; σ) = Ex,x̃|x             sϕ (x̃, σ) −
+                                    2                                  σ2 2
+                                                 "                             #             (3.3.4)
+                                       1                              ϵ 2
+                                      = Ex,ϵ         sϕ (x + σϵ, σ) +     ,
+                                       2                              σ 2
+
+where ϵ ∼ N (0, I). This objective forms the core of the (score-based) Diffusion
+Model.
+    At a fixed noise level σ > 0, DSM learns the score of the Gaussian-smoothed
+distribution
+                              pσ = pdata ∗ N (0, σ 2 I),
+rather than the score of pdata itself. When σ is small, the corruption is mild, so pσ
+still closely preserves the local structure of the data distribution. Its score therefore
+provides a useful direction for moving noisy samples back toward likely data
+regions. As σ becomes larger, the Gaussian smoothing progressively removes fine
+details and merges nearby modes. The corresponding score then captures mainly
+coarser, more global structure. This behavior is useful rather than undesirable: the
+multi-noise construction in Section 3.4 deliberately combines many noise levels,
+using large noise for coarse exploration and small noise for fine refinement.
+     To better see why the objective naturally corresponds to a “denoising” process,
+we expand on the discussion in Sections 3.3.4 and 3.3.5.
+
+3.3.3    Sampling
+Once we have a trained score model sϕ× (x̃, σ) at noise level σ, we generate samples
+using Langevin dynamics by replacing the true score with the learned model. The
+
+3.3. Denoising Score Matching                                                               79
+
+
+update rule is:
+                                                       p
+                x̃n+1 = x̃n + η sϕ× (x̃n , σ) + 2ηϵn ,           ϵn ∼ N (0, I),       (3.3.5)
+                                  |       {z       }
+                                 ≈∇x̃ log pσ (x̃n )
+
+for n = 0, 1, 2, . . . , starting from an initial value x̃0 . If σ is sufficiently small, then
+after enough iterations, x̃n approximates samples from pdata .
+
+Advantages of Noise Injection. We additionally remark that, compared to
+vanilla score matching in Equation (3.2.1), injecting Gaussian noise to form pσ
+(e.g., Equation (3.3.4)) provides two key advantages (Song and Ermon, 2019):
+    ■   Well-Defined Gradients. The noise perturbs data away from its lower-
+        dimensional manifold, resulting in a distribution pσ with full support in RD .
+        Consequently, the score function ∇x̃ log pσ (x̃) is well-defined everywhere.
+
+    ■   Improved Coverage. The noise smooths out sparse regions between modes,
+        enhancing training signal quality and facilitating Langevin dynamics to
+        traverse low-density regions more effectively.
+
+3.3.4     Why DSM is Denoising: Tweedie’s Formula
+We begin with Tweedie’s formula (Efron, 2011), which provides a principled basis
+for denoising from noisy observations alone. Concretely, it states that: given a single
+Gaussian–corrupted observation x̃ ∼ N ( · ; αx, σ 2 I) from an unknown x ∼ pdata , a
+denoised estimate (the average over all plausible clean signals given x̃) is obtained
+by nudging x̃ a step of size σ 2 in the direction of the score ∇x̃ log pσ (x̃) of its noisy
+marginal defined as:
+                                      Z
+                         pσ (x̃) :=       N (x̃; αx, σ 2 I)pdata (x) dx.
+
+We present the proposition formally below.
+
+   Lemma 3.3.2: Tweedie’s Formula
+
+   Assume x ∼ pdata and, conditionally on x, x̃ ∼ N ( · ; αx, σ 2 I) with α ̸= 0.
+   Then Tweedie’s formula states
+
+                        αEx∼p(x|x̃) x x̃ = x̃ + σ 2 ∇x̃ log pσ (x̃),
+                                              
+                                                                                  (3.3.6)
+
+   where the expectation is taken over the posterior distribution p(x|x̃) of x
+   given x̃.
+
+Proof for Lemma.
+
+80                                         Score-Based Perspective: From EBMs to NCSN
+
+     The proof proceeds by computing the score of the marginal
+                                           Z
+                                p(x̃) =        p(x̃|x)pdata (x) dx.
+
+     Differentiating under the integral and using the Gaussian form of the conditional
+     density leads directly to an expression that rearranges into the desired identity
+     linking the score with the posterior mean. See Section D.2.3 for details.      ■
+    Tweedie’s formula plays a central role in diffusion models, where multiple layers
+of noise are introduced as in DDPM. It enables the estimation of clean samples
+from noisy observations via the score function, thereby establishing a fundamental
+link between score prediction and denoiser:
+                                      1                          
+                       E [x|x̃]    =      x̃ + σ 2 ∇x̃ log pσ (x̃) .
+                       | {z }         α
+                           denoiser
+                      estimated from x̃
+    Especially, a single gradient-ascent step on the noisy log-likelihood with the
+particular step size σ 2 is the denoised estimate (the conditional average clean signal).
+This makes DSM training and denoising tightly related: if sϕ (x̃) ≈ ∇x̃ log pσ (x̃)
+trained from DSM, then
+                                     1                 
+                                        x̃ + σ 2 sϕ (x̃)
+                                    α
+is the denoiser.
+
+(Optional) Higher Order Tweedie’s Formula. The classical Tweedie’s formula
+expresses the posterior mean E[x0 |x̃] through the gradient ∇x̃ log p(x̃). Higher
+order extensions (Meng et al., 2021a) express the posterior covariance and higher
+cumulants through higher derivatives of log p(x̃).
+
+   Exponential Family Setup with the Log-Normalizer λ(x̃). Assume the
+conditional law of x̃ given a latent natural parameter η ∈ RD belongs to a natural
+exponential family written as
+                          qσ (x̃|η) = exp η ⊤ x̃ − ψ(η) q0 (x̃).
+                                                            
+
+Here q0 (x̃) is the base measure, namely the part that does not depend on η; for
+additive Gaussian noise with variance σ 2 I it equals (2πσ 2 )−D/2 exp(−∥x̃∥2 /2σ 2 ).
+Let p(η) be the pre-defined distribution of the latent natural parameter, which can
+be viewed as the reparameterized clean-data distribution (for Gaussian location,
+η = x/σ 2 ). The observed noisy marginal is
+                                           Z
+                               pσ (x̃) =       qσ (x̃|η) p(η) dη.
+
+Define the log-partition (log-normalizer) in x̃ by
+                             λ(x̃) := log pσ (x̃) − log q0 (x̃).
+
+3.3. Denoising Score Matching                                                               81
+
+
+Then the posterior of η given x̃ is
+
+                       p(η|x̃) ∝ exp η ⊤ x̃ − ψ(η) − λ(x̃) p(η),
+                                                                 
+
+
+which shows that, as a function of x̃, the posterior has exponential-family form
+with natural parameter x̃, sufficient statistic η, and log-partition λ(x̃).
+
+    Derivatives of λ Produce Posterior Cumulants.                    Two simple rules are at
+play. First, normalization: for every x̃,
+                        Z
+                            exp η ⊤ x̃ − ψ(η) − λ(x̃) p(η) dη = 1.
+                                                       
+
+
+Differentiating this identity with respect to x̃ brings down powers of η from the
+exponential and derivatives of λ(x̃); setting the result to zero yields equalities
+between derivatives of λ and posterior moments of η. Second, a standard property
+of exponential families: the log-partition is the cumulant generating function of
+the sufficient statistic. Therefore
+                                                           (k)
+    ∇x̃ λ(x̃) = E[η|x̃],     ∇2x̃ λ(x̃) = Cov[η|x̃],   ∇x̃ λ(x̃) = κk (η|x̃)     (k ≥ 3),
+
+where κk are the conditional cumulants of order k of the random vector η given x̃,
+obtained via the standard moment–cumulant relations.
+    These are the higher order Tweedie’s formulas. Specializing to the Gaussian
+location model with η = x/σ 2 yields the familiar forms in terms of derivatives of
+log pσ (x̃):
+
+        E[x|x̃] = x̃ + σ 2 ∇x̃ log pσ (x̃),    Cov[x|x̃] = σ 2 I + σ 4 ∇2x̃ log pσ (x̃),
+
+and higher cumulants scale with higher derivatives of log pσ (x̃).
+    Several studies have explored training neural networks to estimate higher order
+scores (Meng et al., 2021a; Lu et al., 2022a; Lai et al., 2023a). In contrast, our aim
+is to clarify their relationship with statistical quantities, and we refer the reader
+to these works for methodological details.
+
+3.3.5   (Optional) Why DSM is Denoising: SURE
+SURE (Stein’s Unbiased Risk Estimator). At a high level, Stein’s Unbiased
+Risk Estimator (SURE) is a technique that allows one to estimate the mean
+squared error (MSE) of a denoiser D without knowing the clean signal. In other
+words, SURE provides a way to select or train denoisers when only noisy data are
+available.
+   For clarity, consider the additive Gaussian noise setting:
+
+                               x̃ = x + σϵ,       ϵ ∼ N (0, I),
+
+82                                      Score-Based Perspective: From EBMs to NCSN
+
+
+where x ∈ RD is the unknown clean signal and x̃ is the observed noisy version. A
+denoiser is any (weakly differentiable) mapping D : RD → RD that produces an
+estimate D(x̃) of x.
+    The natural quality measure is the conditional MSE
+                                              h                   i
+                       R(D; x) := Ex̃|x ∥D(x̃) − x∥22 x .
+This quantity depends on the unknown ground truth x, and therefore cannot
+be computed directly. Stein’s identity (see Section D.2.4), however, yields the
+following observable surrogate:
+              SURE(D; x̃) = ∥D(x̃) − x̃∥22 + 2σ 2 ∇x̃ · D(x̃) − Dσ 2 ,       (3.3.7)
+where ∇x̃ · D(x̃) denotes the divergence of D. We emphasize that SURE(D; x̃)
+requires only the noisy observation x̃, not the clean x.
+   Intuitively, SURE consists of two parts that complement each other. The term
+∥D(x̃) − x̃∥2 measures how far the denoiser’s output is from the noisy input;
+by itself this underestimates the true error since x̃ is already corrupted. The
+divergence term acts as a correction: it captures how sensitive the denoiser is to
+small perturbations in its input, effectively accounting for the variance introduced
+by the noise.
+   Importantly, for any fixed but unknown x,
+                                                         
+                     Ex̃|x SURE(D; x + σϵ) x = R(D; x),
+where the expectation is over the Gaussian noise ϵ ∼ N (0, I). Thus, minimizing
+SURE (in expectation or empirically) is equivalent to minimizing the true MSE,
+while relying only on noisy data. In practice, averaging SURE over both x ∼ pdata
+and the corruption noise ϵ yields an unbiased estimate of the global MSE risk.
+
+Link to Tweedie’s Formula and Bayes Optimality. Let pσ (x̃) = pdata ∗N (0, σ 2 I) (x̃)
+                                                                                  
+
+denote the noisy marginal considered in this section.
+    SURE is an unbiased estimator of the mean squared error with respect to the
+noise, conditional on x:
+                     Ex̃|x SURE(D; x̃) = Ex̃|x ∥D(x̃) − x∥2 .
+                                                                   
+
+                                                                             
+Hence minimizing the expected SURE equals minimizing the Bayes risk E(x,x̃) ∥D(x̃)−
+x∥2 = Ex̃ Ex|x̃ ∥D(x̃) − x∥2 by the law of total expectation (tower property).
+                         
+
+This decomposition yields a pointwise optimization: for almost every x̃,
+                    D∗ (x̃) = arg min Ex|x̃ ∥z − x∥2 = E[x|x̃].
+                                                             
+                                    z
+Therefore the SURE-optimal denoiser coincides with the Bayes estimator in Sec-
+tion 3.3.4, and by Tweedie’s identity:
+                      D∗ (x̃) = E[x|x̃] = x̃ + σ 2 ∇x̃ log pσ (x̃).          (3.3.8)
+
+3.3. Denoising Score Matching                                                      83
+
+
+Relationship of SURE and Score Matching. The identity in Equation (3.3.8)
+motivates parameterizing the denoiser D via a score field:
+
+                                 D(x̃) = x̃ + σ 2 sϕ (x̃, σ),
+
+with sϕ (·, σ) meant to approximate the noisy score ∇x̃ log pσ (·). Plugging D(x̃) =
+x̃ + σ 2 sϕ (x̃, σ) in Equation (3.3.7) gives
+           1
+               SURE(D; x̃) = Tr ∇x̃ sϕ (x̃, σ) + 12 ∥sϕ (x̃, σ)∥22 + const(σ).
+                                              
+          2σ 4
+
+Therefore, taking expectation with respect to x̃ ∼ pσ , minimizing SURE is equiv-
+alent (up to an additive constant) to minimizing Hyvärinen’s alternative score
+matching objective at noise level σ, with the expectation taken under pσ (see
+Equation (3.2.2)). Consequently, both objectives share the same minimizer, namely
+the denoiser in Equation (3.3.8).
+
+3.3.6   (Optional) Generalized Score Matching
+Motivation. Classical score matching, denoising score matching, and higher order
+variants all target
+                         Lp(x)
+                               , for some density p
+                          p(x)
+with a linear operator L acting on the density. In the classical case L = ∇x , this
+gives
+                                           ∇x p(x)
+                             ∇x log p(x) =
+                                             p(x)
+The Lp p structure allows integration by parts to remove normalizing constants,
+yielding a tractable objective that depends only on samples from p and the learned
+field sϕ . This viewpoint motivates the generalized score matching framework.
+
+Generalized Fisher Divergence. Let p be the data distribution and q any model
+distribution. For a linear operator L on scalar functions of x, define the generalized
+Fisher divergence
+
+                                                Lp(x) Lq(x) 2
+                                     Z
+                     DL (p ∥ q) :=       p(x)        −        dx.
+                                                p(x)   q(x) 2
+If L is complete, i.e.,
+                          Lp1   Lp2
+                              =     a.e.    implies     p1 = p2 a.e.,
+                          p1    p2
+then DL (p ∥ q) = 0 identifies q = p. For L = ∇x̃ this recovers the classical Fisher
+divergence (see Equation (1.1.3)).
+
+84                                             Score-Based Perspective: From EBMs to NCSN
+
+
+Score Parameterization. In practice we do not model a normalized density
+q. Instead, we directly parameterize a vector field sϕ (x) to approximate the
+generalized score Lp(x)
+                   p(x) . Consider
+
+                                                                   Lp(x) 2
+                                                     "                       #
+                        DL (p ∥ sϕ ) := Ex∼p              sϕ (x) −         .
+                                                                    p(x) 2
+Although Lp(x)
+            p(x) is unknown, “integration by parts” makes the loss depend only on
+          †
+sϕ . Let L be the adjoint of L, defined by
+                   Z                  Z
+                            ⊤
+                       Lf        g=       f (L† g)       for all test functions f, g,
+which formally “moves” L across the integral when boundary terms vanish. Ex-
+panding the square and applying this identity yields the tractable objective
+                                    1
+                                                       
+                 LGSM (ϕ) = Ex∼p ∥sϕ (x)∥22 − L† sϕ (x) + const,
+                                                     
+                                    2
+where the constant does not depend on ϕ. We use p only through expectations, so
+the generalized score matching loss admits an empirical estimator from training
+data, exactly as in classical score matching.
+   For L = ∇ we have L† = −∇·, which recovers Hyvärinen’s score matching
+objective Ep 12 ∥sϕ ∥22 + ∇· sϕ in Equation (3.2.2).
+                              
+
+
+Examples of Operators.
+     ■   Classical Score Matching. Consider L = ∇x . Then the generalized score
+         reduces to the classical score function
+                                      Lp(x)
+                                            = ∇x log p(x).
+                                      p(x)
+     ■   Denoising Score Matching. For additive Gaussian noise, define the operator
+                                      (Lf )(x̃) = x̃ f (x̃) + σ 2 ∇x̃ f (x̃).
+         Then
+                             Lpσ (x̃)
+                                      = x̃ + σ 2 ∇x̃ log pσ (x̃) = E[x0 |x̃],
+                             pσ (x̃)
+         with                  Z
+                  pσ (x̃) :=       N (x̃; x0 , σ 2 I) pdata (x0 ) dx0 ,         x̃ = x0 + σϵ.
+         This is exactly Tweedie’s identity for additive Gaussian noise. Minimizing
+         LGSM with this operator therefore trains sϕ to approximate the posterior-
+         mean denoiser. If one instead uses a scaled Gaussian location model x̃ = αx0 +
+         σϵ, the corresponding identity contains the factor α as in Equation (3.3.6).
+     ■   Higher Order Targets. Stacking derivatives inside L exposes ∇2 log p and
+         higher derivatives, which align with posterior covariance and higher order
+         cumulants.
+
+3.3. Denoising Score Matching                                                    85
+
+
+Extensions and Use Cases. Generalized score matching extends beyond continu-
+ous variables to discrete settings, including language modeling (Meng et al., 2022;
+Lou et al., 2024). It also motivates score inspired training that yields denoising
+style objectives. This operator view unifies a range of objectives, admits empirical
+estimation from data, and offers a general principle for designing loss functions
+through suitable choices of L.
+
+86                                       Score-Based Perspective: From EBMs to NCSN

@@ -1,0 +1,134 @@
+3.2     From Energy-Based to Score-Based Generative Models
+
+EBMs show that generation depends only on the score, which points toward regions
+of higher probability, rather than on the full normalized density. While score
+matching avoids the partition function, training through the energy still requires
+expensive second derivatives. The key idea is that since sampling with Langevin
+dynamics needs only the score, we can learn it directly with a neural network.
+This shift, from modeling energies to modeling scores, forms the foundation of
+score-based generative models.
+
+
+
+
+Figure 3.4: Illustration of Score Matching. The neural network score sϕ (x) is trained to match
+the ground truth score s(x) using a MSE loss. Both are represented as vector fields.
+                                                                Source: Created by the authors.
+
+
+
+3.2.1    Training with Score Matching
+Score Matching. To approximate the score function s(x) = ∇x log pdata (x) from
+samples of pdata , we approximate it directly as a vector field parameterized by a
+neural network sϕ (x) (see Figure 3.4):
+
+                                       sϕ (x) ≈ s(x).
+
+Score matching fits this vector field by minimizing the mean squared error (MSE)
+between the true and estimated scores:
+
+72                                      Score-Based Perspective: From EBMs to NCSN
+
+
+
+                                1        h                 i
+                      LSM (ϕ) := Ex∼pdata ∥sϕ (x) − s(x)∥22 .               (3.2.1)
+                                2
+
+
+Tractable Score Matching. At first glance, this objective seems infeasible be-
+cause the true score s(x), which serves as the regression target, is unknown.
+Fortunately, Hyvärinen and Dayan (2005) showed that integration by parts yields
+an equivalent objective that depends only on the model sϕ and the data samples,
+without requiring access to the true score. We state this key result in the following
+proposition:
+
+     Proposition 3.2.1: Hyvärinen’s Tractable Form of SM
+
+     We can express the following equation as:
+
+                              LSM (ϕ) = LeSM (ϕ) + C.
+
+     where
+                                                       1
+                                                                 
+             LeSM (ϕ) := Ex∼pdata (x) Tr (∇x sϕ (x)) +   ∥sϕ (x)∥22 .      (3.2.2)
+                                                       2
+     and C is a constant that does not depend on ϕ. The minimizer s∗ is obtained
+     as: s∗ (·) = ∇x log p(·).
+
+Proof for Proposition.
+     The result follows by expanding the MSE in LSM and applying integration by
+     parts. The proof is given in Section D.2.1.                             ■
+    Using the equivalent objective in Equation (3.2.2), we train the score model
+sϕ (x) solely from observed samples of pdata , eliminating the need for the true score
+function.
+
+Intuition of Equation (3.2.2). The alternative score matching objective LeSM (ϕ)
+can be understood from its two terms. The norm term 12 ∥sϕ (x)∥2 penalizes
+large score values, especially in regions where pdata is large. The divergence term
+Tr(∇x sϕ (x)) appears with a positive sign in the loss, so minimizing the objec-
+tive also favors locally contracting behavior. Together, these two terms yield the
+population-optimal score field s∗ (x) = ∇x log pdata (x). We explain the geometric
+intuition in more detail below.
+
+   Effect of the Magnitude Term. Since the expectation in LeSM (ϕ) is taken
+under pdata , regions where pdata (x) is large (high data density) contribute more
+
+3.2. From Energy-Based to Score-Based Generative Models                                         73
+
+
+strongly to the loss. The magnitude term 12 ∥sϕ (x)∥2 therefore places a stronger
+penalty on large score values in these regions. By itself, however, this term does
+not imply that sϕ (x) = 0 at every high-density point; at the population optimum,
+                                   s∗ (x) = ∇x log pdata (x),
+which vanishes only at stationary points of the log-density.
+
+    Concavity When the Field is (Approximately) a Gradient. Because the
+divergence term Tr(∇x sϕ (x)) enters the loss with a positive sign, minimizing the
+objective favors negative divergence in regions emphasized by the data distribution.
+Negative divergence indicates net local contraction, although by itself it does not
+guarantee that a stationary point is a sink. To make this precise, assume sϕ = ∇x u
+for a scalar function u : RD → R, as is natural when matching a log density. Then
+∇x sϕ = ∇2x u (the Hessian) and ∇ · sϕ (x) = Tr(∇2x u(x)) (the divergence).
+    At a stationary point x⋆ , where sϕ (x⋆ ) = ∇x u(x⋆ ) = 0, a second order Taylor
+expansion gives
+            u(x) = u(x⋆ ) + 12 (x − x⋆ )⊤ ∇2x u(x⋆ )(x − x⋆ ) + o(∥x − x⋆ ∥2 ).
+If the Hessian ∇2x u(x⋆ ) is negative definite, then u is locally concave at x⋆ and
+the log density attains a strict local maximum3 there. Because all eigenvalues of
+the Hessian are negative, the trace is also negative: Tr(∇2x u(x⋆ )) < 0. Thus, in
+this case, the stationary point is locally attracting under the score field: small
+perturbations are pulled back toward x⋆ .
+
+3.2.2    Sampling with Langevin Dynamics
+Once trained by minimizing Equation (3.2.2), the score model sϕ× (x) can replace
+the oracle score in Langevin dynamics for sampling:
+                                                  p
+                   xn+1 = xn + ηsϕ× (xn ) +           2ηϵn ,   ϵn ∼ N (0, I),              (3.2.3)
+for n = 0, 1, 2, . . . , initialized at x0 . As in the EBM case Equation (3.1.6), this
+recursion is precisely the Euler–Maruyama discretization of the continuous-time
+Langevin SDE:
+                                                      √
+                              dx(t) = sϕ× (x(t)) dt + 2 dw(t),
+with initialization x(0). Hence, in the limit of small step size, the discrete and
+continuous formulations coincide. In practice, one can either run the discrete
+sampler or directly simulate the SDE.
+    3
+      We remark that strict concavity (and thus a strict local maximum of the log density) requires
+the entire Hessian ∇2x u to be negative definite, not merely to have negative trace. A negative
+trace guarantees that the sum of eigenvalues is negative, but some eigenvalues could still be
+positive, leading to a saddle point rather than a maximum.
+
+74                                   Score-Based Perspective: From EBMs to NCSN
+
+
+3.2.3   Prologue: Score-Based Generative Models
+In the remainder of this chapter, we examine the foundational role of the score
+function in modern diffusion models. Initially introduced to enable efficient training
+of EBMs, the score function has evolved into a central component of a new
+generation of generative models. Building on this foundation, we explore how the
+score function informs the theoretical formulation and practical implementation of
+score-based diffusion models, offering a principled framework for data generation
+via stochastic processes.
+
+3.3. Denoising Score Matching                                                        75

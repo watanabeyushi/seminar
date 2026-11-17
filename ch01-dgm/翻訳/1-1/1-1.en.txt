@@ -1,0 +1,282 @@
+1.1       What is Deep Generative Modeling?
+
+DGMs take as input a large collection of real-world examples (e.g., images, text)
+drawn from an unknown and complex distribution pdata and output a trained
+neural network that parameterizes an approximate distribution pϕ . Their goals
+are twofold:
+
+   1. Realistic Generation: To generate novel, realistic samples indistinguishable
+      from real data.
+
+   2. Controllable Generation: To enable fine-grained and interpretable control
+      over the generative process.
+
+   This section presents the fundamental concepts and motivations behind DGMs,
+preparing for a detailed exploration of their mathematical framework and practical
+applications.
+
+1.1.1      Mathematical Setup
+
+Suppose we are given a finite collection of examples {x(i) }N
+                                                            i=1 , such as images, audio,
+or text. We imagine that these examples were drawn from some underlying data
+distribution pdata , but we do not know this distribution explicitly. In particular,
+we only observe the available training examples; we do not have a formula for pdata
+or a direct procedure for drawing arbitrary new samples from it1 .
+
+Goal of DGM. The goal of deep generative modeling is therefore to learn a model
+that can produce new samples whose statistical characteristics resemble those
+of the observed data. We denote the distribution represented by a model with
+parameters ϕ by pϕ . After training, we denote the learned parameters by ϕ× and
+hope that, in the aspects relevant to generation,
+
+                                         pϕ× ≈ pdata .
+
+This expression should be understood conceptually: with finite data, finite model
+capacity, and imperfect optimization, we do not expect the two distributions to be
+exactly identical. Rather, the learned model should capture enough of the structure
+of the data distribution to generate realistic and diverse new examples.
+    Once the model is trained, generation simply means drawing a new sample
+
+                                           x ∼ pϕ× .
+      1
+     This is a common assumption in machine learning. For simplicity, we use the symbol p to
+represent either a probability distribution or its probability density/mass function, depending on
+the context.
+
+18                                                                    Deep Generative Modeling
+
+                   𝑝data                                                     𝑝𝝓
+
+                   𝐱2
+
+                                          𝒟 𝑝data , 𝑝𝝓
+              𝐱1
+
+
+                   𝐱𝑖
+
+Figure 1.1: Illustration of the target in DGM. Training a DGM is essentially minimizing the
+discrepancy between the model distribution pϕ and the unknown data distribution pdata . Since
+pdata is not directly accessible, this discrepancy must be estimated efficiently using a finite set of
+independent and identically distributed (i.i.d.) samples, xi , drawn from it.
+                                                                    Source: Created by the authors.
+
+
+Different families of generative models provide different mechanisms for doing this.
+Some models additionally allow us to evaluate how much density they assign to
+an observed sample, while others are primarily defined through their sampling
+procedure. This distinction will become useful later when we discuss how different
+generative models are trained; for now, the central objective is simply to learn a
+distribution from data from which we can generate new samples.
+
+
+Training of DGM. We learn parameters ϕ of a model family {pϕ } by minimizing
+a discrepancy D(pdata , pϕ ):
+
+                                  ϕ∗ ∈ arg min D(pdata , pϕ ).                                (1.1.1)
+                                               ϕ
+
+Because pdata is unknown, a practical choice of D must admit efficient estimation
+from i.i.d. samples from pdata . With sufficient capacity, pϕ∗ can closely approximate
+pdata .
+
+
+    Forward KL and Maximum Likelihood Estimation (MLE). How should we
+choose the model parameters so that pϕ resembles pdata ? When the model density
+pϕ (x) can be evaluated, a natural idea is to make the observed data receive high
+density under the model. This leads to maximum likelihood estimation (MLE):
+we choose ϕ so that the training examples are collectively assigned high model
+density2 .
+     2
+    For a fixed observed sample x, the quantity pϕ (x), viewed as a function of the model
+parameters ϕ, is called the likelihood. For continuous data, pϕ (x) is a probability density rather
+than the probability of observing exactly x.
+
+1.1. What is Deep Generative Modeling?                                                               19
+
+
+   A standard way to formalize this idea is through the (forward) Kullback–Leibler
+divergence3
+                                                                   pdata (x)
+                                            Z
+                                  
+                     DKL pdata ∥pϕ :=           pdata (x) log                dx
+                                                                    pϕ (x)
+                                                                                      
+                                       = Ex∼pdata log pdata (x) − log pϕ (x) .
+
+The KL divergence is asymmetric, i.e.,
+                                                                          
+                             DKL pdata ∥pϕ ̸= DKL pϕ ∥pdata .
+
+    At first, the forward KL may appear unusable because the data density pdata (x)
+is unknown. However, it can be decomposed as
+                                   "                       #
+                                          pdata (x)                               
+  DKL pdata ∥pϕ = Ex∼pdata             log           = −Ex∼pdata log pϕ (x) − H pdata ,
+                                            pϕ (x)
+
+where
+                                                                             
+                            H pdata := −Ex∼pdata log pdata (x)
+is the entropy of the data distribution. Crucially, this term does not depend on ϕ.
+Therefore, although we cannot evaluate pdata (x) itself, we do not need to know it
+in order to optimize the model parameters. This gives the following equivalence:
+
+   Lemma 1.1.1: Minimizing KL ⇔ MLE
+
+                                                                                 
+               min DKL pdata ∥ pϕ           ⇐⇒ max Ex∼pdata log pϕ (x) .                   (1.1.2)
+                 ϕ                                     ϕ
+
+
+    In words, minimizing the forward KL divergence is equivalent to making real
+data samples receive high log-likelihood under the model. This is exactly maximum
+likelihood estimation.
+    In practice, the expectation over pdata is replaced by the available training
+samples {x(i) }N
+               i=1 , assumed to be drawn i.i.d. from pdata . This gives the empirical
+negative log-likelihood objective
+                                                         N
+                                                      1 X
+                                                            log pϕ x(i) ,
+                                                                       
+                              L̂MLE (ϕ) := −
+                                                      N i=1
+
+which can be optimized using stochastic gradients over minibatches. Thus, MLE
+requires only samples from pdata ; it does not require evaluating the unknown data
+density itself.
+   3
+       All integrals are in the Lebesgue sense and reduce to sums under counting measures.
+
+20                                                                 Deep Generative Modeling
+
+
+    The direction of the KL divergence matters because it determines where the
+discrepancy is averaged. For the forward KL,
+                                                      "               #
+                                                             pdata (x)
+                    DKL pdata ∥pϕ = Ex∼pdata              log           ,
+                                                               pϕ (x)
+
+the expectation is taken over the data distribution. Thus, regions that occur
+under pdata must be accounted for by the model. By contrast, the reverse KL,
+DKL (pϕ ∥pdata ), averages instead over samples from the model distribution.
+   This difference has an important consequence. Suppose there exists a region A
+with positive data probability, pdata (A) > 0, but the model assigns zero density
+there, pϕ (x) = 0 for x ∈ A. Then the forward KL becomes infinite, since
+
+                                         pdata (x)
+                                   log             = +∞
+                                          pϕ (x)
+on that region. Therefore, minimizing the forward KL strongly penalizes a model
+for completely missing regions where the data distribution places probability mass.
+This behavior is commonly referred to as mode covering.
+
+    Fisher Divergence. The Fisher divergence is another important concept for
+(score-based) diffusion modeling (see Chapter 3). For two distributions p and q, it
+is defined as
+                                     h                                      i
+                DF (p∥q) := Ex∼p ∥∇x log p(x) − ∇x log q(x)∥22 .                     (1.1.3)
+
+It measures the discrepancy between the score functions ∇x log p(x) and ∇x log q(x),
+which are vector fields pointing toward regions of higher probability. In short,
+DF (p∥q) ≥ 0 with equality if and only if p = q almost everywhere. It is invariant
+to normalization constants, since scores depend only on gradients of log-densities,
+and it forms the basis of score matching (Equations (3.1.3) and (3.2.1)): a method
+that learns the gradient of the log-density for generation (score-based models). In
+this setting, the data distribution p = pdata serves as the target, while the model
+q = pϕ is trained to align its score field with that of the data.
+
+    Beyond KL. Although the KL divergence is the most widely used measure
+of difference between probability distributions, it is not the only one. Different
+divergences capture different geometric or statistical notions of discrepancy, which
+in turn affect the optimization dynamics of learning algorithms. A broad family is
+the f -divergences (Csiszár, 1963):
+                                               p(x)
+                               Z                 
+                  Df (p∥q) =       q(x)f            dx,          f (1) = 0,          (1.1.4)
+                                               q(x)
+
+1.1. What is Deep Generative Modeling?                                                  21
+
+
+where f : R+ → R is a convex function. By changing f , we obtain many well-known
+divergences:
+ f (u) = u log u                            ⇒ Df = DKL (p∥q)       (forward KL),
+           h                            i
+ f (u) = 21 u log u − (u + 1) log 1+u
+                                   2        ⇒ Df = DJS (p∥q)      (Jensen–Shannon),
+ f (u) = 21 |u − 1|                         ⇒ Df = DTV (p, q)      (total variation).
+For clarity, the explicit forms are
+                DJS (p∥q) = 21 DKL p∥ 12 (p + q) + 21 DKL q∥ 12 (p + q) ,
+                                                                      
+
+and                               Z
+                DTV (p, q) = 12        |p − q| dx = sup |p(A) − q(A)|.
+                                  RD                A⊂RD
+Intuitively, the JS divergence provides a smooth and symmetric measure that
+balances both distributions and avoids the unbounded penalties of KL (we will later
+see that it helps interpret the Generative Adversarial Network (GAN) framework),
+while the total variation distance captures the largest possible probability difference
+between the two.
+    A different viewpoint comes from optimal transport (see Chapter 7), whose
+representative is the Wasserstein distance (see Equation (7.2.2)). It measures the
+minimal cost of moving probability mass from one distribution to another. Unlike
+f -divergences, which compare density ratios, Wasserstein distances depend on the
+geometry of the sample space and remain meaningful even when the supports of p
+and q do not overlap.
+    Each divergence embodies a different notion of closeness between distributions
+and thus induces distinct learning behavior. We will revisit these divergences
+when they arise naturally in the context of generative modeling throughout this
+monograph.
+
+1.1.2   Challenges in Modeling Distributions
+To model a complex data distribution, we can parameterize the probability density
+function pdata using a neural network with parameters ϕ, creating a model we
+denote as pϕ . For pϕ to be a valid probability density function, it must satisfy two
+fundamental properties:
+  (i) Non-Negativity: pϕ (x) ≥ 0 for all x in the domain.
+ (ii) Normalization: The integral over the entire domain must equal one, i.e.,
+      R
+        pϕ (x) dx = 1.
+    A network can naturally produce a real scalar Eϕ (x) ∈ R for input x. To
+interpret this output as a valid density, it must be transformed to satisfy condi-
+tions (i) and (ii). A practical alternative is to view Eϕ : RD → R as defining an
+unnormalized density and then enforce these properties explicitly.
+
+22                                                              Deep Generative Modeling
+
+
+Step 1: Ensuring Non-Negativity. We can guarantee that our model’s output
+is always non-negative by applying a positive function to the raw output of the
+neural network Eϕ (x), such as |Eϕ (x)|, Eϕ2 (x). A standard and convenient choice
+is the exponential function. This gives us an unnormalized density, p̃ϕ (x), that is
+guaranteed to be positive:
+
+                                p̃ϕ (x) = exp(Eϕ (x)).
+
+Step 2: Enforcing Normalization. The function p̃ϕ (x) is positive but does not
+integrate to one. To create a valid probability density, we must divide it by its
+integral over the entire space. This leads to the final form of our model:
+                                  p̃ϕ (x)         exp(Eϕ (x))
+                   pϕ (x) = R          ′    ′
+                                              =R                   .
+                                p̃ϕ (x ) dx      exp(Eϕ (x′ )) dx′
+The denominator in this expression is known as the normalizing constant or
+partition function, denoted by Z(ϕ):
+                                      Z
+                           Z(ϕ) :=        exp(Eϕ (x′ )) dx′ .
+
+While this procedure provides a valid construction for pϕ (x), it introduces a major
+computational challenge. For most high-dimensional problems, the integral required
+to compute the normalizing constant Z(ϕ) is intractable. This intractability is a
+central problem that motivates the development of many different families of deep
+generative models.
+    In the following sections, we introduce several prominent approaches of DGM.
+Each is designed to circumvent or reduce the computational cost of evaluating this
+normalizing constant.
+
+1.2. Prominent Deep Generative Models                                                   23

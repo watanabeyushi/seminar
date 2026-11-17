@@ -1,0 +1,307 @@
+6.2     A Roadmap for Elucidating Training Losses in Diffusion Models
+
+This section builds a systematic view of training losses in diffusion models. In
+Section 6.2.1, we extend the standard three objectives to a broader set of four
+parameterizations, showing how they arise from different modeling perspectives. In
+Section 6.2.2, we then distill these results into a general framework that disentangles
+the structure of diffusion objectives, laying the groundwork for the equivalence
+results in Section 6.3.
+
+6.2.1     Four Common Parameterizations in Diffusion Models
+Throughout this section, we consider the forward perturbation kernel
+                                                               
+                            pt (xt |x0 ) = N xt ; αt x0 , σt2 I ,
+
+where x0 ∼ pdata , as defined in Equation (4.5.1), unless stated otherwise.
+    Let ω : [0, T ] → R>0 denote a positive time-weighting function. The four
+standard parameterizations (noise ϵϕ , clean xϕ , score sϕ , and velocity vϕ ), together
+with their respective minimizers ϵ∗ , x∗ , s∗ , and v∗ , are summarized below for
+clarity and to facilitate further discussion.
+
+Variational View. Based on the KL divergence in DDPMs (see Sections 2.2.4
+and 4.5.2), this approach reduces to predicting either the expected noise that
+produces xt or the expected clean signal that xt was perturbed from.
+
+   1. ϵ-Prediction (Noise Prediction) (Ho et al., 2020):
+
+                                  ϵϕ (xt , t) ≈ E[ϵ|xt ] = ϵ∗ (xt , t)           (6.2.1)
+
+        with training objective
+                                            h                            i
+                        Lnoise (ϕ) := Et ω(t)Ex0 ,ϵ ∥ϵϕ (xt , t) − ϵ∥22 .
+
+        Here, ϵ∗ means the average noise that was injected to obtain the given xt .
+
+   2. x-Prediction (Clean Prediction) (Kingma et al., 2021; Karras et al., 2022;
+      Song et al., 2023):
+
+                               xϕ (xt , t) ≈ E[x0 |xt ] = x∗ (xt , t)            (6.2.2)
+
+        with training objective
+                                           h                             i
+                       Lclean (ϕ) := Et ω(t)Ex0 ,ϵ ∥xϕ (xt , t) − x0 ∥22 .
+
+        Here, x∗ means the average of all plausible clean guesses, given the noisy
+        observation xt .
+
+6.2. A Roadmap for Elucidating Training Losses in Diffusion Models                               185
+
+
+Score-Based View. Predicts the score function at noise level t, which points in
+the average direction to denoise xt back toward all possible clean samples that
+could have generated it:
+  3. Score Prediction (Song and Ermon, 2019; Song et al., 2020c):
+            sϕ (xt , t) ≈ ∇xt log pt (xt ) = E [∇xt log pt (xt |x0 )|xt ] = s∗ (xt , t)       (6.2.3)
+        with training objective
+                                         h                                               i
+                 Lscore (ϕ) := Et ω(t)Ex0 ,ϵ ∥sϕ (xt , t) − ∇xt log pt (xt |x0 )∥22 ,
+
+        where the conditional score satisfies ∇xt log pt (xt |x0 ) = − σ1t ϵ.
+
+Flow-Based View. Predicts the instantaneous average velocity of the data as it
+evolves through xt :
+  4. v-Prediction (Velocity Prediction) (Lipman et al., 2022; Liu, 2022; Salimans
+     and Ho, 2021; Albergo et al., 2023):
+                                                dxt
+                                                             
+                                vϕ (xt , t) ≈ E     xt = v∗ (xt , t)                          (6.2.4)
+                                                 dt
+        with training objective
+                                             h                                       i
+                   Lvelocity (ϕ) := Et ω(t)Ex0 ,ϵ ∥vϕ (xt , t) − vt (xt |x0 , ϵ)∥22 ,
+
+        where the conditional velocity is vt (xt |x0 , ϵ) = αt′ x0 + σt′ ϵ.
+        Here, v∗ indicates the average velocity vector passing through the observation
+        point xt .
+    Building on the insight from Equation (6.1.1), all four prediction types ulti-
+mately aim to approximate a conditional expectation in the form of the average
+noise, clean data, score, or velocity given an observed xt .
+
+6.2.2     Disentangling the Training Objective of Diffusion Models
+As shown in Section 6.2.1, the objective functions for the four prediction types
+commonly share the following template form for diffusion model training:
+
+                                    h                                                2i
+   L(ϕ) := Ex0 ,ϵ Eptime (t)             ω(t)       NNϕ ( xt , t) − (At x0 + Bt ϵ)        .
+                                                                                     2
+                                                                                              (6.2.5)
+                     |   {z    }         | {z } |                 {z                 }
+                         time             time                 MSE part
+                     distribution       weighting
+
+
+   Here, to enhance training efficiency and optimize the diffusion model learning
+pipeline, several key design choices are crucial (Karras et al., 2022; Lu and Song,
+2024):
+
+186                                A Unified and Systematic Lens on Diffusion Models
+
+
+ (A) Noise schedule in the forward process of xt via αt and σt ;
+
+ (B) Prediction types of NNϕ and their associated regression targets (At x0 + Bt ϵ) ;
+
+ (C) Time-weighting function ω(·) : [0, T ] → R≥0 ;
+
+ (D) Time distribution ptime .
+
+    We elaborate on these four components here to serve as a roadmap for the
+discussions in the following sections.
+
+(A) Noise Schedule αt and σt . Users have the flexibility to choose schedules
+tailored to their applications, with common examples summarized in Table 5.2.
+Importantly, as we will demonstrate in Equations (6.3.3) and (6.3.5), all affine
+flows of the form xt = αt x0 + σt ϵ are mathematically equivalent. Specifically, any
+such interpolation can be converted to the canonical linear schedule (αt = 1 − t,
+σt = t) or to a trigonometric schedule (αt = cos t, σt = sin t) by appropriate time
+reparametrization and spatial rescaling.
+
+
+Table 6.1: Summary of the Relationships Between Different Parameterizations. All four pa-
+rameterizations are mathematically equivalent and can be converted into one another through
+straightforward algebraic transformations.
+
+                           Regression Target =    At x0 + Bt ϵ
+                                                  At     Bt
+                                  Clean            1      0
+                                  Noise            0      1
+                            Conditional Score      0     - σ1t
+                           Conditional Velocity    αt′    σt′
+
+
+(B) Parameterization NNϕ and Training Target At x0 + Bt ϵ. There are two
+choices that are often coupled in diffusion training: what quantity the network
+directly predicts and which quantity is compared in the training loss. Clean data,
+noise, score, and velocity can be used for either purpose.
+
+    Matched Prediction and Loss. The common choice, used in Equation (6.2.5),
+is to train the network directly in the same prediction type that it outputs. Each
+prediction type then has a corresponding conditional training target of the form
+
+                          Regression Target = At x0 + Bt ϵ,
+
+where At and Bt depend on the prediction type and the forward schedule (αt , σt ).
+These targets are summarized in Table 6.1.
+
+6.2. A Roadmap for Elucidating Training Losses in Diffusion Models                         187
+
+
+   For example, an x-prediction network is compared with the clean target x0 ,
+whereas a v-prediction network is compared with the conditional velocity
+                                      vt = αt′ x0 + σt′ ϵ.
+As shown later in Equation (6.3.1), the four prediction types encode the same
+oracle information and can be converted into one another.
+
+   Predicting One Quantity and Evaluating the Loss in Another. The network
+output and the quantity used in the loss can also be chosen separately. The network
+prediction is first converted using the relations in Equation (6.3.1), and the loss is
+then computed against the corresponding target in the converted prediction type.
+   For example, under the canonical schedule
+                                     xt = (1 − t)x0 + tϵ,
+suppose the network directly predicts clean data xϕ (xt , t). Converting this predic-
+tion to velocity gives
+                                            xt − xϕ (xt , t)
+                             vϕ (xt , t) =                   ,
+                                                   t
+while the conditional velocity target satisfies
+                                            xt − x 0
+                                     vt =            .
+                                               t
+Therefore,
+                                             1
+                     ∥vϕ (xt , t) − vt ∥22 = 2 ∥xϕ (xt , t) − x0 ∥22 .
+                                             t
+Thus, with the network output fixed as clean prediction, evaluating a velocity
+loss is exactly equivalent to applying an additional time-dependent weight to the
+clean-prediction loss. The corresponding relations for general affine schedules and
+other prediction types are summarized later in Equation (6.3.6).
+    Changing the quantity predicted directly by the network has an additional
+effect. Although the oracle predictions are algebraically convertible, a finite neural
+network is then trained to represent a different function, with different output
+scales and parameter gradients. The choice of network prediction can therefore
+interact with model architecture and optimization, while the choice of loss also
+controls the relative weighting of prediction errors across noise levels.
+    For clarity, Equation (6.2.5) uses the matched prediction-and-loss case unless
+stated otherwise.
+
+(C) Time Distribution ptime (t). We next consider how time t, and hence the
+noise level, is sampled during training. For convenience, define the fixed-time
+regression loss
+                         h                                  2i
+      Lt (ϕ) := Ex0 ,ϵ       NNϕ (xt , t) − At x0 + Bt ϵ     2
+                                                                  ,   xt = αt x0 + σt ϵ.
+
+188                               A Unified and Systematic Lens on Diffusion Models
+
+
+Then Equation (6.2.5) can be written compactly as
+
+                            L(ϕ) = Et∼ptime [ω(t)Lt (ϕ)] .
+
+Thus, if no correction is applied, sampling some times more frequently also gives
+them more weight in the objective. At the level of the exact expected loss, only
+the product ptime (t)ω(t) matters.
+   A different use of nonuniform sampling is importance sampling. Suppose the
+objective above is fixed, but we instead draw times from a proposal qtime (t). Then
+                                             ptime (t)
+                                                               
+                       L(ϕ) = Et∼qtime                 ω(t)Lt (ϕ) ,
+                                             qtime (t)
+provided qtime (t) > 0 wherever ptime (t)ω(t) > 0. With this correction, changing
+qtime leaves the objective unchanged and changes only its Monte Carlo estimator,
+for example its variance.
+    The key distinction is therefore:
+
+            change ptime in the objective =⇒ different weighting, different objective
+   change qtime + importance correction =⇒ same objective, different estimator
+
+     We therefore keep time sampling and loss weighting conceptually separate.
+Uniform time sampling makes this distinction less visible because its density
+contributes only a constant factor, whereas with nonuniform sampling one must
+specify whether the sampling distribution defines the objective or merely serves as
+an importance-sampling proposal.
+     Both uses appear in diffusion-model training. ScoreFlow explicitly uses impor-
+tance sampling to reduce the variance of a fixed likelihood-weighted objective (Song
+et al., 2021). VDM and subsequent analyses similarly show that, when the objective
+is fixed in noise-level coordinates, the noise schedule can act as an importance-
+sampling distribution (Kingma et al., 2021; Kingma and Gao, 2023). EDM (Karras
+et al., 2022), by contrast, specifies both a nonuniform training distribution over
+noise levels and a separate loss weighting, whose combination determines the
+effective training weight.
+
+(D) Time-Weighting Function ω(t). For a fixed ptime , the weighting function
+ω(t) determines the relative contribution of different times to the training objective.
+Together with the previous paragraph, the effective weighting over time is therefore
+ptime (t)ω(t).
+    A simple baseline is uniform time sampling with ω(t) ≡ 1, as in the standard
+simplified ϵ-prediction and FM/RF objectives (Ho et al., 2020; Lipman et al.,
+2022; Liu, 2022). Other weightings emphasize different noise regimes and can also
+carry likelihood or variational interpretations. For example, for the score-matching
+objective, the likelihood weighting ω(t) = g 2 (t) yields an upper bound on the
+
+6.2. A Roadmap for Elucidating Training Losses in Diffusion Models                                      189
+
+
+negative log-likelihood under suitable regularity conditions (Song et al., 2021).
+More generally, SNR-dependent weightings provide a common way to redistribute
+training emphasis across noise levels (Kingma et al., 2021; Kingma and Gao,
+2023).
+
+
+   Monotonic Weighting and the ELBO-with-Augmentation View. A useful
+way to describe the corruption level is through the log signal-to-noise ratio (log-
+SNR)
+                                            α2
+                                 Λt := log 2t .
+                                            σt
+We use Λ for the full log-SNR, distinguishing it from the half-log-SNR coordi-
+nate λt = log(αt /σt ) = 12 Λt used later in Chapter 9. Since Λt decreases as the
+forward process becomes noisier, after expressing the loss in a common prediction
+parameterization, let w(Λ) denote the effective weight assigned to each log-SNR
+level.
+    A useful result of Kingma and Gao (2023) is that, if w(Λ) is non-increasing in Λ
+(equivalently, its weight does not decrease as the forward process becomes noisier),
+then the weighted diffusion objective can be rewritten, up to terms independent
+of the model parameters, as an average negative ELBO over Gaussian-perturbed
+data1 .
+    Thus, monotonic weighting has a concrete probabilistic interpretation: rather
+than merely emphasizing some noise levels more than others, it can be viewed
+as averaging variational training over Gaussian-corrupted versions of the data at
+different corruption strengths.
+    1
+     To see why monotonicity matters, define the remaining variational cost from noise level t
+onward as                                                               
+                        L(t; x0 ) := DKL p(x[t,T ] |x0 ) ∥ pϕ (x[t,T ] ) ,
+where x[t,T ] := {xs }s∈[t,T ] denotes the remaining continuous diffusion path. This is the continuous-
+time counterpart of the negative ELBO in Equation (2.2.13), starting from corruption level t;
+more precisely, it equals the expected negative ELBO of the perturbed sample xt , up to terms
+independent of ϕ.
+  For ϵ-prediction, Kingma and Gao (2023) show that
+                                   d              1 dΛt 
+                                                       Eϵ ∥ϵϕ (xt , t) − ϵ∥22 .
+                                                                             
+                                      L(t; x0 ) =
+                                   dt             2 dt
+Hence the weighted diffusion loss is
+                Z T                                                  Z T
+                               d                                           d
+            −         w(Λt )      L(t; x0 ) dt = w(Λ0 )L(0; x0 ) +            w(Λt )L(t; x0 ) dt + C,
+                 0
+                               dt                                     0
+                                                                           dt
+                                                                  d
+where C is independent of ϕ. If w(Λ) is non-increasing in Λ, then dt w(Λt ) ≥ 0 because Λt decreases
+with t. Thus, after normalization, the terms above form a nonnegative weighting over ELBOs
+at different Gaussian corruption levels, which gives the ELBO-with-Gaussian-augmentation
+interpretation.
+
+190                             A Unified and Systematic Lens on Diffusion Models
+
+
+Conclusion. For our purposes, the main lesson is that many apparent design
+choices in diffusion training can be understood through how they reshape the
+effective weighting over noise levels in the objective. This weighting in turn influ-
+ences both the optimization landscape in practice and, in special cases such as
+monotonic weighting, the variational interpretation of the loss.
+
+6.3. Equivalence in Diffusion Models                                                191

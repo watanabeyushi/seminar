@@ -1,0 +1,133 @@
+7.6   Closing Remarks
+
+In this chapter, we revisited the classical problem of transporting one distribution to
+another through the lens of optimal transport and its entropic variants. We reviewed
+optimal transport in both its static Monge–Kantorovich form and its dynamic
+Benamou–Brenier formulation, where transport is realized by a deterministic flow
+minimizing kinetic cost. We then discussed entropy-regularized optimal transport
+and the Schrödinger bridge (SB), which replace deterministic transport by the most
+likely controlled diffusion relative to a reference process. From this perspective,
+diffusion models lie naturally near the SB viewpoint on the stochastic side, while
+their PF-ODEs define deterministic transport maps on the ODE side. As we
+emphasized, however, the PF-ODE transport is generally not the quadratic-cost
+optimal transport map: it is one deterministic coupling among many, rather than
+the minimizer of the Benamou–Brenier action.
+    This also highlights a more basic question: before asking whether a transport
+is optimal, when can two distributions be connected by a deterministic map at
+all? In many settings, existence is not the main difficulty. Under mild regularity
+assumptions, one can often find a measurable map T such that T# psrc = ptgt .
+The harder issue is that, beyond one dimension, relatively few classical construc-
+tions are both explicit and robust in practice. In one dimension, the monotone
+rearrangement gives a simple answer by matching quantiles. In higher dimensions,
+several important constructions are known: Brenier’s theorem (Theorem 7.1) yields
+the quadratic-cost optimal map under suitable regularity; the Knothe–Rosenblatt
+rearrangement (rosenblatt1952remarks; knothe1957contributions) builds a
+triangular map from iterated conditional distributions; and the Dacorogna–Moser
+approach (dacorogna1990partial) constructs smooth diffeomorphic transports
+through a velocity field solving a divergence equation. Each gives a principled
+route to deterministic transport, but each also relies on structural assumptions or
+nontrivial analytical machinery.
+    From this viewpoint, diffusion-based flow maps provide an appealing and flexible
+alternative. Rather than prescribing a closed-form transport map, diffusion models
+and flow-matching methods learn a time-dependent vector field whose induced flow
+pushes a simple source distribution toward the target. This learned map need not
+coincide with the Brenier map or any other classical canonical construction, and in
+general it does not solve a prescribed optimal transport problem. Nevertheless, it
+offers a practical and expressive route to map-based sampling in high dimensions,
+where explicit transport-map constructions are often unavailable or difficult to
+compute. In this sense, diffusion flows are best understood not as replacements
+for classical transport theory, but as modern learned transport mechanisms that
+sit alongside optimal transport maps, triangular rearrangements, and PDE-based
+constructions within the broader landscape of deterministic transport.
+
+           Part C
+
+Sampling of Diffusion Models
+
+                                                                                                                         245
+
+
+
+
+                                                   Chapter 4
+
+                                   Generation with Diffusion Model v∗ (x, t)
+
+⇐⇒ Solve the ODE backward from T to 0 with x(T ) ∼ pprior (more generally, from s to t with s > t):
+                                               dx(t)
+                                                     = v∗ (x(t), t)
+                                                dt
+                                                              Z T
+                                       ⇐⇒ x(0) = x(T ) +            v∗ (x(t), t) dt
+                                                               0
+
+
+
+
+    Steering Generation                        Fast Generation                                Learning a Fast
+                                            with Numerical Solvers                      Diffusion-Based Generator
+                 Z T
+                       [v∗ (x(t), t)
+                                                         Z T                                           Z T
+x(0) = x(T ) +
+                  0                     x(0) = x(T ) +         v∗ (x(t), t) dt        x(0) = x(T ) +         v∗ (x(t), t) dt
+                                                          0                                             0
+         +Guidance] dt
+                                           Estimating the Integration                    Learning the Integration
+          Chapter 8                                Chapter 9                            Chapter 10 and Chapter 11
+
+                                        8
+             Guidance and Controllable Generation
+
+
+
+
+Diffusion models are powerful generative frameworks. In the unconditional setting,
+the goal is to learn pdata (x) and generate samples without external input.
+    Many applications, however, require conditional generation, where outputs
+satisfy user-specified criteria. This can be achieved by steering an unconditional
+model or directly learning the conditional distribution p0 (x|c), with condition c
+(e.g., label, text description, or sketch) guiding the process.
+    This chapter builds on a principled view of the conditional score, which de-
+composes into an unconditional direction and a guidance direction that nudges
+samples toward the condition while preserving realism. We explain why guidance is
+essential, show how the conditional score serves as a unifying interface for control,
+and survey ways to approximate or replace the guidance term. We then distinguish
+control (meeting the condition) from alignment (meeting human preference under
+the condition), and describe how preferences can be incorporated into the same
+framework. Finally, we discuss direct optimization of preference without additional
+reward models (i.e., a learned scorer that assigns higher values to outputs better
+aligned with human preference).
+
+
+  After this chapter, you will be able to...
+    ■ understand how conditioning modifies the velocity field used during diffu-
+      sion sampling;
+    ■ derive the key ideas behind classifier guidance and classifier-free guidance,
+
+
+      and understand how guidance strength controls conditioning;
+    ■ understand how training-free guidance uses task-specific losses or measure-
+
+
+      ment models to steer a pre-trained diffusion model, including for inverse
+      problems;
+
+
+                                        246
+
+                                                                       247
+
+
+ ■ distinguish exact conditional sampling from surrogate-guided dynamics
+   and their fixed-time tilted-density interpretations;
+ ■ understand how preference-based alignment, from RLHF to DPO and
+
+
+   Diffusion-DPO, further reshapes a conditional generative model toward
+   preferred outputs.
+Reader route. The chapter assumes the Score SDE/PF-ODE picture from
+Chapters 4 and 6. Readers interested primarily in controllable generation
+may treat the later preference-alignment material as a second pass.
+
+248                                                      Guidance and Controllable Generation

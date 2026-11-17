@@ -1,0 +1,208 @@
+3.4     Multi-Noise Levels of Denoising Score Matching (NCSN)
+
+3.4.1    Motivation
+Adding Gaussian noise with a single fixed variance to the data distribution smooths
+it to a certain extent, but training a score-based model at only one noise level
+introduces key limitations. At low levels of injected noise, Langevin dynamics
+struggles to traverse modes in multi-modal distributions due to vanishing gradients
+in low-density regions. In contrast, at high noise levels, sampling becomes easier,
+but the model captures only coarse structures, resulting in blurry samples that
+lack fine detail. Furthermore, Langevin dynamics can be slow to converge or even
+fail in high-dimensional spaces. Since it depends on the gradient of the log-density
+for guidance, poor initialization, particularly in plateau regions or near saddle
+points, can impede exploration or cause the sampler to get trapped in a single
+mode.
+
+
+
+
+Figure 3.6: Illustration of SM inaccuracy (revisiting Figure 3.4). the red region indicates low-
+density areas with potentially inaccurate score estimates due to limited sample coverage, while
+high-density regions tend to yield more accurate estimates.
+                                                                Source: Created by the authors.
+
+
+    To address these challenges, Song and Ermon (2019) propose injecting Gaussian
+noise at multiple levels into the data distribution and jointly training a noise-
+conditional score network (NCSN) to estimate score functions across a range of
+noise scales. During generation, Langevin dynamics is applied in a noise-annealed
+fashion: beginning with high-noise levels to enable coarse exploration, and gradually
+refining toward low-noise levels to recover fine details.
+
+3.4. Multi-Noise Levels of Denoising Score Matching (NCSN)                                                      87
+
+
+                     𝑝𝜎𝑖 𝐱 𝜎𝑖 |𝐱
+
+
+
+
+                                                                                        Initialize
+      𝐱         𝐱1          𝐱2                                                  𝐱 𝐿−1                  𝐱L
+
+
+
+                                                                                                     Langevin
+
+
+Figure 3.7: Illustration of NCSN. The forward process perturbs the data with multiple levels of
+additive Gaussian noise pσ (xσ |x). Generation proceeds (in dash lines) via Langevin sampling at
+each noise level, using the result from the current level to initialize sampling at the next lower
+variance.
+                                                                      Source: Created by the authors.
+
+
+3.4.2     Training
+
+To overcome the limitations of score-based models trained at a single noise level,
+Song and Ermon (2019) propose adding Gaussian noise at multiple levels to the
+data distribution. Specifically, a sequence of L noise levels {σi }L
+                                                                   i=1 is chosen such
+that
+                              0 < σ1 < σ2 < · · · < σL ,
+where σ1 is small enough to preserve most of the data’s fine details, and σL is
+large enough to sufficiently smooth the distribution, facilitating easier training.
+    Each noisy sample is constructed by perturbing a clean data point x ∼ pdata
+as xσ = x + σϵ with ϵ ∼ N (0, I). This defines the
+    Perturbation Kernel:
+
+                                   pσ (xσ |x) := N (xσ ; x, σ 2 I),
+
+which induces the
+    Marginal Distribution:
+                                           Z
+                             pσ (xσ ) =        pσ (xσ |x)pdata (x) dx,
+
+at each noise level σ. It presents the Gaussian smoothed data distribution.
+
+
+Training Objective of NCSN. The goal is to train a noise-conditional score
+network sϕ (x, σ) to estimate the score function ∇x log pσ (x) for all σ ∈ {σi }L
+                                                                                i=1 .
+
+88                                              Score-Based Perspective: From EBMs to NCSN
+
+
+This is achieved by minimizing the DSM objective across all noise levels:
+                                                  L
+                                                  X
+                             LNCSN (ϕ) :=               λ(σi )LDSM (ϕ; σi ),                              (3.4.1)
+                                                  i=1
+
+where
+                                                               "                                2#
+                      1                                                               x − x̃
+                                                                                  
+         LDSM (ϕ; σ) = Ex∼pdata (x),x̃∼pσ (x̃|x)                   sϕ (x̃, σ) −                       ,
+                      2                                                                σ2        2
+
+and λ(σi ) > 0 is a weighting function for each scale.
+    Minimizing this objective yields the score model s∗ (x, σ) that recovers the true
+score at each noise level:
+
+                     s∗ (·, σ) = ∇x log pσ (·),              for all σ ∈ {σi }L
+                                                                              i=1 ,
+
+as it is essentially DSM minimization (see Theorem 3.3.1).
+
+Relationship with DDPM Loss. Let xσ = x + σϵ with ϵ ∼ N (0, I) and let pσ
+denote the marginal distribution. By Tweedie’s formula,
+                                                     1
+                                 ∇xσ log pσ (xσ ) = − E [ϵ|xσ ] .
+                                                     σ
+Thus the NCSN optimum is the true score s∗ (xσ , σ) = ∇xσ log pσ (xσ ), while
+the Bayes optimal noise predictor under the DDPM loss Equation (2.2.10) is
+ϵ∗ (xσ , σ) = E[ϵ|xσ ]. They are exactly equivalent via
+                             1
+              s∗ (xσ , σ) = − ϵ∗ (xσ , σ),                   ϵ∗ (xσ , σ) = −σs∗ (xσ , σ).
+                             σ
+In the DDPM setting, the noisy sample at step i can be written as
+                      q
+              σi :=         1 − ᾱi2 ,        xi = ᾱi x0 + σi ϵ,           ϵ ∼ N (0, I).
+
+Therefore, the score and the optimal noise prediction contain the same information:
+                                                           1
+                                         s∗ (xi , i) = −      E [ϵ|xi ] .
+                                                           σi
+In other words, predicting the noise in DDPM is equivalent, up to the known scale
+factor 1/σi , to predicting the score at noise level i.
+    We will systematically compare and summarize this equivalence of parameteri-
+zations in Chapter 6.
+
+3.4.3   Sampling
+With trained score networks available at multiple noise levels
+
+            sϕ× (·, σ1 ),      sϕ× (·, σ2 ),      ··· ,      sϕ× (·, σL−1 ),      sϕ× (·, σL ),
+
+3.4. Multi-Noise Levels of Denoising Score Matching (NCSN)                          89
+
+
+Algorithm 1 Annealed Langevin Dynamics
+Input: Trained score sϕ× (·, σℓ ), step sizes ηℓ , and Langevin iteration budgets Nℓ
+    for each noise level ℓ = L, . . . , 1; initialization distribution pinit
+ 1: x ∼ pinit
+                      ▷ Initialize from unstructured noise at the largest noise level
+ 2: for ℓ = L, L − 1, . . . , 1 do
+ 3:     x̃0 ← x
+                         ▷ Initialize this noise level from the previous level’s output
+ 4:     for n = 0 to Nℓ − 1 do
+ 5:         ϵn ∼ N (0, I)
+                                                √
+ 6:         x̃n+1 ← x̃n + ηℓ sϕ× (x̃n , σℓ ) + 2ηℓ ϵn
+ 7:     end for
+ 8:     x ← x̃Nℓ
+                         ▷ Pass the final state to the next smaller noise level, if any
+ 9: end for
+Output: x
+
+
+the sampling procedure known as annealed Langevin dynamics (Song and Ermon,
+2019) generates data by progressively denoising from a high noise level σL down
+to a low noise level σ1 ≈ 0.
+    With trained scores at noise levels 0 < σ1 < · · · < σL , annealed Langevin
+dynamics generates samples by moving gradually from high noise to low noise.
+Starting from a simple initialization x ∼ pinit , it first applies Langevin dynamics
+at the largest noise level σL , whose score sϕ× (·, σL ) guides the samples toward the
+corresponding smoothed distribution pσL . The resulting samples are then used
+to initialize Langevin dynamics at the next smaller noise level. Repeating this
+procedure progressively refines the samples until the smallest noise level σ1 is
+reached.
+    At each noise level σℓ , Langevin dynamics performs the update
+                                                  p
+             x̃n+1 = x̃n + ηℓ sϕ× (x̃n , σℓ ) +       2ηℓ ϵn ,   ϵn ∼ N (0, I),
+where the output from the previous noise level provides the initialization x̃0 . A
+common choice is to scale the step size with the noise level as
+                                          σℓ2
+                                 ηℓ = δ       ,        δ > 0.
+                                          σ12
+The algorithm performs Langevin updates at every noise level, including σ1 , so the
+final sample is obtained after refinement at the smallest noise level. Algorithm 1
+summarizes the procedure.
+    The initial distribution pinit simply provides a starting point for the Markov
+chain. At the largest noise level, Langevin dynamics moves this initial distribution
+
+90                                  Score-Based Perspective: From EBMs to NCSN
+
+
+toward pσL , after which the successive noise levels gradually guide the samples
+toward increasingly less smoothed versions of the data distribution.
+
+Slow Sampling Speed of NCSN. NCSN generates samples using annealed MCMC
+(commonly Langevin dynamics) across noise scales {σi }Li=1 . For each scale σi , it
+performs K iterative updates of the form “update x̃n using the score sϕ× (x̃n , σi )
+plus a small random perturbation”, each requiring a forward pass through the
+score network. Two factors necessitate large L × K:
+
+  (i) Local Accuracy and Stability: the learned score is reliable only for small
+      perturbations, requiring small step sizes and many iterations per noise level
+      to avoid bias or instability;
+
+ (ii) Slow Mixing in High Dimensions: local MCMC moves explore multimodal,
+      high-dimensional targets inefficiently, demanding many iterations to reach
+      typical data regions.
+
+Because updates are strictly sequential (each iteration depends on the previous
+one) and each requires an expensive network evaluation, the overall cost is O(LK)
+sequential network passes, making sampling computationally slow.
+
+3.5. Summary: A Comparative View of NCSN and DDPM                                                                  91

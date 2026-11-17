@@ -1,0 +1,128 @@
+5.5   Closing Remarks
+
+This chapter has illuminated the third and final foundational perspective on
+diffusion models, one rooted in the principles of deterministic flows. Our exploration
+began with Normalizing Flows (NFs), which leverage the change-of-variables
+formula to learn an exact, invertible mapping between a simple prior and the
+data distribution. We then saw this concept evolve into a continuous-time process
+with Neural ODEs, where a learned velocity field governs the transformation.
+However, this approach comes with the significant drawback of requiring costly
+ODE simulations within the training loop.
+    The modern framework of Flow Matching (FM) was presented as an elegant
+and efficient solution to this challenge. By pre-defining a probability path {pt }t and
+a corresponding velocity field that satisfies the continuity equation, FM establishes
+a clear target for the ODE flow. Crucially, just as we saw in the variational and
+score-based views, FM employs a powerful conditioning trick. This transforms
+the intractable problem of matching the marginal velocity field into a simple and
+tractable regression against a known conditional velocity, making training entirely
+simulation-free. This perspective recasts diffusion models themselves as a special
+case of learning a deterministic flow to transport a Gaussian prior to the data
+distribution.
+    With the introduction of the flow-based view, our survey of the three conceptual
+pillars of diffusion modeling is now complete. Throughout this journey, a remarkable
+pattern has emerged: each framework, despite its unique origins in VAEs, EBMs,
+or NFs, has converged on a continuous-time generative process and has relied on a
+conditioning strategy to enable tractable learning.
+    In the next chapter, we will finally synthesize these parallel threads into a
+single, unified framework. We will:
+
+   1. Formally demonstrate that the variational, score-based, and flow-based
+      perspectives are not merely analogous but are mathematically equivalent at
+      a fundamental level.
+
+   2. Show how the Fokker-Planck equation serves as the universal law governing
+      density evolution across all three views, revealing that they are simply
+      different lenses for describing the same core generative principle.
+
+  This unified lens will provide a complete and systematic understanding of the
+modern diffusion paradigm.
+
+                                         6
+   A Unified and Systematic Lens on Diffusion Models
+
+
+
+
+                 Mathematics is the art of giving the same name to different things.
+                                                                        Henri Poincaré
+
+    This chapter presents a systematic viewpoint that connects the variational,
+score-based, and flow-based perspectives within a coherent picture. Although
+motivated by different intuitions, these approaches converge on the same core
+mechanism underlying modern diffusion models: define a forward corruption
+process that traces a path of marginal distributions, then learn the local quantities
+needed to construct generative dynamics that follow this path in reverse. Building
+on Chapters 2 to 5, we observe a common recipe: define a forward corruption
+process that traces a path of marginals, then learn a time varying vector field that
+transports a simple prior to the data distribution along this path.
+    A key ingredient across all perspectives is the conditioning trick introduced in
+Section 6.1, which transforms an intractable marginal objective into a tractable
+conditional one, leading to stable and efficient training.
+    In Section 6.2 we analyze the training objective in a systematic way, identifying
+its essential components and clarifying how loss functions are formulated in the
+variational, score-based, and flow-based viewpoints.
+    Section 6.3 shows that any affine forward noise injection of the form xt =
+αt x0 + σt ϵ can be equivalently transformed into the standard linear schedule
+xt = (1 − t)x0 + tϵ. Moreover, common parameterizations such as noise prediction,
+clean data prediction, score prediction, and velocity prediction are interchangeable
+at the level of gradients. Thus, the choices of noise schedulers and parameterizations
+both adhere to the same modeling principle.
+    Finally, Section 6.4 brings the discussion together and identifies the governing
+rule: the Fokker–Planck equation. Whether viewed as a variational scheme (dis-
+crete time denoising), a score-based method (SDE formulation), or a flow-based
+
+                                        177
+
+178                             A Unified and Systematic Lens on Diffusion Models
+
+
+method (ODE formulation), each constructs a generator whose marginals follow
+the same density evolution. The Fokker–Planck equation thus serves as the univer-
+sal constraint respected by all three viewpoints, with differences arising only in
+parameterization and training objectives.
+
+  After this chapter, you will be able to...
+      recognize the common conditioning principle behind variational, score-
+      ■
+
+
+      based, and flow-based training: an intractable marginal target can be
+      learned through tractable conditional targets;
+   ■ understand the four common prediction types—clean data, noise, score,
+
+
+      and velocity—and convert between their oracle predictions when the
+      forward schedule is nondegenerate;
+   ■ disentangle the main design choices in diffusion training: the forward noise
+
+
+      schedule, prediction target, time-sampling distribution, and time weighting,
+      and understand which changes are mathematical reparameterizations and
+      which can still affect practical optimization;
+   ■ distinguish different notions of “equivalence”: representing the same oracle
+
+
+      information, having equivalent population objectives up to weighting or
+      additive constants, tracing the same marginal density path, and behaving
+      identically as a practical training or sampling algorithm;
+   ■ understand how different affine probability paths are related through time
+
+
+      reparameterization and spatial rescaling, while keeping track of what these
+      transformations do and do not preserve;
+   ■ understand how the continuity and Fokker–Planck equations provide the
+
+
+      density-level principle connecting variational, deterministic ODE, and
+      stochastic SDE descriptions of diffusion models.
+  Reader route. This chapter is the conceptual keystone of the book. For
+  a first pass, focus on the conditioning principle, the relationships among
+  the four prediction types, and the continuity/Fokker–Planck view that con-
+  nects the three perspectives. The central lesson is not to memorize every
+  conversion formula, but to ask what notion of equivalence is being used and
+  what that equivalence actually preserves. The detailed analysis of weighting,
+  schedules, and parameterization choices can then be revisited to understand
+  why mathematically equivalent formulations may still behave differently in
+  practice.
+
+6.1. Conditional Tricks: The Secret Sauce of Diffusion Models                                179

@@ -1,0 +1,42 @@
+3.5      Summary: A Comparative View of NCSN and DDPM
+
+We begin by comparing the graphical models of NCSN and DDPM in Figure 3.7,
+with key differences and similarities summarized in Table 3.1.
+                            Table 3.1: Comparisons of NCSN and DDPM
+
+                                   NCSN                                                  DDPM
+                                            q
+                                                 2
+                                                                                             √               √
+  xi+1 |xi        Derive as xi+1 = xi +         σi+1 − σi2 ϵ            Define as xi+1 = 1 − βi xi + βi ϵ
+                                                                                                   p
+      xi |x                Define as xi = x + σi ϵ                         Derive as xi = ᾱi x + 1 − ᾱi2 ϵ
+                                         2
+      pprior                     N (0, σL  I)                                            N (0, I)
+                                                                  
+                                                               2                               h                   i
+                                                                                                                 2
+      Loss     Ei Epdata (x) Eϵ∼N (0,I) sϕ (xi , σi ) + σϵi            Ei Epdata (x) Eϵ∼N (0,I) ∥ϵϕ (xi , i) − ϵ∥2
+                                                               2
+
+                       Apply Langevin per layer;                       Traversing the Markovian chain with
+ Sampling
+                    use output to initialize the next                              pϕ× (xi−1 |xi )
+
+
+
+
+A Shared Bottleneck. Despite their different formulations, both NCSN and
+DDPM rely on dense time discretization. This leads to a critical limitation: sampling
+often requires hundreds or even thousands of iterations, making generation slow
+and computationally intensive.
+Question 3.5.1
+       How can we accelerate sampling in diffusion models?
+
+    We return to this challenge in Chapter 9, which develops more efficient samplers;
+Chapter 10, which compresses pretrained diffusion models requiring hundreds of
+sampling steps into fewer-step student generators; and Chapter 11, which studies
+how to learn fast few-step generators directly from scratch under diffusion-inspired
+principles.
+
+92                                     Score-Based Perspective: From EBMs to NCSN

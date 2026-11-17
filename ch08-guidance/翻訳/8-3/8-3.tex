@@ -1,0 +1,113 @@
+\input{../../../common/translation-preamble}
+\begin{document}
+{\color{gray}\footnotesize 出典: §8.3\par}
+\vspace{0.2em}
+
+\section*{8.3 分類器フリーガイダンス}
+
+
+\subsection*{8.3.1 分類器フリーガイダンスの基礎}
+
+
+\translationfigure{fig-8-2.jpg}{図8.2: CFG の図示。誘導方向は、条件付きスコア $\nabla_{x_t}\log p_t(x_t|c)$ と無条件スコア $\nabla_{x_t}\log p_t(x_t)$ の線形結合であり、$\omega$ により制御される。$0\le\omega\le 1$ では二つの方向の間を補間し、$\omega>1$ では条件付き方向において条件付きスコアを超えて外挿する。結果の場は、条件付け信号へ向けてサンプリング軌跡を操舵するために用いられる。}
+
+
+分類器フリーガイダンス（Classifier-free guidance, CFG）（Ho and Salimans, 2021）は、分類器ガイダンス方向を条件付き・無条件スコアを通じて表現することで、別に訓練された分類器の必要性を取り除く。ベイズの法則により
+
+\[
+\nabla_{x_t}\log p_t(c|x_t)
+=
+\nabla_{x_t}\log p_t(x_t|c)-\nabla_{x_t}\log p_t(x_t).
+\quad (8.3.1)
+\]
+
+
+この恒等式を式 (8.2.3) に代入すると、オラクル CFG 場が得られる。
+
+\begin{align*}
+\begin{aligned}
+s^{\mathrm{CFG}}(x_t,t,c;\omega)
+&:=
+\nabla_{x_t}\log p_t(x_t)+\omega\bigl(\nabla_{x_t}\log p_t(x_t|c)-\nabla_{x_t}\log p_t(x_t)\bigr)\\
+&=
+\omega\,\underbrace{\nabla_{x_t}\log p_t(x_t|c)}_{\text{条件付きスコア}}
++
+(1-\omega)\,\underbrace{\nabla_{x_t}\log p_t(x_t)}_{\text{無条件スコア}}.
+\end{aligned}
+\quad (8.3.2)
+\end{align*}
+
+
+正確なスコアの下では、式 (8.3.2) は代数的に式 (8.2.3) と同じ誘導場である。$\omega=1$ では正確な条件付きスコアに帰着する。他のガイダンス強度では、その固定時刻の傾いた密度解釈を、誘導力学により生成される周辺と区別すべきである。これは第8.4.2節で議論される。
+
+ハイパーパラメータ $\omega$ は再び、条件付け情報の影響を制御する上で決定的な役割を果たす（$\omega\ge 0$ とする）。
+
+\begin{itemize}
+\item **$\omega=0$：** モデルは無条件拡散モデルとして振る舞い、条件付けを完全に無視する。
+\item **$\omega=1$：** モデルは追加のガイダンスなしに条件付きスコアを用いる。
+\item **$\omega>1$：** モデルは条件付きスコアにより多くの重点を置き、無条件スコアにより少なく置くことで、$c$ との整合を強めるが、典型的に多様性は減少する。
+\end{itemize}
+
+
+\subsection*{8.3.2 CFG の訓練とサンプリング}
+
+
+\textbf{CFG による無条件・条件付き拡散モデルの共同訓練。} CFG は、条件付き予測と無条件予測の両方をサポートするよう訓練された拡散モデルを必要とする。二つの別モデルを訓練するのではなく、CFG は単一モデル $s_\phi(x_t,t,c)$ を用い、訓練中に条件付け入力を null トークン $\emptyset$ にランダムに置き換える。
+
+\begin{itemize}
+\item null 入力では、モデルは無条件予測 $s_\phi(x_t,t,\emptyset)$ を学習する。
+\item 元の条件では、条件付き予測 $s_\phi(x_t,t,c)$ を学習する。
+\end{itemize}
+
+
+null 条件は、ユーザー指定の条件ドロップアウト確率 $p_{\mathrm{uncond}}$ で用いられる。完全な訓練手続きはアルゴリズム 4 に示され、標準的な無条件訓練はアルゴリズム 3 に並記される。ガイダンス重み $\omega$ はサンプリング時にのみ導入され、この訓練目的の一部ではない。
+
+\textbf{アルゴリズム 3} 無条件 DM
+
+\begin{enumerate}
+\item 繰り返す
+\item \&emsp;$x\sim p_{\mathrm{data}}(x)$
+\item \&emsp;$t\sim U[0,T]$
+\item \&emsp;$\epsilon\sim\mathcal{N}(0,I)$
+\item \&emsp;$x_t=\alpha_t x+\sigma_t\epsilon$
+\item \&emsp;次について勾配ステップをとる：$\nabla_\phi\|s_\phi(x_t,t)-s\|^2$
+\item 収束するまで
+\end{enumerate}
+
+
+\textbf{アルゴリズム 4} 条件付き DM のための CFG
+
+入力：$p_{\mathrm{uncond}}$：無条件ドロップアウトの確率
+
+\begin{enumerate}
+\item 繰り返す
+\item \&emsp;$(x,c)\sim p_{\mathrm{data}}(x,c)$
+\item \&emsp;確率 $p_{\mathrm{uncond}}$ で $c\leftarrow\emptyset$
+\item \&emsp;$t\sim U[0,T]$
+\item \&emsp;$\epsilon\sim\mathcal{N}(0,I)$
+\item \&emsp;$x_t=\alpha_t x+\sigma_t\epsilon$
+\item \&emsp;次について勾配ステップをとる：$\nabla_\phi\|s_\phi(x_t,t,c)-s\|^2$
+\item 収束するまで
+\end{enumerate}
+
+
+\textbf{CFG による条件付きサンプリング。} モデル $s_{\phi^\times}(x_t,t,c)$ がアルゴリズム 4 を用いて訓練されると、CFG は学習された誘導場を形成する。
+
+\begin{align*}
+\begin{aligned}
+s^{\mathrm{CFG}}_{\mathrm{model}}(x_t,t,c;\omega)
+&:=
+\omega\,\underbrace{s_{\phi^\times}(x_t,t,c)}_{\text{条件付きスコア推定}}
++
+(1-\omega)\,\underbrace{s_{\phi^\times}(x_t,t,\emptyset)}_{\text{無条件スコア推定}}\\
+&\approx
+s^{\mathrm{CFG}}(x_t,t,c;\omega).
+\end{aligned}
+\quad (8.3.3)
+\end{align*}
+
+
+サンプリング中、時間逆 SDE または PF-ODE における無条件スコア推定は $s^{\mathrm{CFG}}_{\mathrm{model}}$ で置き換えられる。したがって CFG は、学習された条件付き・無条件スコア推定を組み合わせることで、修正されたサンプリング場を定義する。
+
+この定式化は $\omega$ を調整することで制御可能な生成を可能にし、別に訓練された分類器や無条件拡散モデルを必要とせずに、条件付け強度とサンプル多様性の間の単純な訓練後トレードオフを提供する。
+\end{document}

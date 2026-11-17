@@ -1,0 +1,291 @@
+4.5    A Direct View Through Accumulated Perturbation Kernels
+
+DDPM and Score SDE are commonly introduced by specifying how noise is added
+locally in time: through discrete forward transitions p(xt |xt−∆t ) in DDPM, or
+through a continuous-time SDE in Score SDE. For training, however, a particularly
+useful object is the accumulated perturbation kernel
+                                                pt (xt |x0 ),
+which describes the distribution at time t directly conditioned on the original
+data sample. This is precisely the form that appears naturally in the DDPM and
+continuous-time denoising objectives Equations (2.2.8) and (4.3.1).
+    This suggests a complementary viewpoint: rather than beginning with the
+local noise injection and then deriving pt (xt |x0 ), we can specify the accumulated
+perturbation kernel directly. For the linear-Gaussian processes considered below,
+an admissible accumulated kernel determines the corresponding linear SDE, and
+vice versa. This viewpoint makes the amount of signal and noise at each time
+explicit, connects directly to practical training objectives, and will also provide a
+useful bridge to the probability-path viewpoint of Flow Matching in Chapter 5.
+
+𝐱 0 ∼ 𝑝data                               𝒩 𝐱 𝑡 ; 𝐱 𝑡−Δ𝑡 + 𝐟 𝐱 𝑡−𝛥𝑡 , 𝑡 Δ𝑡, 𝑔2 𝑡 Δ𝑡𝐈
+              Add                                                                           Add
+              noise                                                                         noise
+      𝐱0                          ⋯             𝐱 𝑡−Δ𝑡              𝐱 𝑡𝐱 𝐿−1      ⋯                  𝐱𝑇
+
+
+
+                         𝒩 𝐱𝑡 ; 𝛼𝑡 𝐱0 , 𝜎𝑡2 𝐈
+
+Figure 4.8: Two views of the same affine forward process. For an admissible affine diffusion
+schedule, incremental noise injection through a continuous-time linear SDE and direct specifica-
+tion of the accumulated perturbation kernel in Equation (4.5.1) describe the same conditional
+distributions pt (xt |x0 ).
+                                                                             Source: Created by the authors.
+
+
+
+A General Affine Forward Process pt (xt |x0 ). We begin by defining the accu-
+mulated forward perturbation kernel
+                               pt (xt |x0 ) := N xt ; αt x0 , σt2 I ,
+                                                                         
+                                                                                                    (4.5.1)
+where x0 ∼ pdata , and αt and σt are nonnegative scalar functions of t ∈ [0, T ]. In
+the standard forward diffusion setup, we take
+                                        α0 = 1,           σ0 = 0,
+so that the process starts exactly from the data, and assume αt > 0 and σt > 0
+for t ∈ (0, T ] whenever the corresponding ratios are used.
+
+4.5. A Direct View Through Accumulated Perturbation Kernels                      123
+
+
+    Equivalently, a sample from Equation (4.5.1) can be written as
+
+
+                         xt = αt x0 + σt ϵ,      ϵ ∼ N (0, I).
+
+
+    This simple form includes several familiar probability paths:
+
+
+
+   ■    VE (NCSN): αt ≡ 1, with the noise scale σt increasing over time;
+
+
+
+   ■    VP (DDPM): αt2 + σt2 = 1;
+
+
+
+   ■    Linear Gaussian interpolation: αt = 1 − t and σt = t on t ∈ [0, 1], corre-
+        sponding to the familiar linear path used in Flow Matching and Rectified
+        Flow when written in the data-to-noise time convention.
+
+
+
+
+4.5.1    Connection to Score SDE
+
+For Score SDE, it is often more intuitive to specify the accumulated perturbation
+kernel pt (xt |x0 ) first and then recover the corresponding SDE coefficients, rather
+than starting from the drift and diffusion terms and solving ODEs for the moments
+(see Section 4.4.3).
+    For an admissible affine schedule, the corresponding forward SDE takes the
+linear-in-x form in Equation (4.4.2):
+
+
+                          dx(t) = f (t)x(t) dt + g(t) dw(t),
+                                  |    {z    }
+                                    f (x(t),t)
+
+
+
+where f, g : [0, T ] → R are real-valued functions of time.
+    The coefficients f (t) and g(t) can be recovered analytically from αt and σt .
+Importantly, not every choice of αt and σt defines a valid diffusion: the implied
+diffusion variance g 2 (t) must remain nonnegative. Equivalently, in this linear-
+Gaussian setting, the signal-to-noise ratio αt2 /σt2 cannot increase with time. The
+following lemma makes this relationship precise.
+
+124                                     Diffusion Models Today: Score SDE Framework
+
+
+  Lemma 4.5.1: Forward Perturbation Kernel ⇔ Linear SDE
+  Assume α0 = 1, σ0 = 0, and that αt > 0 and σt > 0 are differentiable for
+  t ∈ (0, T ]. Define λt := log ασtt .
+  Given the forward perturbation kernel
+
+                         xt = αt x0 + σt ϵ,            ϵ ∼ N (0, I),
+
+  there exists a corresponding linear SDE
+
+                          dx(t) = f (t)x(t) dt + g(t) dw(t)
+
+  with the same conditional kernel pt (xt |x0 ) = N (xt ; αt x0 , σt2 I) if and only if
+  the coefficients
+                               d
+                      f (t) =     log αt ,
+                               dt
+                                                                               (4.5.2)
+                               dσt2      d                d
+                     g 2 (t) =      − 2 log αt σt2 = −2σt2 λt
+                                dt      dt                dt
+  satisfy g 2 (t) ≥ 0 for t ∈ (0, T ]. Equivalently, λt must be non-increasing.
+  Conversely, if a linear SDE has conditional kernels N (xt ; αt x0 , σt2 I) with
+  αt > 0 and σt > 0, then its coefficients necessarily satisfy Equation (4.5.2).
+
+Proof for Lemma.
+  From Section 4.4.3, the result follows by matching the mean and covariance
+  ODEs m′ (t) = f (t)m(t) and P′ (t) = 2f (t)P(t) + g 2 (t)I with m(t) = αt x0 and
+  P(t) = σt2 I.                                                                  ■
+
+
+Remark.
+  To make the terminal conditional distribution independent of x0 and equal to a
+  prescribed Gaussian prior, we need αT = 0 and σT2 equal to the prior variance.
+  Since                               Z           t
+                                                   
+                                αt = exp               f (u) du ,
+                                               0
+  achieving αT = 0 at a finite terminal time requires
+                                   Z T
+                                         f (u) du = −∞.
+                                    0
+  Thus, the contraction induced by the drift must become singular near the
+  terminal time; in particular, f cannot remain bounded on [0, T ].
+     The diffusion coefficient is related to the prescribed variance through
+                                                          αt′ 2
+                                 g 2 (t) = (σt2 )′ − 2       σ .
+                                                          αt t
+
+4.5. A Direct View Through Accumulated Perturbation Kernels                                    125
+
+
+   For the usual regular schedules in which σt2 approaches a finite nonzero terminal
+   variance, (σt2 )′ remains bounded, and αt′ /αt → −∞, this also gives
+
+                                     g 2 (t) → ∞       as t → T.
+
+   More generally, the precise behavior of g(t) depends on the chosen schedule.
+      If f and g remain bounded on a finite interval [0, T ], then αT > 0, so exact
+   forgetting cannot occur at finite T . In practice, one therefore chooses a terminal
+   time for which the residual dependence on x0 is negligible and pT ≈ pprior , or
+   considers an infinite-time formulation in which αt → 0 asymptotically.
+   From the above lemma, specifying the incremental noise injection via a linear
+SDE with coefficients f (t) and g(t) is mathematically equivalent to defining the
+perturbation kernel with parameters αt and σt . In the diffusion model literature,
+these two viewpoints are used interchangeably. Therefore, we conclude:
+
+   Observation 4.5.1:
+   For a valid affine diffusion schedule, the two descriptions are equivalent: we
+   may either specify the accumulated perturbation kernel pt (xt |x0 ) through
+   αt and σt , or specify the corresponding linear SDE through f (t) and g(t).
+
+
+4.5.2      Connection to Variational-Based Diffusion Model
+
+We revisit a core identity from DDPM, derived via Bayes’ rule:
+
+                                                            pt−∆t (xt−∆t |x)
+                       p(xt−∆t |xt , x) = p(xt |xt−∆t ) ·                    ,             (4.5.3)
+                                                               pt (xt |x)
+
+for any x (usually x ∼ pdata ). This reverse conditional p(xt−∆t |xt , x) is central to
+modeling, enabling both tractable training targets and efficient sampling.
+    Although DDPM typically defines the incremental kernel p(xt |xt−∆t ) first, the
+accumulated transition pt (xt |x0 ) often provides a more interpretable and practical
+formulation, especially for the prior and loss design.
+
+
+Deriving Transition Kernels. We now extend this to the continuous-time setting.
+Let 0 ≤ t < s ≤ T be two (continuous) time points. Given the perturbation
+kernel pt (xt |x0 ), we can compute the reverse conditional p(xt |xs , x) for any x by
+applying Equation (4.5.3)13 , using the forward kernel p(xs |xt ) as an intermediate.
+The following lemma summarizes this derivation, extending Lemma 2.2.2 without
+assuming αt2 + σt2 = 1.
+  13
+       This identity extends naturally to continuous time by treating s as a general earlier time.
+
+126                                          Diffusion Models Today: Score SDE Framework
+
+
+   Lemma 4.5.2: Reverse Conditional Transition Kernels
+   Let 0 ≤ t < s ≤ T . The reverse conditional transition kernel is:
+                                                                           
+                     p(xt |xs , x) = N xt ; µ(xs , x; s, t), σ 2 (s, t)I ,
+
+   where
+                                                  2
+                                αs|t σt2      αt σs|t                            σt2
+           µ(xs , x; s, t) :=            xs +         x,                   2
+                                                            σ 2 (s, t) := σs|t       .   (4.5.4)
+                                 σs2           σs2                               σs2
+   Here, αs|t and σs|t are defined as:
+                                      αs          2
+                           αs|t :=       ,       σs|t           2
+                                                      := σs2 − αs|t σt2 .
+                                      αt
+
+Proof for Lemma.
+   We first compute the forward transition kernel:
+                                                                     
+                                                               2
+                                p(xs |xt ) = N xs ; αs|t xt , σs|t I .                      (4.5.5)
+
+   The reverse kernel then follows from Bayes’ rule, and since all involved distribu-
+   tions are Gaussian, the result can be derived by direct computation. For further
+   details, see Appendix A of (Kingma et al., 2021).                               ■
+    Although p(xt+∆t |xt ) and pt (xt |x0 ) are theoretically equivalent, pt (xt |x0 ) often
+takes a more central role. The step-wise transition in Equation (4.5.5) mainly
+serves to obtain a closed-form reverse kernel. Recent works (Kingma et al., 2021)
+thus favor directly specifying pt (xt |x0 ) for its clarity and interpretability.
+
+Reverse Process Modeling, Training, and Sampling. The training objective
+(ELBO in Equation (2.2.13)) and the modeling framework introduced in Section 2.2
+remain applicable under our generalized setting. For clarity, we adopt the x-
+prediction formulation, denoted by xϕ (xs , s), following Kingma et al. (2021).
+However, the equivalent ϵ-prediction perspective, represented by ϵϕ (xs , s), is also
+valid due to the relationship (as in Equation (2.2.12))
+
+              xs = αs xϕ (xs , s) + σs ϵϕ (xs , s),        for any given xs ∼ qs .
+
+    Modeling and Diffusion Loss Ldiffusion . Similar to DDPM, the conditional
+distribution p(xt |xs , x) in Equation (4.5.4) motivates replacing the clean signal x
+with a learnable predictor xϕ (xs , s), yielding a parameterized reverse model of the
+form:
+                                                                           
+                      pϕ (xt |xs ) := N xt ; µϕ (xs , s, t), σ 2 (s, t)I ,                  (4.5.6)
+
+4.5. A Direct View Through Accumulated Perturbation Kernels                                         127
+
+
+with the mean parametrized as:
+                                                              2
+                                           αs|t σt2       αt σs|t
+                     µϕ (xs , s, t) =               x s +         xϕ (xs , s).
+                                            σs2            σs2
+Given the forward kernel in Equation (4.5.1), the KL divergence in Ldiffusion (x; ϕ)
+reduces to a weighted regression loss:
+                                              1
+                                                        ∥µ(xs , x0 ; s, t) − µϕ (xs , s, t)∥22
+                                  
+ DKL p(xt |xs , x0 )∥pϕ (xt |xs ) =
+                                          2σ 2 (s, t)
+                                                                                                 (4.5.7)
+                                          1
+                                            SNR(t) − SNR(s) ∥x0 − xϕ (xs , s)∥22 ,
+                                                           
+                                      =
+                                          2
+where xs = αs x0 + σs ϵ, with x0 ∼ pdata , ϵ ∼ N (0, I), and SNR(s) := αs2 /σs2
+denotes the signal-to-noise ratio at time s.
+
+Remark.
+   In (Kingma et al., 2021), the authors study the continuous-time limit of Equa-
+   tion (4.5.7) as t → s, yielding:
+                               1                                      2
+                 L∞                             ′
+                  VDM (x0 ) = − Es,ϵ∼N (0,I) SNR (s) x0 − xϕ (xs , s) 2 .
+                               2
+  This setup also introduces a learnable noise schedule, and while it generalizes
+  beyond continuous data, such extensions fall outside the scope of our current
+  discussion.
+
+   Sampling. Sampling proceeds similarly to DDPM using the parameterized
+kernel from Equation (4.5.6):
+                              2
+            αs|t σt2      αt σs|t                   σt
+       xt =          xs +         x × (xs , s) +σs|t ϵs ,              ϵs ∼ N (0, I).            (4.5.8)
+             σs2           σs2 ϕ                    σs
+             |               {z                   }
+                        µϕ× (xs ,t,s)
+
+128                                         Diffusion Models Today: Score SDE Framework

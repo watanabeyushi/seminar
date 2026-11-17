@@ -1,0 +1,585 @@
+5.2     Flow Matching Framework
+
+Both Score SDEs (Chapter 4) and NODEs (Section 5.1) describe generative
+modeling as a continuous transport process. Score SDEs formulate this transport
+through stochastic dynamics together with an associated PF-ODE, whereas NODEs
+directly parameterize a deterministic ODE. In the standard generative setting,
+both aim to transport a simple Gaussian prior pprior into the data distribution
+pdata .
+    A practical limitation of NODEs is that likelihood-based training requires
+repeatedly solving an ODE. The Flow Matching (FM) framework (Lipman et al.,
+2022; Lipman et al., 2024; Tong et al., 2024) avoids this cost by training a neural
+network to predict the velocity field directly through a regression objective. ODE
+integration is therefore needed for generation, but not inside the training loop,
+making FM training simulation-free.
+    More generally, FM is not restricted to Gaussian-to-data transport. It considers
+a source distribution psrc and a target distribution ptgt , both assumed to be easy
+to sample from. Standard generative modeling is recovered as the special case
+
+                               psrc = pprior ,      ptgt = pdata ,
+
+where pprior is typically Gaussian.
+    In this section, we adopt the FM viewpoint3 Its goal is to learn a time-dependent
+velocity field vt (xt ) whose associated ODE transports samples along a prescribed
+probability path {pt }t∈[0,1] satisfying
+
+                                  p0 = psrc ,       p1 = ptgt .
+
+When psrc is Gaussian, we refer to this setting as Gaussian Flow Matching. Thus,
+FM provides both a simulation-free training method for generative modeling and
+a general framework for learning continuous transport between arbitrary endpoint
+distributions.
+
+5.2.1    Lesson from Score-Based Methods
+We revisit the Score SDE framework (Chapter 4) using a slightly different but
+equivalent formulation to extract key insights that motivate the FM approach.
+This analysis reveals how diffusion models implicitly learn probability flows and
+motivates a more direct formulation.
+
+    3
+      Several related approaches share the core idea of transporting between endpoint distributions
+using a continuous-time flow, although their formulations differ slightly. These include Flow
+Matching (FM) (Lipman et al., 2022; Neklyudov et al., 2023), Rectified Flow (RF) (Liu, 2022;
+Heitz et al., 2023), and Stochastic Interpolants (Albergo et al., 2023; Albergo and Vanden-Eijnden,
+2023; Ma et al., 2024). Here, we use FM as a unifying terminology.
+
+5.2. Flow Matching Framework                                                                          145
+
+
+
+
+                                                                                        (xT ; 0, σT2 I)
+                                            (xt ; αt x0 , σt2 I)
+
+               x0
+
+
+
+
+Figure 5.6: Illustration of the conditional transition distribution. pt (xt |x0 ) = N (xt ; αt x0 , σt2 I),
+defines a (Gaussian) conditional probability path from a data sample x0 ∼ pdata (left) towards
+the Gaussian prior pprior (right).
+                                                                        Source: Created by the authors.
+
+
+Step 1: Defining a Conditional Path and Its Marginal Densities. A diffusion
+model specifies a continuous-time family of densities {pt }t∈[0,1] that transports a
+simple prior pprior (e.g., Gaussian) at t = 1, used as the source, to a target data
+distribution pdata at t = 0:
+                          p1 (x1 ) = pprior (x1 ),      p0 (x0 ) = pdata (x0 ).
+This path is implicitly defined via the forward conditional distribution
+                         pt (xt |x0 ) = N (xt ; αt x0 , σt2 I),     x0 ∼ pdata                    (5.2.1)
+which induces the marginal density
+                                            Z
+                              pt (xt ) :=       pt (xt |x0 )pdata (x0 )dx0 .
+
+The increasing variance σt2 of the conditional Gaussian drives the evolution of pt
+toward the Gaussian prior.
+
+Step 2: Velocity Field. The time evolution of the marginal density pt is governed
+by a velocity field vt : RD → RD , derived from the Fokker-Planck equation:
+                                          1
+                      vt (x) := f (t)x − g 2 (t)∇x log pt (x),                                    (5.2.2)
+                                          2
+which defines a deterministic particle flow through the PF-ODE:
+                          dx(t)              1
+                                = f (t)x(t) − g 2 (t)∇x log pt x(t) .
+                                                                   
+                           dt     |          2 {z                  }
+                                                       vt (x(t))
+
+146                               Flow-Based Perspective: From NFs to Flow Matching
+
+
+This ODE transports an initial random variable x(0) ∼ pdata forward in time or
+x(1) ∼ pprior backward in time, such that the evolving marginal density of x(t)
+matches pt at every t ∈ [0, 1] (see “Underlying Rule” below).
+    The scalar functions f (t) and g(t) are determined by the coefficients of the
+associated forward SDE, or equivalently the Gaussian kernel parameters αt and σt
+defined in the conditional path (see Lemma 4.5.1).
+
+Step 3: Learning via the Conditional Strategy. The PF-ODE velocity in Equa-
+tion (5.2.2) depends on the marginal score ∇xt log pt (xt ), which is generally un-
+known. Score-based methods therefore learn this score using a neural network
+sϕ (xt , t) through the ideal score-matching objective
+                                             h                                  i
+              LSM (ϕ) = Et∼U [0,1], xt ∼pt ∥sϕ (xt , t) − ∇xt log pt (xt )∥2 .
+Once the score is learned, the PF-ODE velocity is obtained from it as
+                                            1
+                        vt (xt ) = f (t)xt − g 2 (t)∇xt log pt (xt ),
+                                            2
+with sϕ× (x, t) ≈ ∇xt log pt (x)
+    The difficulty is that the marginal score itself is inaccessible when computing
+the regression target. As in Chapter 3, we overcome this using the conditioning
+trick. The conditional distribution pt (xt |x0 ) is tractable, and its conditional score
+satisfies
+                    ∇xt log pt (xt ) = Ex0 ∼p(·|xt ) [∇xt log pt (xt |x0 )] .               (5.2.3)
+This motivates the denoising score matching objective
+                                                 h                                    i
+       LDSM (ϕ) := Et, x0 ∼pdata , xt ∼pt (·|x0 ) ∥sϕ (xt , t) − ∇xt log pt (xt |x0 )∥2 .
+As shown in Theorem 3.3.1, LSM and LDSM differ only by a constant independent
+of ϕ and therefore have the same population minimizer:
+             s∗ (xt , t) = Ex0 ∼p(·|xt ) [∇xt log pt (xt |x0 )] = ∇xt log pt (xt ).
+   Importantly, the same conditioning principle can also be expressed directly at
+the level of the PF-ODE velocity. Define the conditional velocity
+                                             1
+                    vt (xt |x0 ) := f (t)xt − g 2 (t)∇xt log pt (xt |x0 ).
+                                             2
+Using Equation (5.2.3), we immediately obtain
+                             vt (xt ) = Ex0 ∼p(·|xt ) [vt (xt |x0 )] .
+Thus, score-based diffusion learns the score through tractable conditional targets
+and then uses it to construct the PF-ODE velocity. Flow Matching will apply the
+same conditional-to-marginal principle directly to the velocity field.
+
+5.2. Flow Matching Framework                                                                                                          147
+
+                           pprior                                pprior      pdata   pt     pprior   pdata                          pprior
+          pt (⋅ ∣ x0 )                                                                                              vt (xt ) xt
+                                            vt (xt ∣ x0 )                                             x′0
+                                                            xt
+   x0                                  x0                                                                    x′′′
+                                                                                                              0
+
+                                                                                                         x′′0
+
+
+
+Figure 5.7: Illustration of conditional versus marginal perspectives in diffusion. (This fig-
+ure is motivated by Lipman et al. (2024).) (1) Conditional Gaussian path pt (·|x0 ), showing
+expanding densities from a fixed x0 toward the prior. (2) Conditional velocity vt (xt |x0 ) =
+f (t)xt − 12 g 2 (t)∇xt log pt (xt |x0 ). (3) Marginal density pt , transporting the data distribution pdata
+(orange) into the prior pprior (gray). (4) Marginal velocity vt (xt ) = f (t)xt − 12 g 2 (t)∇xt log pt (xt ),
+obtained by averaging conditional directions from xt to multiple plausible origins (dashed),
+yielding the red arrow. In the FM framework with one-sided conditioning z = x0 , the same
+illustration applies to vt (xt |x0 ) and vt (xt ), without requiring them to be written explicitly in
+terms of the scores ∇xt log pt (xt |x0 ) or ∇xt log pt (xt ).
+                                                                                          Source: Created by the authors.
+
+
+Underlying Rule: The Fokker–Planck Equation.                                         The marginal density pt evolves
+according to the Fokker–Planck equation:
+
+
+                                                                                                     !
+                         ∂pt (x)                            1
+                                                                                         
+                                 +∇·                f (t)x − g 2 (t)∇x log pt (x) pt (x)                 = 0.
+                           ∂t                               2
+                                                |                          {z              }
+                                                                          vt (x)
+
+
+
+
+This PDE ensures that the density given by the PF-ODE matches the marginal
+distribution of the forward SDE. To see this, recall the flow map Ψs→t (xs ) of
+the PF-ODE as defined in Equation (4.2.2), which carries an initial state xs at
+time s directly to its state at t. Running the PF-ODE backward from t = 1 to
+t = 0, starting with x1 ∼ pprior , we obtain time-dependent densities through the
+pushforward formula:
+                                                    Z
+                                    prev
+                                     t (x) =                δ (x − Ψ1→t (x1 )) pprior (x1 )dx1 .                                  (5.2.4)
+
+   The Fokker–Planck equation ensures that the induced density path coincides
+with the same evolving density:
+
+                                                                 prev
+                                                                  t   = pt .                                                      (5.2.5)
+
+In particular, this implies prev
+                             0 = p0 = pdata , thereby recovering the data distribution
+at time t = 0. Since the ODE solution map is bidirectional, we can similarly consider
+initializing at x0 ∼ pdata and solving the ODE forward in time, enabling a parallel
+analysis.
+
+148                                Flow-Based Perspective: From NFs to Flow Matching
+
+
+5.2.2       Flow Matching Framework
+The analysis in Section 5.2.1 reveals that diffusion models succeed by learning a
+velocity field, specifically, the score, that transports between distributions while
+satisfying boundary conditions. The design of the Gaussian conditional path in
+Equation (5.2.1), with increasing variance σt2 , implicitly anchors one endpoint to a
+Gaussian prior while allowing the conditional density to be defined over the entire
+space, enabling score-based gradient computation.
+    In this subsection, we introduce the FM framework, which builds on this
+insight (the same illustration in Figure 5.7 also applies to the FM framework)
+and extends it to learning continuous flows that transport samples between two
+arbitrary distributions, psrc and ptgt .
+
+Step 1: Defining a Conditional Path and Its Marginal Densities. Consider
+arbitrary source and target probability distributions psrc and ptgt on RD . We set4
+                            p0 (x) = psrc (x),   p1 (x) = ptgt (x).                     (5.2.6)
+     FM implicitly defines a continuous family of intermediate densities {pt }t∈[0,1]
+interpolating between these endpoints. Each marginal pt is expressed via a latent
+variable z drawn from a known distribution π(z) and a conditional distribution
+pt (xt |z):                          Z
+                                pt (xt ) =   pt (xt |z)π(z) dz,                         (5.2.7)
+with (π(z), {pt (·|z)}) chosen to satisfy the boundary conditions in Equation (5.2.6).
+     We remark that, in general, the marginal densities pt are not tractable, since
+they require integrating over π(z), and both π(z) and the conditional distributions
+pt (xt |z) can be complex. Nonetheless, conditioning on the latent z grants FM the
+flexibility to model a broad class of interpolation paths beyond those discussed in
+Section 5.2.1. Common choices for z include:
+      ■   Two-sided conditioning: z = (x0 , x1 ) ∼ psrc (x0 )ptgt (x1 ), where π couples
+          source and target distributions. This allows FM to define transport between
+          arbitrary distributions.
+      ■   One-sided conditioning: z = x0 or z = x1 . It especially recovers diffusion-like
+          setups when the source distribution is chosen to be Gaussian.
+     In all cases, the conditional path pt (xt |z) should be efficiently sampleable, and
+the corresponding conditional velocity should be tractable. In the probability-path-
+first constructions below, we further use conditional distributions with tractable
+closed-form expressions. We present specific constructions in Section 5.3.2, with
+illustrations in Figure 5.9.
+   4
+      To align with the standard notation in FM literature, we reverse the time axis compared to
+earlier sections: t = 0 corresponds to the source distribution and t = 1 to the target.
+
+5.2. Flow Matching Framework                                                                          149
+
+
+Step 2: Velocity Field. A probability path {pt }t∈[0,1] specifies how the distribution
+should evolve over time, but it does not generally specify how individual samples
+should move. In other words, the same sequence of marginal densities can be
+realized by different velocity fields5 .
+    The goal of FM is therefore to find a velocity field vt (x) whose induced ODE
+                                 dx(t)
+                                       = vt (x(t)),           t ∈ [0, 1],
+                                  dt
+produces marginal distributions that match the prescribed pt at every time t.
+When this holds, the ODE can transport samples forward from x(0) ∼ psrc to
+ptgt , or backward from x(1) ∼ ptgt to psrc (see Section 5.2.4 for a more formal
+discussion).
+     This requirement is captured by the continuity equation 6 :
+
+                                 ∂pt (x)                   
+                                         + ∇ · vt (x)pt (x) = 0.                               (5.2.8)
+                                   ∂t
+
+    Any velocity field vt satisfying Equation (5.2.8), together with the initial
+condition p0 = psrc , generates an ODE whose evolving marginals follow the
+prescribed path {pt }, under suitable regularity conditions. Thus, solving the
+ODE provides a sample-wise transport between psrc and ptgt while matching the
+intermediate distributions.
+    Importantly, the continuity equation constrains the evolution of probability
+density, but generally does not uniquely determine the velocity field. Different
+sample trajectories can therefore produce exactly the same marginal density
+evolution. For example, on regions where pt > 0, if vt satisfies Equation (5.2.8),
+then
+                                              1
+                                        vt + ṽt
+                                             pt
+also satisfies it for any sufficiently regular divergence-free field ṽt with ∇ · ṽt = 0.
+    FM therefore seeks a velocity field that realizes the prescribed probability
+path. For general source and target distributions, neither the marginal density pt
+nor such a velocity field is usually available in closed form. This motivates the
+conditional construction introduced next, where tractable conditional paths and
+velocities are used to learn a valid marginal velocity field.
+     5
+       The key distinction is that a probability path specifies the evolution of the distribution, but
+generally not the particle-level transport that realizes it. A particular velocity becomes determined
+only after additional transport structure is specified. For example, a sufficiently regular and
+invertible flow map Ψ0→t determines its Eulerian velocity through vt = ∂t Ψ0→t ◦ Ψ−1        0→t . Likewise,
+once a forward diffusion SDE is specified, its associated PF-ODE selects the particular velocity
+vt (x) = f (t)x − 21 g 2 (t)∇x log pt (x). Thus, both cases add particle-level transport structure beyond
+the marginal path {pt } itself.
+     6
+       The deterministic analogue of the Fokker–Planck equation, without the diffusion term.
+
+150                              Flow-Based Perspective: From NFs to Flow Matching
+
+
+    As a concrete illustration, in Section 5.3.1 we consider a Gaussian-to-Gaussian
+path together with a particular affine flow map, for which the corresponding
+velocity field can be computed explicitly.
+
+Step 3: Learning via the Conditional Strategy. Once a probability path and a
+corresponding marginal velocity field vt have been chosen, FM learns this velocity
+field directly using a neural network vϕ . The ideal FM objective is
+                                            h                        i
+                     LFM (ϕ) = Et, xt ∼pt ∥vϕ (xt , t) − vt (xt )∥2 .
+
+We refer to this neural network parameterization as v-prediction (velocity predic-
+tion), since the network directly predicts the drift of the ODE. This differs from
+the score-based construction in Section 5.2.1, where the score is learned first and
+then used to construct the PF-ODE velocity.
+    The difficulty is that the marginal velocity vt (xt ) is generally intractable.
+As in denoising score matching, we overcome this using a conditioning strategy.
+We introduce a latent variable z ∼ π(z) and construct a tractable conditional
+probability path pt (xt |z) together with a corresponding conditional velocity field
+vt (xt |z).
+    If each conditional velocity field generates its corresponding conditional proba-
+bility path, then marginalizing over z gives a valid marginal velocity field:
+                            vt (xt ) := Ez∼p(·|xt ) [vt (xt |z)] .               (5.2.9)
+Thus, the generally intractable marginal velocity is the conditional average of
+tractable conditional velocities. This is directly analogous to the conditional-score
+identity in Equation (5.2.3).
+    This observation leads to the conditional flow matching (CFM) objective:
+
+                                                h                        i
+         LCFM (ϕ) := Et, z∼π(z), xt ∼pt (·|z) ∥vϕ (xt , t) − vt (xt |z)∥2 .   (5.2.10)
+
+
+Here, z is used to construct the training sample xt and the conditional regression
+target vt (xt |z); it is not an additional input to the neural network vϕ (xt , t).
+Importantly, the two objectives differ only by a constant C ≤ 0 independent of ϕ:
+                               LFM (ϕ) = LCFM (ϕ) + C.
+They therefore have the same population minimizer,
+                                   v∗ (xt , t) = vt (xt ).                      (5.2.11)
+In other words, although each training example uses a conditional velocity vt (xt |z)
+as its target, averaging over these examples recovers the desired marginal velocity
+field.
+
+5.2. Flow Matching Framework                                                                       151
+
+
+    For CFM to provide tractable, simulation-free training, two practical conditions
+are needed:
+
+  (i) we can easily sample xt ∼ pt (·|z) without solving an ODE;
+
+  (ii) the conditional velocity vt (xt |z) has a tractable expression that can be used
+       as the regression target.
+
+We provide concrete constructions satisfying these conditions in Section 5.3.2. Thus,
+just as denoising score matching learns an intractable marginal score through
+tractable conditional scores, Flow Matching learns an intractable marginal velocity
+through tractable conditional-velocity targets.
+
+               Marginal                                            Conditional
+                     v t (x t )                                          v t (x t | x 1 )
+
+
+
+
+     sum over the whole data distribution                         one closed-form vector
+
+Figure 5.8: The conditional trick in flow matching. Here, x1 ∼ ptgt denotes a target data sample.
+(Left) For a fixed intermediate sample xt , the marginal velocity vt (xt ) averages the conditional
+velocities associated with all possible target samples x1 that could have produced xt . The
+contribution of each x1 is weighted by how compatible it is with the observed xt . Computing this
+average directly requires integrating over the whole target distribution and is generally intractable.
+(Right) During training, however, the particular target sample x1 used to construct xt is known.
+                                                                                      a′
+Conditioning on this sample gives the closed-form velocity vt (xt |x1 ) = b′t x1 + att xt −bt x1 , which
+                                                                                              
+provides one simple vector as the regression target (Proposition 5.3.1). Although each training
+example conditions on only one target sample, averaging the conditional training objective over
+the data gives the same optimal marginal velocity field; see Theorem 5.2.1. Thus, conditional flow
+matching learns vt (xt ) without directly regressing on the generally intractable marginal velocity.
+This is the same conditioning principle used in the variational perspective (Theorem 2.2.1) and
+in denoising score matching (Theorem 3.3.1).
+                                            Source: Created by the authors with AI-assisted coding.
+
+
+    We summarize the above discussion as follows:
+
+152                                Flow-Based Perspective: From NFs to Flow Matching
+
+
+   Theorem 5.2.1: Equivalence of LFM and LCFM
+   The following holds:
+
+                                 LFM (ϕ) = LCFM (ϕ) + C,
+
+   where C is a constant independent of the parameter ϕ. Furthermore, the
+   minimizer v∗ of both losses satisfies
+
+                     v∗ (xt , t) = vt (xt ),   for almost every xt ∼ pt ,
+
+   where vt (xt ) is defined in Equation (5.2.9).
+
+
+Proof for Theorem.
+
+   The argument and derivation of the minimizer follows exactly the same reasoning
+   as in the score matching case of Proposition 4.3.1.                          ■
+    This marks the third instance where the conditioning trick yields a tractable
+training objective, as illustrated in Figure 5.8. Notably, the variational, score based,
+and flow based approaches all reflect the same underlying principle.
+
+
+Remark.
+
+   Taking π = pdata , we can apply Bayes’ rule:
+                                               pt (xt |x0 )pdata (x0 )
+                                p(x0 |xt ) =                           ,
+                                                       pt (xt )
+   a similar decomposition of Equation (5.2.9) appears in score-based models:
+
+                ∇xt log pt (xt ) = Ex0 ∼p(·|xt ) [∇xt log pt (xt |x0 )]
+                                                                         pt (xt |x0 )
+                                                                                   
+                                 = Ex0 ∼pdata     ∇xt log pt (xt |x0 ) ·              ,
+                                                                           pt (xt )
+   which mirrors the marginalization strategy in Equation (5.2.9).
+    As in Section 5.2.1, where the conditional density pt (xt |z) and conditional
+velocity field vt (xt |z) must be explicitly specified, with pt (xt |x0 ) = N (xt ; αt x0 , σt2 I)
+and vt (xt |x0 ) = f (t)xt − 12 g 2 (t)∇xt log pt (xt |x0 ), the general conditional flow
+matching framework also requires these two components. However, we have not yet
+construct the conditional density pt (xt |z) or the conditional velocity field vt (xt |z)
+in this general case. In Section 5.3, we introduce several common instantiations of
+these components.
+
+5.2. Flow Matching Framework                                                                153
+
+
+5.2.3    Comparison of Diffusion Models, General Flow Matching, and NODEs
+
+Comparison of Diffusion Models and General Flow Matching. The insight from
+Section 5.2.1 leads to an extended FM framework that retains the same underlying
+principles. To highlight their similarities, we summarize them in Table 5.1.
+
+Table 5.1: Comparison between diffusion models (or Gaussian FM) and the general FM framework.
+Here, the general FM framework refers to the setting with two-sided conditioning, where x0 ∼ psrc
+and x1 ∼ ptgt are sampled independently.
+
+  Aspect                       (Score-Based) Diffusion Model               General FM
+  Source dist. psrc                        Gaussian prior                      Any
+  Target dist. ptgt                      Data distribution                     Any
+  Latent dist. π(z)                              pdata                  See Section 5.3.2
+  Cond. dist. pt (xt |z)                  N (xt ; αt x0 , σt2 I)        See Section 5.3.2
+                                     R                                  R
+  Marginal dist. pt (xt )              pt (xt |x0 )pdata (x0 ) dx0        pt (xt |z)π(z) dz
+  Cond. velocity vt (x|z)         f (t)x − 21 g 2 (t)∇ log pt (x|x0 )   See Section 5.3.2
+  Marginal velocity vt (x)          f (t)x − 21 g 2 (t)∇ log pt (x)   See Equation (5.2.9)
+  Learning objective                     LSM = LDSM + C                LFM = LCFM + C
+  Underlying Rule                          Fokker-Planck / Continuity Equation
+
+
+   We remark that, assuming the Gaussian schedule satisfies the diffusion-SDE
+compatibility condition in Lemma 4.5.1, Gaussian FM is essentially equivalent to
+the corresponding diffusion formulation (see more in Chapter 6); we therefore do
+not differentiate between them unless explicitly stated.
+
+Connection to NODEs. FM can be viewed as a simulation-free alternative to
+NODEs, introduced in Section 5.1.2. While CNFs require solving ODEs during
+maximum likelihood training, which is computationally intensive, FM bypasses this
+by directly regressing a prescribed velocity field through a simple regression loss.
+The key insight is that when the marginal density path connecting the source and
+target distributions is fixed, exact simulation during training becomes unnecessary.
+
+5.2.4    (Optional) Underlying Rules
+
+Continuity Equation: Mass Conservation Criterion. Similar to the PF-ODE and
+Fokker–Planck analysis in Section 5.2.1, we now present a criterion for verifying
+whether the density path induced by an ODE flow aligns with a prescribed path
+{pt }t∈[0,1] .
+    Consider the ODE describing the flow of particles under a time-dependent
+velocity field vt :
+                               dx(t)
+                                     = vt (x(t)) .
+                                dt
+
+154                             Flow-Based Perspective: From NFs to Flow Matching
+
+
+As in Equation (5.2.4), this ODE defines a flow map Ψs→t (x0 ) for any s, t ∈ [0, 1],
+which in particular transports an initial point x0 ∼ psrc at time 0 to its state at
+time t. The induced distribution at time t is given by the pushforward
+                    Z
+         pfwd
+          t (x) =       δ (x − Ψ0→t (x0 )) psrc (x0 )dx0 =: Ψ0→t #psrc ,         (5.2.12)
+
+so that Ψ0→t (x0 ) ∼ pfwdt   whenever x0 ∼ psrc . Similarly, one can transport backward
+from x1 ∼ ptgt to psrc via Ψ1→0 (x1 ).
+    Suppose we are given a prescribed density path {pt }t∈[0,1] , and we construct a
+velocity field {vt }t∈[0,1] to define a particle flow. This naturally raises the question:
+Question 5.2.1
+   Under what conditions does the flow-induced density pfwd
+                                                        t   exactly match the
+   target density pt for all t ∈ [0, 1]?
+
+Once the two density evolutions align, we can leverage the ODE flow to flexibly
+transport samples between psrc and ptgt by solving the ODE.
+   As in Equation (5.2.5), a principled way to verify this alignment is via the
+continuity equation, which captures the conservation of mass in time-evolving
+densities:
+
+   Theorem 5.2.2: Mass Conservation Criterion
+   The flow-induced density pfwd
+                             t   equals the prescribed path pt for all t ∈ [0, 1];
+   i.e.,
+                          pfwd
+                           t   = pt , for all t ∈ [0, 1],
+   if and only if the pair (pt , vt ) satisfies the continuity equation:
+
+                           ∂t pt (x) + ∇x · (pt (x)vt (x)) = 0,
+
+   for all t ∈ [0, 1] and x.
+
+Proof for Theorem.
+   A conceptual derivation is provided in Section D.3.2, while a more rigorous
+   treatment can be found in (Villani et al., 2008) (see “Mass Conservation
+   Formula”).                                                               ■
+
+From Conditional to Marginal Paths. As seen in Section 5.2.2, we begin by
+defining a conditional probability path pt (·|z) and a corresponding conditional
+velocity field vt (·|z). We then construct the marginal velocity field via:
+                                                    pt (x|z)π(z)
+                                     Z
+                          vt (x) =       vt (x|z)                dz,
+                                                        pt (x)
+
+5.2. Flow Matching Framework                                                        155
+
+
+as in Equation (5.2.9). However, we still need to ensure that the resulting marginal
+velocity vt induces an ODE flow whose density path aligns with the prescribed pt .
+Fortunately, this verification can be done entirely at the conditional level: if each
+conditional velocity field vt (·|z) induces the conditional density path pt (·|z), then
+the resulting marginal velocity vt also induces the correct marginal path. Formally,
+we state the result below and provide the complete derivation in one place to show
+explicitly how the marginal velocity field takes this form:
+
+   Proposition 5.2.3: Marginal VF Generates Given Marginal Density
+
+   If the conditional velocity fields vt (·|z) induce conditional density paths
+   that match pt (·|z) (starting from p0 (·|z)), then the marginal velocity field
+   vt (·) defined in Equation (5.2.9) induces a marginal density path that aligns
+   with pt (·), starting from p0 (·).
+
+Proof for Proposition.
+   This result follows by verifying that the pair (pt , vt ) satisfies the Continuity
+   Equation. We present the argument in a converse manner to provide intuition
+   for why the marginalized velocity field takes the form in Equation (5.2.9).
+   Since the conditional velocity fields vt (·|z) induce density paths matching the
+   conditional densities pt (·|z) for z ∼ π, the continuity equation holds for each
+   conditional pair:
+                          d                                   
+                             pt (x|z) = −∇x · vt (x|z)pt (x|z) .                (5.2.13)
+                          dt
+   We aim to find a velocity field vt (·) whose induced densities align with the
+   marginal density pt , i.e., satisfy
+                             d                             
+                                pt (x) = −∇x · vt (x)pt (x) .                   (5.2.14)
+                             dt
+   Starting from the definition of pt in Equation (5.2.7),
+                    d                  d
+                                  Z
+                       pt (x) =           pt (xt |z)π(z) dz
+                    dt                Zdt                         
+                             =−         ∇x · vt (x|z)pt (x|z) π(z) dz
+                                           Z                              
+                             = −∇x ·                vt (x|z)pt (x|z)π(z) dz ,
+
+   where the second equality follows by applying Equation (5.2.13). Comparing this
+   with the right-hand side of Equation (5.2.14) shows that, up to a divergence-free
+   term,                              Z
+                         vt (x)pt (x) =         vt (x|z)pt (x|z)π(z) dz.
+
+156                            Flow-Based Perspective: From NFs to Flow Matching
+
+   Therefore, we can define
+                                                      pt (x|z)
+                                       Z
+                           vt (x) :=       vt (x|z)            π(z) dz,
+                                                       pt (x)
+   which is precisely the form in Equation (5.2.9). The proof of this theorem
+   essentially follows the reverse of this argument.                        ■
+    This connection allows us to reduce the construction of the potentially in-
+tractable marginal velocity field to defining simpler conditional fields vt (·|z), which
+are easier to work with by construction.
+
+5.3. Constructing Probability Paths and Velocities Between Distributions              157

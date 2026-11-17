@@ -1,0 +1,184 @@
+8.1    Prologue
+
+
+
+                                                                            Steered PF-ODE
+                                                                               Trajectory
+
+
+
+                                    Guidance                                           PF-ODE
+                                    Directions                                        Trajectory
+
+
+
+
+ Time 0                                                                                    Time 𝑇
+ Clean                                                                                      Noise
+Figure 8.1: Illustration of steered diffusion sampling. Reverse-time PF-ODE sampling begins
+from pure noise at the right (t = T ) and gradually evolves toward a clean sample at the left
+(t = 0). During this process, time-dependent guidance directions, weighted by wt , modify the
+unconditional score field and steer the trajectory toward the desired attribute (Japanese painting
+style) while the sample is progressively refined from coarse to fine detail.
+                                                                      Source: Created by the authors.
+
+   The generation process of diffusion models proceeds in a coarse-to-fine manner,
+providing a flexible framework for controllable generation. At each step, a small
+amount of noise is removed and the sample becomes clearer, gradually revealing
+more structure and detail. This property enables control over the generation
+process: by adding a guidance term to the learned, time-dependent velocity field,
+we can steer the generative trajectory to reflect user intent.
+   A principled foundation for guidance-based sampling in diffusion models is the
+Bayesian decomposition of the conditional score. For each noise level t,
+
+
+            ∇xt log pt (xt |c) =     ∇xt log pt (xt )        + ∇xt log pt (c|xt ) .         (8.1.1)
+                                     |       {z      }         |       {z        }
+                                   unconditional direction      guidance direction
+
+
+This identity shows that the exact conditional reverse dynamics are obtained by
+adding the guidance term ∇xt log pt (c|xt ) on top of the unconditional score. We
+will see later on that classifier guidance (Dhariwal and Nichol, 2021) estimates
+this term directly, classifier-free guidance (Ho and Salimans, 2021) estimates it
+
+8.1. Prologue                                                                                     249
+
+
+implicitly as the difference between jointly learned conditional and unconditional
+scores, and more general training-free methods may instead use a task-specific
+surrogate guidance direction.
+    With the exact conditional score, the PF-ODE becomes
+         dx(t)              1
+               = f (t)x(t) − g 2 (t) ∇xt log pt (x(t)|c)
+          dt                2        |       {z        }
+                                    conditional score                          (8.1.2)
+                            1 2 h                                        i
+              = f (t)x(t) − g (t) ∇xt log pt (x(t)) + ∇xt log pt (c|x(t)) .
+                            2
+With exact scores and exact integration, these dynamics recover p0 (x0 |c) when
+initialized from the corresponding terminal marginal pT (xT |c). In standard diffusion
+constructions, the terminal noising is chosen so that pT (xT |c) is approximately
+matched by the usual condition-independent prior.
+    We formulate the discussion below in score prediction for clarity. Since the
+standard x-, ϵ-, score-, and v-prediction parameterizations are related by time-
+dependent linear transformations wherever these conversions are well-defined, the
+same guidance correction can be expressed in the other parameterizations using
+the relationships in Equation (6.3.1).
+
+Instantiations of the Guidance Direction.
+1. Classifier Guidance (CG). In Section 8.2, classifier guidance (CG) trains a
+   time-conditional classifier pψ (c|xt , t) on noised data xt (obtained by corrupting
+   clean labeled samples at level t). At sampling time, its input gradient provides
+   the guidance term:
+                              ∇xt log pψ (c|xt , t) ≈ ∇xt log pt (c|xt ),
+   which is then added to the unconditional score (Dhariwal and Nichol, 2021).
+
+2. Classifier-Free Guidance (CFG). In Section 8.3, CFG directly trains a single
+   conditional model
+                          sϕ (xt , t, c) ≈ ∇xt log pt (xt |c),
+   where the unconditional model is learned jointly by randomly replacing the
+   condition with a special null token for a fraction of the training steps.
+
+3. Training-Free (Surrogate) Guidance. Under the standard forward noising
+   construction, we first draw (x0 , c) ∼ pdata and then sample xt ∼ pt (·|x0 ), where
+   the forward kernel does not depend additionally on c. Thus c ⊥ xt | x0 1 .
+    1
+        Indeed,                    Z                         Z
+                    pt (c|xt ) =       p(c, x0 |xt ) dx0 =       p(c|x0 , xt ) p(x0 |xt ) dx0 .
+
+Because the standard forward kernel satisfies pt (xt |x0 , c) = pt (xt |x0 ), we have p(c|x0 , xt ) =
+p(c|x0 ), which yields the expression below.
+
+250                                                    Guidance and Controllable Generation
+
+
+   Consequently,                            Z
+                             pt (c|xt ) =       p(c|x0 ) p(x0 |xt ) dx0 .
+
+   This posterior average is generally intractable, motivating training-free methods
+   that instead construct a task-specific surrogate guidance direction.
+   In Section 8.4.1, training-free (loss-based) guidance avoids evaluating the condi-
+   tional likelihood pt (c|xt ) directly. Instead, it starts from an off-the-shelf loss
+   ℓ(xt , c; t) that measures how well the current sample satisfies the desired condi-
+   tion, with smaller loss indicating better agreement. From this loss, we define
+   the positive guidance potential
+                                                               
+                      ht (xt ; c) := exp − τ ℓ(xt , c; t) ,            τ > 0.
+
+   Thus, lower-loss samples receive larger potential values. We denote the corre-
+   sponding guidance direction by
+
+                    Gt (xt , c) := ∇xt log ht (xt ; c) = −τ ∇xt ℓ(xt , c; t).
+
+   Classifier guidance fits naturally into the same picture. At the population level,
+   its guidance potential is
+                                  ht (xt ; c) = pt (c|xt ),
+   which is approximated in practice by the learned classifier pψ× (c|xt , t). Equiva-
+   lently, the learned classifier corresponds to the loss
+
+                        ℓ(xt , c; t) = − log pψ× (c|xt , t),         τ = 1.
+
+   At the population level, the three constructions above share the same additive
+guidance template. Given a positive potential ht (xt ; c) and guidance strength
+wt ≥ 0, define the guided score field
+
+                  sguide (xt , t, c; wt ) := ∇xt log pt (xt ) + wt Gt (xt , c).     (8.1.3)
+
+For loss-based guidance, Gt (xt , c) = −τ ∇xt ℓ(xt , c; t). For exact classifier guidance,
+Gt (xt , c) = ∇xt log pt (c|xt ); classifier-free guidance expresses the same population
+guidance direction through the difference between conditional and unconditional
+scores.
+    At each fixed time t, Equation (8.1.3) is, whenever normalizable, the score of
+the tilted density
+                                                                wt
+                               petilt
+                                 t (xt |c) ∝ pt (xt )ht (xt ; c) .
+
+This gives a useful energy interpretation: the base density favors samples supported
+by the diffusion model, while the potential reweights them toward the desired
+condition.
+
+8.1. Prologue                                                                     251
+
+
+    In practice, the corresponding learned or surrogate version of Equation (8.1.3)
+is inserted into the reverse-time dynamics. Importantly, the tilted density above
+is only a fixed-time interpretation: the family {petilt
+                                                   t (·|c)}t need not coincide with
+the marginals generated by the guided sampler. Consequently, for a generic loss or
+guidance schedule, integrating the guided PF-ODE from T to 0 does not in general
+produce samples distributed according to petilt0 (·|c). The additional cross-time
+consistency required for this interpretation to hold is discussed in Section 8.4.2.
+    The effect of guidance on the sampling trajectory is illustrated in Figure 8.1.
+The same principle can also be applied on top of an already conditional model,
+allowing additional control signals to modify its sampling dynamics.
+
+From Control to Better Alignment with Direct Preference Optimization.
+Strong control can be on-condition but off-preference: a sample may satisfy the
+conditioning signal (e.g., the prompt) yet deviate from what humans actually
+prefer. We formalize this by tilting the conditional target at t = 0 by a preference
+rating:
+              petilt
+                                                          
+                0 (x0 |c) ∝ p0 (x0 |c) exp λpref r(x0 , c) , λpref > 0,
+where r(x0 , c) is a scalar alignment rating for a clean sample x0 and condition c,
+with larger values indicating stronger preference, and λpref controls the strength
+of the preference reweighting. In the KL-regularized formulation introduced later,
+the optimizer takes this form with the reference policy as the base distribution
+and λpref = 1/β.
+    Existing methods for achieving such steerability typically collect human labels
+of the relative quality of model generations and fine-tune the conditional diffu-
+sion model to align with these preferences, often through reinforcement learning
+from human feedback (RLHF). However, RLHF is a complex and often unstable
+procedure: it first fits a reward model to capture human preferences, and then
+fine-tunes the conditional diffusion model with reinforcement learning to maximize
+this estimated reward while constraining policy drift from the original model.
+    This naturally raises the question: can we remove the reward model training
+stage altogether? We address this with Diffusion-DPO (Wallace et al., 2024), an
+adaptation of Direct Preference Optimization (Rafailov et al., 2023) originally
+developed for large language models. As described in Section 8.5, Diffusion-DPO
+learns the preference tilt directly from pairwise choices, so the conditional diffusion
+model is fine-tuned to align to preferences without a separate reward model.
+
+252                                                     Guidance and Controllable Generation

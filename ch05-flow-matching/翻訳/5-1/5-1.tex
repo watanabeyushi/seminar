@@ -1,0 +1,288 @@
+\input{../../../common/translation-preamble}
+\begin{document}
+{\color{gray}\footnotesize 出典: §5.1\par}
+\vspace{0.2em}
+\begin{propositionbox}[原題]
+\textbf{原題}: Flow-Based Models: Normalizing Flows and Neural ODEs
+\textbf{日本語タイトル}: フローに基づくモデル：正規化フローとニューラルODE
+\textbf{出典}: §5.1 of *The Principles of Diffusion Models*
+\end{propositionbox}
+
+
+\section*{5.1 フローに基づくモデル：正規化フローとニューラルODE}
+
+
+本節では、フローに基づくモデル（Flow-Based Models）を導入する。これには正規化フロー（Normalizing Flows, NFs）（Rezende and Mohamed, 2015）およびニューラル常微分方程式（Neural Ordinary Differential Equations, NODEs）（Chen et al., 2018）が含まれる。
+NFsは、単純な基底分布に一連の可逆変換を適用することで、柔軟かつ扱いやすい確率密度推定を可能にする。NODEsはこの枠組みを連続時間へ拡張し、変換がODEによって支配される設定を考える。変換を連続時間ダイナミクスとして扱うことで、NODEsはNFの枠組みに対する滑らかでスケーラブルな拡張を与える。
+
+\translationfigure{fig-5-2.jpg}{図5.2: 可逆写像の下でのNFにおけるサンプル移動の模式図。潜在変数 $z$ をデータ $x$ へ写す可逆関数の列 $f: z \mapsto x$ と、データを再構成する逆写像 $f^{-1}: x \mapsto z$ から成る。NFはエンコーダ–デコーダ構造に似ているが、エンコーダは滑らかな可逆写像として実現され、デコーダはその逆写像そのものとして与えられる。対応する密度の変化は、式 (5.0.1) の変数変換公式により計算できる。}
+
+
+*図5.2: 可逆写像の下でのNFにおけるサンプル移動の模式図。潜在変数 $z$ をデータ $x$ へ写す可逆関数の列 $f: z \mapsto x$ と、データを再構成する逆写像 $f^{-1}: x \mapsto z$ から成る。NFはエンコーダ–デコーダ構造に似ているが、エンコーダは滑らかな可逆写像として実現され、デコーダはその逆写像そのものとして与えられる。対応する密度の変化は、式 (5.0.1) の変数変換公式により計算できる。*
+出典: Created by the authors.
+
+\subsection*{5.1.1 正規化フロー（Normalizing Flows）}
+
+
+NFs（Rezende and Mohamed, 2015）は、単純な事前分布 $p_{\mathrm{prior}}(z)$（例：標準ガウス $\mathcal{N}(0, I)$）を可逆写像
+
+\[
+f_\phi: \mathbb{R}^D \to \mathbb{R}^D,
+\]
+
+
+によって変換することで、複雑なデータ分布 $p_{\mathrm{data}}(x)$ をモデル化する。ここで $x = f_\phi(z)$、$z \sim p_{\mathrm{prior}}$ であり、$x$ と $z$ は同じ次元を共有する。式 (5.0.1) の変数変換公式を用いると、モデル尤度は次のようになる\footnote{写像がさらに凸ポテンシャルの勾配、すなわち $f_\phi = \nabla\psi_\phi$（$\psi_\phi$ は凸）に制約される場合、式 (5.1.1) は式 (7.2.4) のMonge–Ampère関係に帰着する。このPDEは二次コストの下で一方の分布を他方へ最適に変換する変換を特徴づける。詳細は第7章および Huang et al.（2021）を参照。}：
+
+\[
+\log p_\phi(x) = \log p_{\mathrm{prior}}(z) + \log \det \frac{\partial f_\phi^{-1}(x)}{\partial x}. \quad (5.1.1)
+\]
+
+
+\textbf{学習目標.} パラメータ $\phi$ は、データ上の尤度最大化によって学習される：
+
+\[
+\mathcal{L}_{\mathrm{NF}}(\phi) = \mathbb{E}_{x\sim p_{\mathrm{data}}}[\log p_\phi(x)]. \quad (5.1.2)
+\]
+
+
+式 (5.1.1) におけるヤコビアン行列式の計算は一般にコストが高く、$O(D^3)$ でスケールし得る。
+
+\textbf{可逆変換の構成.} 単一の複雑な可逆ネットワークは、ヤコビアン行列式のために計算コストが大きい。一方、単純な変換（例：線形）は効率的だが表現力が不足する。
+このバランスをとるため、NFsは効率的に計算可能なヤコビアンを持つ、$L$ 個の学習可能な可逆写像 $\{f_k\}_{k=0}^{L-1}$ の列を用いる：
+
+\[
+f_\phi = f_{L-1} \circ f_{L-2} \circ \cdots \circ f_0.
+\]
+
+
+各 $f_k$ はニューラルネットワークによってパラメータ化されるが、記法の簡略化のため $\phi$ への明示的な依存は省略する。
+サンプルは
+
+\[
+x_{k+1} = f_k(x_k), \qquad k = 0, \ldots, L-1, \quad (5.1.3)
+\]
+
+
+と変換され、$z = x_0 \sim p_{\mathrm{prior}}$、$x = x_L$ がデータに対応する。結果として得られる（対数）密度は
+
+\[
+p_\phi(x) = p_{\mathrm{prior}}(x_0) \prod_{k=0}^{L-1} \det \frac{\partial f_k^{-1}}{\partial x_k},
+\]
+
+
+あるいは同値に
+
+\[
+\log p_\phi(x) = \log p_{\mathrm{prior}}(x_0) + \sum_{k=0}^{L-1} \log \det \frac{\partial f_k^{-1}}{\partial x_k}. \quad (5.1.4)
+\]
+
+
+\textbf{可逆フローの例.} ヤコビアンの効率的計算を可能にする単層フロー構成の設計に、多くの研究が注がれてきた。以下では代表的な2種類——平面フロー（Planar Flows）（Rezende and Mohamed, 2015）と残差フロー（Residual Flows）（Chen et al., 2019; Behrmann et al., 2019）——を導入する。後者は §5.1.2 の展開を動機づける。
+
+\translationfigure{fig-5-3.jpg}{図5.3: NFの模式図。NFは可逆写像の積み重ね $f_\phi = f_{L-1}\circ f_{L-2}\circ\cdots\circ f_0$ から成る。変換は潜在サンプル $x_0\sim p_{\mathrm{prior}}$ をデータサンプル $x_L\sim p_{\mathrm{data}}$ へ写す。}
+
+
+*図5.3: NFの模式図。NFは可逆写像の積み重ね $f_\phi = f_{L-1}\circ f_{L-2}\circ\cdots\circ f_0$ から成る。変換は潜在サンプル $x_0\sim p_{\mathrm{prior}}$ をデータサンプル $x_L\sim p_{\mathrm{data}}$ へ写す。*
+出典: Created by the authors.
+
+\textbf{平面フロー:} 平面フロー（Rezende and Mohamed, 2015）は次の単純な変換を適用する：
+
+\[
+f(z) = z + u\, h(w^\top z + b),
+\]
+
+
+ここで $u, w \in \mathbb{R}^D$、$b \in \mathbb{R}$、$h(\cdot)$ は活性化関数である。パラメータは変換が可逆であるように適切に制約または再パラメータ化される。そのヤコビアン行列式は次の単純な形をもつ：
+
+\[
+\det \frac{\partial f(z)}{\partial z} = 1 + h'(w^\top z + b)\, w^\top u,
+\]
+
+
+これにより変数変換の計算が効率的になる。
+
+\textbf{残差フロー:} 変換 $f$ を
+
+\[
+f(z) = z + v(z), \quad (5.1.5)
+\]
+
+
+と定義する。ここで $v$ は縮小写像（Lipschitz定数 $< 1$）とする。これにより Banachの不動点定理から可逆性が保証される。
+ヤコビアンの対数行列式はトレース展開に帰着する：
+
+\begin{align*}
+\begin{aligned}
+\log\det\frac{\partial f(z)}{\partial z}
+&= \log\det\frac{\partial f(z)}{\partial z}
+= \operatorname{Tr}\!\left(\log\frac{\partial f(z)}{\partial z}\right)
+= \operatorname{Tr}\!\left(\log\!\left(I + \frac{\partial v(z)}{\partial z}\right)\right) \\
+&= \sum_{k=1}^{\infty} \frac{(-1)^{k+1}}{k}\, \operatorname{Tr}\!\left(\left(\frac{\partial v(z)}{\partial z}\right)^k\right), \quad (5.1.6)
+\end{aligned}
+\end{align*}
+
+
+トレース推定量（Hutchinson, 1989）により評価を効率化できる。
+
+\textbf{サンプリングと推論.} NFsからのサンプリングは単純である：$x_0 \sim p_{\mathrm{prior}}$ を引き、$x = f_\phi(x_0)$ を計算すればよい。厳密な尤度は式 (5.1.4) から得られる。
+
+\translationfigure{fig-5-4.jpg}{図5.4: 離散時間と連続時間の正規化フロー。(左) 離散NFは有限個の可逆写像列 $x_{k+1}=f_k(x_k)$ によりサンプルを輸送し、段階的で交差しない軌道（矢印付きの点）を生じる。(右) 連続NF（ニューラルODE）は $dx(t)/dt = v_\phi(x(t), t)$ の積分曲線に沿って状態を発展させる。灰色のベクトル場の上に、接線矢印付きの黒い経路が示されている。}
+
+
+*図5.4: 離散時間と連続時間の正規化フロー。(左) 離散NFは有限個の可逆写像列 $x_{k+1}=f_k(x_k)$ によりサンプルを輸送し、段階的で交差しない軌道（矢印付きの点）を生じる。(右) 連続NF（ニューラルODE）は $dx(t)/dt = v_\phi(x(t), t)$ の積分曲線に沿って状態を発展させる。灰色のベクトル場の上に、接線矢印付きの黒い経路が示されている。*
+出典: Created by the authors.
+
+\subsection*{5.1.2 ニューラルODE（Neural ODEs）}
+
+
+\textbf{離散時間NFから連続時間NF（ニューラルODE）へ.} 離散NFは $L$ 個の可逆写像の合成によってサンプルを輸送する。意味のある連続深さ極限を得るため、各層を小さな残差更新として書く：
+
+\[
+x_{k+1} = x_k + \Delta t\, v_\phi(x_k, t_k), \qquad t_k = k\Delta t, \qquad \Delta t = \frac{T}{L}.
+\]
+
+
+ここで $v_\phi$ は各点が動かされる方向を指定し、$\Delta t$ は1層の大きさを制御する。
+この極限の幾何学的意味は図5.5に示される。$L$ が増えると、同じ始点から終点への輸送が、より多くのほぼ恒等写像の全単射へと分割される。サンプル軌道はより細かく分解され、周囲の参照格子の変形は次第に滑らかになる。
+$L \to \infty$ かつ $\Delta t \to 0$ とすると、離散層インデックスは連続時間となり、ODE
+
+\[
+\frac{dx(t)}{dt} = v_\phi(x(t), t)
+\]
+
+
+が得られる。この連続深さモデルはニューラルODE、あるいは連続正規化フロー（Continuous Normalizing Flow）と呼ばれる。
+
+\textbf{ニューラルODEの形式的設定.} ニューラルODEは次の連続変換を定義する：
+
+\[
+\frac{dx(t)}{dt} = v_\phi(x(t), t), \qquad t \in [0, T]. \quad (5.1.7)
+\]
+
+
+\translationfigure{fig-5-5.jpg}{図5.5: 離散全単射から連続輸送フローへ。各パネルは $L$ 個の可逆層の合成による輸送を示す。ソース分布（ガウス）から出発し、層は色付きサンプルを3モードのターゲット分布へ徐々に動かす。橙色の参照格子は、この輸送中に周囲空間がどのように変形するかを示す。層が少ないと各層は比較的大きく離散的な変化を行う。$L$ が増えると輸送はより多く・より小さな更新に分割され、サンプル軌道と格子変形は滑らかになる。総輸送時間 $T$ を固定し各層のステップサイズを $\Delta t=T/L$ とすると、$L\to\infty$ で積み重ねられた全単射は連続な時間依存フローに近づく。輸送された密度は式 (5.2.8) の連続の式に従って発展する。}
+
+
+*図5.5: 離散全単射から連続輸送フローへ。各パネルは $L$ 個の可逆層の合成による輸送を示す。ソース分布（ガウス）から出発し、層は色付きサンプルを3モードのターゲット分布へ徐々に動かす。橙色の参照格子は、この輸送中に周囲空間がどのように変形するかを示す。層が少ないと各層は比較的大きく離散的な変化を行う。$L$ が増えると輸送はより多く・より小さな更新に分割され、サンプル軌道と格子変形は滑らかになる。総輸送時間 $T$ を固定し各層のステップサイズを $\Delta t=T/L$ とすると、$L\to\infty$ で積み重ねられた全単射は連続な時間依存フローに近づく。輸送された密度は式 (5.2.8) の連続の式に従って発展する。*
+出典: Created by the authors with AI-assisted coding.
+
+ここで：
+
+\begin{itemize}
+\item $x(t) \in \mathbb{R}^D$ は時刻 $t$ における状態であり、簡潔のため $x_t$ と書くこともある；
+\item $v_\phi(x(t), t)$ は $\phi$ でパラメータ化されたニューラルネットワークである。
+\end{itemize}
+
+
+\textbf{NODEの目標.} 初期条件 $x(0) \sim p_{\mathrm{prior}}$ から出発し、ODEは状態を時間に沿って連続的に発展させ、周辺分布の族 $p_\phi(x_t, t)$ を誘導する（PF-ODEに類似！）\footnote{時間の向きを反転した規約を採用し、$t=0$ を事前（ソース）、$t=1$ をデータ（ターゲット）分布とする。事前は $p_\phi(x(0), 0)$、$p_{\mathrm{prior}}(x(0), 0)$、あるいは単に $p_{\mathrm{prior}}(z)$ と互換的に書かれる。}。
+目標はニューラルベクトル場 $v_\phi$ を学習することであり、これは直観的には、データ空間内の連続軌道に沿って点を輸送する速度を表す。この速度を学習することで、$t = T$ における終端分布がターゲット分布 $p_{\mathrm{data}}(\cdot)$ に一致する。この連続変換は、離散正規化フローとニューラルODEを単一の枠組みの中で統一する。
+
+\textbf{連続時間の変数変換公式.} 式 (5.0.1) あるいは式 (5.1.4) に類似して、Chen et al.（2018）は変数変換公式の連続時間版を導いた。式 (5.1.7) の下で発展する過程 $x(t)$ の時間依存密度 $p_\phi(x(t), t)$ に対し、いわゆる瞬時変数変換公式（Instantaneous Change-of-Variables Formula）は
+
+\[
+\frac{d}{dt}\log p_\phi(x(t), t) = -\nabla_x \cdot v_\phi(x(t), t)
+\]
+
+
+である。ここでの微分はODE軌道 $x(t)$ に沿ってとられる。
+したがって、$x(0) \sim p_{\mathrm{prior}}$ でありODEが事前分布を $t=0$ から $t=T$ へ輸送する場合、この恒等式を積分すると
+
+\[
+\log p_\phi(x(T), T) = \log p_{\mathrm{prior}}(x(0)) - \int_0^T \nabla_x \cdot v_\phi(x(t), t)\, dt \quad (5.1.8)
+\]
+
+
+が得られる。この式は数値積分による尤度評価を与え、ひいてはモデルの最尤学習を可能にする。
+この公式は一見馴染みにくいかもしれないが、Fokker–Planck方程式と密接に関係している。特に、連続の式（continuity equation）の軌道に沿った形として理解でき、これはFokker–Planck方程式の決定論的・拡散ゼロの場合である（第B章参照）。また、式 (5.1.4) の離散変数変換公式の連続時間極限としても解釈できる。結果を以下にまとめる。
+
+\begin{propositionbox}[補題 5.1.1（瞬時変数変換）]
+$z(t)$ を時間依存密度 $p(z(t), t)$ をもつ連続確率過程とし、ODE
+\[
+\frac{dz(t)}{dt} = F(z(t), t)
+\]
+に従って発展するとする。ODEフローと発展する密度が適切に定義される十分な正則性を仮定すると、軌道に沿った対数密度は
+\[
+\frac{d}{dt}\log p(z(t), t) = -\nabla_z \cdot F(z(t), t) \quad (5.1.9)
+\]
+を満たす。
+\end{propositionbox}
+
+
+\textbf{補題の証明.}
+これは連続の式と連鎖律から従う。詳細な別導出は §D.3 に示す。∎
+
+\textbf{離散時間公式との接続.} 式 (5.1.8) のNODE尤度
+
+\[
+\log p_\phi(x(T), T) = \log p_{\mathrm{prior}}(x(0), 0) - \int_0^T \nabla_x \cdot v_\phi(x(t), t)\, dt
+\]
+
+
+は、式 (5.1.4) の離散正規化フロー定式化の連続時間類似とみなせる：
+
+\[
+\log p_\phi(x_L) = \log p_{\mathrm{prior}}(x_0) - \sum_{k=0}^{L-1} \log\det\frac{\partial f_k}{\partial x_k}.
+\]
+
+
+積分は和を反映し、トレース演算子は対数行列式を置き換える（式 (5.1.6) で議論した通り）。これらの並行性は補題の証明でもさらに探られる。
+
+\textbf{NODEの学習.} 式 (5.1.8) に基づき、NODEはパラメータ化された速度場 $v_\phi$ を学習し、終端分布
+
+\[
+p_\phi(\cdot, T) \approx p_{\mathrm{data}}
+\]
+
+
+となるようにする。軌道は潜在変数 $x(0) \sim p_{\mathrm{prior}}$ からODEフロー経由で発展する。学習は式 (1.1.2) のMLE枠組みに従う：
+
+\[
+\mathcal{L}_{\mathrm{NODE}}(\phi) := \mathbb{E}_{x\sim p_{\mathrm{data}}}\bigl[\log p_\phi(x, T)\bigr].
+\]
+
+
+\textbf{厳密な対数尤度の計算.} データ点 $x$ に対する $\log p_\phi(x, T)$ を計算するには、変数変換公式 (5.1.8) を積分する：
+
+\[
+\log p_\phi(x, T) = \log p_{\mathrm{prior}}(z(0)) - \int_0^T \nabla_z \cdot v_\phi(z(t), t)\, dt. \quad (5.1.10)
+\]
+
+
+ここで $z(t)$ は $t=T$ から $t=0$ へ逆向きにODEを解いた解である：
+
+\[
+\frac{dz(t)}{dt} = v_\phi(z(t), t), \qquad z(T) = x.
+\]
+
+
+事前項 $\log p_{\mathrm{prior}}(z(0))$ は標準的な分布では扱いやすい。これによりニューラルODEにおける厳密な尤度に基づく学習と評価が可能になる。
+
+\textbf{勾配に基づく最適化.} $\mathcal{L}_{\mathrm{NODE}}$ の最大化には、ODEソルバを通じた逆伝播が必要である。随伴感度法（adjoint sensitivity method）（Pontryagin, 2018; Chen et al., 2018）は補助ODEにより $O(1)$ メモリ計算量で勾配を計算するが、各ステップでの数値積分のためNODEの学習は依然として高価である。
+
+\textbf{NODEによる推論.} 学習済みモデル $v_{\phi^\times}$ によるサンプリングは、$x(0) \sim p_{\mathrm{prior}}$ を引き、前方へ積分する（数値ソルバによる）：
+
+\[
+x(T) = x(0) + \int_0^T v_{\phi^\times}(x(t), t)\, dt.
+\]
+
+
+終端状態 $x(T)$ は $p_{\mathrm{data}}$ からのサンプルを近似する。
+さらに、任意のベクトル場 $F$ に対し次の恒等式が成り立つ：
+
+\[
+\operatorname{Tr}\!\left(\frac{\partial F}{\partial z(t)}\right) = \nabla_z \cdot F.
+\]
+
+
+したがって、発散はHutchinson推定量（Hutchinson, 1989）などの確率的トレース推定量により、フルヤコビアンを明示的に構成せずに効率的に推定できる。これにより高次元での尤度評価が実用的になる。ただしトレースがランダムサンプルから推定されるため、得られる数値対数尤度推定は発散の厳密評価ではなく確率的である。
+図5.5で多くの小さな全単射が連続輸送フローに近づく様子を見たので、次に実用的な問いを立てる：
+
+\begin{propositionbox}[問い 5.1.1]
+学習中に繰り返しODEを解くことなく、その速度場をどのように学習できるか？
+\end{propositionbox}
+
+
+この問いは自然にフローマッチング（Flow Matching）へつながる。フローマッチングはシミュレーション不要の回帰目的を通じて速度場を直接学習し、拡散モデルに対するフローに基づく視点を提供する。
+
+
+\end{document}

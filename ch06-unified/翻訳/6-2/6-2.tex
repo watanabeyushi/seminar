@@ -1,0 +1,255 @@
+\input{../../../common/translation-preamble}
+\begin{document}
+{\color{gray}\footnotesize 出典: §6.2\par}
+\vspace{0.2em}
+\begin{propositionbox}[原題]
+\textbf{原題}: A Roadmap for Elucidating Training Losses in Diffusion Models
+\textbf{日本語タイトル}: 拡散モデルの学習損失を解明するためのロードマップ
+\textbf{出典}: §6.2 of *The Principles of Diffusion Models*
+\end{propositionbox}
+
+
+\section*{6.2 拡散モデルの学習損失を解明するためのロードマップ}
+
+
+本節は拡散モデルにおける学習損失の体系的視点を構築する。§6.2.1 では標準的な3つの目的を、より広い4つのパラメータ化の集合へ拡張し、それらが異なるモデリング視点からどのように生じるかを示す。§6.2.2 ではこれらの結果を、拡散目的の構造を解きほぐす一般枠組みへ蒸留し、§6.3 の同値性結果の土台を据える。
+
+\subsection*{6.2.1 拡散モデルにおける4つの共通パラメータ化}
+
+
+本節を通じて、特に断らない限り、前方摂動カーネル
+
+\[
+p_t(x_t|x_0) = \mathcal{N}\bigl(x_t; \alpha_t x_0, \sigma_t^2 I\bigr),
+\]
+
+
+を考える。ここで $x_0 \sim p_{\mathrm{data}}$ であり、式 (4.5.1) で定義される。
+$\omega: [0,T] \to \mathbb{R}_{>0}$ を正の時間重み関数とする。4つの標準パラメータ化（ノイズ $\epsilon_\phi$、クリーン $x_\phi$、スコア $s_\phi$、速度 $v_\phi$）とそれぞれの最小化子 $\epsilon^*$、$x^*$、$s^*$、$v^*$ を、明確さと以降の議論のために以下にまとめる。
+
+\textbf{変分的視点.} DDPMにおけるKLダイバージェンスに基づき（§2.2.4 および §4.5.2 参照）、このアプローチは、$x_t$ を生じる期待ノイズ、または $x_t$ が摂動された元の期待クリーン信号のいずれかを予測することに帰着する。
+
+\begin{enumerate}
+\item **$\epsilon$-予測（ノイズ予測）**（Ho et al., 2020）:
+\end{enumerate}
+
+\[
+\epsilon_\phi(x_t, t) \approx \mathbb{E}[\epsilon|x_t] = \epsilon^*(x_t, t) \quad (6.2.1)
+\]
+
+学習目的は
+\[
+\mathcal{L}_{\mathrm{noise}}(\phi) := \mathbb{E}_t\bigl[\omega(t)\,\mathbb{E}_{x_0,\epsilon}\|\epsilon_\phi(x_t, t) - \epsilon\|_2^2\bigr].
+\]
+
+ここで $\epsilon^*$ は、与えられた $x_t$ を得るために注入されたノイズの平均を意味する。
+
+\begin{enumerate}
+\item **$x$-予測（クリーン予測）**（Kingma et al., 2021; Karras et al., 2022; Song et al., 2023）:
+\end{enumerate}
+
+\[
+x_\phi(x_t, t) \approx \mathbb{E}[x_0|x_t] = x^*(x_t, t) \quad (6.2.2)
+\]
+
+学習目的は
+\[
+\mathcal{L}_{\mathrm{clean}}(\phi) := \mathbb{E}_t\bigl[\omega(t)\,\mathbb{E}_{x_0,\epsilon}\|x_\phi(x_t, t) - x_0\|_2^2\bigr].
+\]
+
+ここで $x^*$ は、ノイズ観測 $x_t$ が与えられたときの、あり得るクリーン推測の平均を意味する。
+
+\textbf{スコアに基づく視点.} ノイズレベル $t$ におけるスコア関数を予測する。これは、$x_t$ を生じ得たすべての可能なクリーンサンプルへ戻す平均的な方向を指す：
+
+\begin{enumerate}
+\item \textbf{スコア予測}（Song and Ermon, 2019; Song et al., 2020c）:
+\end{enumerate}
+
+\[
+s_\phi(x_t, t) \approx \nabla_{x_t}\log p_t(x_t) = \mathbb{E}\bigl[\nabla_{x_t}\log p_t(x_t|x_0)\big|x_t\bigr] = s^*(x_t, t) \quad (6.2.3)
+\]
+
+学習目的は
+\[
+\mathcal{L}_{\mathrm{score}}(\phi) := \mathbb{E}_t\bigl[\omega(t)\,\mathbb{E}_{x_0,\epsilon}\|s_\phi(x_t, t) - \nabla_{x_t}\log p_t(x_t|x_0)\|_2^2\bigr],
+\]
+
+ここで条件付きスコアは $\nabla_{x_t}\log p_t(x_t|x_0) = -\frac{1}{\sigma_t}\epsilon$ を満たす。
+
+\textbf{フローに基づく視点.} データが $x_t$ を通って発展するときの瞬間的な平均速度を予測する：
+
+\begin{enumerate}
+\item **$v$-予測（速度予測）**（Lipman et al., 2022; Liu, 2022; Salimans and Ho, 2021; Albergo et al., 2023）:
+\end{enumerate}
+
+\[
+v_\phi(x_t, t) \approx \mathbb{E}\Bigl[\frac{dx_t}{dt}\Big|x_t\Bigr] = v^*(x_t, t) \quad (6.2.4)
+\]
+
+学習目的は
+\[
+\mathcal{L}_{\mathrm{velocity}}(\phi) := \mathbb{E}_t\bigl[\omega(t)\,\mathbb{E}_{x_0,\epsilon}\|v_\phi(x_t, t) - v_t(x_t|x_0,\epsilon)\|_2^2\bigr],
+\]
+
+ここで条件付き速度は $v_t(x_t|x_0,\epsilon) = \alpha_t' x_0 + \sigma_t' \epsilon$ である。
+ここで $v^*$ は、観測点 $x_t$ を通過する平均速度ベクトルを示す。
+式 (6.1.1) の洞察に基づき、4つの予測型はすべて最終的に、観測された $x_t$ が与えられた平均ノイズ、クリーンデータ、スコア、または速度という形の条件付き期待値を近似することを目指す。
+
+\subsection*{6.2.2 拡散モデルの学習目的の解体}
+
+
+§6.2.1 で示したように、4つの予測型の目的関数は、拡散モデル学習に対して次のテンプレート形を共通に共有する：
+
+\[
+\mathcal{L}(\phi) := \mathbb{E}_{x_0,\epsilon}\,\mathbb{E}_{p_{\mathrm{time}}(t)}\Biggl[\underbrace{\omega(t)}_{\text{時間重み}}\,\underbrace{\bigl\|\mathrm{NN}_\phi(x_t, t) - (A_t x_0 + B_t\epsilon)\bigr\|_2^2}_{\text{MSE部分}}\Biggr]. \quad (6.2.5)
+\]
+
+\[
+\underbrace{\phantom{\mathbb{E}_{p_{\mathrm{time}}(t)}}}_{\text{時間分布}}
+\]
+
+
+ここで、学習効率を高め拡散モデル学習パイプラインを最適化するため、いくつかの鍵となる設計選択が重要である（Karras et al., 2022; Lu and Song, 2024）：
+
+\textbf{(A)} $x_t$ の前方過程におけるノイズスケジュール（$\alpha_t$ と $\sigma_t$ 経由）；
+
+\textbf{(B)} $\mathrm{NN}_\phi$ の予測型と関連する回帰目標 $(A_t x_0 + B_t\epsilon)$；
+
+\textbf{(C)} 時間重み関数 $\omega(\cdot): [0,T] \to \mathbb{R}_{\ge 0}$；
+
+\textbf{(D)} 時間分布 $p_{\mathrm{time}}$。
+
+以降の節の議論のロードマップとして、これら4つの構成要素をここで詳述する。
+
+\subsubsection*{(A) ノイズスケジュール $\alpha_t$ と $\sigma_t$}
+
+
+利用者は応用に合わせてスケジュールを柔軟に選べる。一般的な例は表5.2にまとめられている。重要なのは、式 (6.3.3) および (6.3.5) で示すように、$x_t = \alpha_t x_0 + \sigma_t\epsilon$ の形のすべてのアフィンフローが数学的に同値であることである。具体的には、任意のそのような補間は、適切な時間再パラメータ化と空間的リスケーリングにより、正準線形スケジュール（$\alpha_t = 1-t$、$\sigma_t = t$）または三角関数スケジュール（$\alpha_t = \cos t$、$\sigma_t = \sin t$）へ変換できる。
+
+\translationfigure{table-6-1.jpg}{表6.1: 異なるパラメータ化間の関係の要約。4つのパラメータ化はすべて数学的に同値であり、単純な代数変換により相互変換できる。}
+
+
+*表6.1: 異なるパラメータ化間の関係の要約。4つのパラメータ化はすべて数学的に同値であり、単純な代数変換により相互変換できる。回帰目標 $= A_t x_0 + B_t\epsilon$。クリーン: $A_t=1$, $B_t=0$；ノイズ: $A_t=0$, $B_t=1$；条件付きスコア: $A_t=0$, $B_t=-1/\sigma_t$；条件付き速度: $A_t=\alpha_t'$, $B_t=\sigma_t'$。*
+
+\subsubsection*{(B) パラメータ化 $\mathrm{NN}_\phi$ と学習目標 $A_t x_0 + B_t\epsilon$}
+
+
+拡散学習ではしばしば結合される2つの選択がある：ネットワークが直接予測する量と、学習損失で比較される量である。クリーンデータ、ノイズ、スコア、速度はいずれの目的にも使える。
+
+\textbf{一致した予測と損失.} 式 (6.2.5) で用いられる一般的な選択は、ネットワークが出力するのと同じ予測型で直接学習することである。各予測型は、次の形の対応する条件付き学習目標をもつ：
+
+\[
+\text{回帰目標} = A_t x_0 + B_t\epsilon,
+\]
+
+
+ここで $A_t$ と $B_t$ は予測型と前方スケジュール $(\alpha_t, \sigma_t)$ に依存する。これらの目標は表6.1にまとめられている。
+
+例えば、$x$-予測ネットワークはクリーン目標 $x_0$ と比較され、$v$-予測ネットワークは条件付き速度 $v_t = \alpha_t' x_0 + \sigma_t' \epsilon$ と比較される。後の式 (6.3.1) で示すように、4つの予測型は同じオラクル情報を符号化し、相互変換できる。
+
+\textbf{ある量を予測し、別の量で損失を評価する.} ネットワーク出力と損失で用いる量は別々に選ぶこともできる。ネットワーク予測はまず式 (6.3.1) の関係を用いて変換され、変換後の予測型における対応する目標に対して損失が計算される。
+例えば、正準スケジュール
+
+\[
+x_t = (1-t)x_0 + t\epsilon
+\]
+
+
+の下で、ネットワークがクリーンデータ $x_\phi(x_t, t)$ を直接予測すると仮定する。この予測を速度へ変換すると
+
+\[
+v_\phi(x_t, t) = \frac{x_t - x_\phi(x_t, t)}{t}
+\]
+
+
+となり、条件付き速度目標は
+
+\[
+v_t = \frac{x_t - x_0}{t}
+\]
+
+
+を満たす。したがって
+
+\[
+\|v_\phi(x_t, t) - v_t\|_2^2 = \frac{1}{t^2}\|x_\phi(x_t, t) - x_0\|_2^2.
+\]
+
+
+ゆえに、ネットワーク出力をクリーン予測に固定したまま速度損失を評価することは、クリーン予測損失に追加の時間依存重みを適用することと厳密に同値である。一般のアフィンスケジュールとその他の予測型に対する対応関係は、後の式 (6.3.6) にまとめられる。
+ネットワークが直接予測する量を変えることには追加の効果がある。オラクル予測は代数的に変換可能でも、有限のニューラルネットワークは、異なる出力スケールとパラメータ勾配をもつ異なる関数を表現するよう訓練される。したがってネットワーク予測の選択はモデルアーキテクチャと最適化と相互作用し得、一方で損失の選択はノイズレベル間の予測誤差の相対重みも制御する。
+明確のため、式 (6.2.5) は特に断らない限り一致した予測と損失の場合を用いる。
+
+\subsubsection*{(C) 時間分布 $p_{\mathrm{time}}(t)$}
+
+
+次に、学習中に時間 $t$、ひいてはノイズレベルがどのようにサンプルされるかを考える。便宜上、固定時間の回帰損失を
+
+\[
+L_t(\phi) := \mathbb{E}_{x_0,\epsilon}\bigl[\|\mathrm{NN}_\phi(x_t, t) - (A_t x_0 + B_t\epsilon)\|_2^2\bigr], \qquad x_t = \alpha_t x_0 + \sigma_t\epsilon
+\]
+
+
+と定義する。すると式 (6.2.5) は簡潔に
+
+\[
+\mathcal{L}(\phi) = \mathbb{E}_{t\sim p_{\mathrm{time}}}[\omega(t)\, L_t(\phi)]
+\]
+
+
+と書ける。したがって補正を適用しなければ、ある時間をより頻繁にサンプルすることは、目的におけるそれらの重みも増やす。厳密な期待損失のレベルでは、$p_{\mathrm{time}}(t)\omega(t)$ の積だけが重要である。
+非一様サンプリングの別の用法は重要度サンプリングである。上記の目的は固定だが、代わりに提案分布 $q_{\mathrm{time}}(t)$ から時間を引くとする。すると
+
+\[
+\mathcal{L}(\phi) = \mathbb{E}_{t\sim q_{\mathrm{time}}}\Biggl[\frac{p_{\mathrm{time}}(t)}{q_{\mathrm{time}}(t)}\,\omega(t)\, L_t(\phi)\Biggr],
+\]
+
+
+ただし $p_{\mathrm{time}}(t)\omega(t) > 0$ であるところでは $q_{\mathrm{time}}(t) > 0$ とする。この補正により、$q_{\mathrm{time}}$ を変えても目的は変わらず、そのモンテカルロ推定量（例えば分散）だけが変わる。
+したがって鍵となる区別は：
+
+\begin{itemize}
+\item 目的における $p_{\mathrm{time}}$ の変更 $\implies$ 異なる重み付け、異なる目的
+\item $q_{\mathrm{time}}$ の変更 + 重要度補正 $\implies$ 同じ目的、異なる推定量
+\end{itemize}
+
+
+ゆえに時間サンプリングと損失重み付けを概念的に分離して保つ。一様時間サンプリングではこの区別は見えにくく、その密度は定数因子しか寄与しないのに対し、非一様サンプリングではサンプリング分布が目的を定義するのか、単なる重要度サンプリング提案なのかを指定する必要がある。
+両方の用法が拡散モデル学習に現れる。ScoreFlowは明示的に重要度サンプリングを用い、固定された尤度重み付き目的の分散を減らす（Song et al., 2021）。VDMとその後の解析も同様に、目的がノイズレベル座標で固定されているとき、ノイズスケジュールが重要度サンプリング分布として働き得ることを示す（Kingma et al., 2021; Kingma and Gao, 2023）。対照的にEDM（Karras et al., 2022）は、ノイズレベル上の非一様学習分布と、別の損失重み付けの両方を指定し、その組合せが実効的な学習重みを決める。
+
+\subsubsection*{(D) 時間重み関数 $\omega(t)$}
+
+
+固定された $p_{\mathrm{time}}$ に対し、重み関数 $\omega(t)$ は異なる時間が学習目的に寄与する相対的寄与を決める。前段落とともに、時間上の実効的重み付けはしたがって $p_{\mathrm{time}}(t)\omega(t)$ である。
+単純なベースラインは、標準的な簡略化 $\epsilon$-予測およびFM/RF目的のように、$\omega(t)\equiv 1$ の一様時間サンプリングである（Ho et al., 2020; Lipman et al., 2022; Liu, 2022）。他の重み付けは異なるノイズ領域を強調し、尤度または変分的解釈も担い得る。例えばスコア整合目的に対し、尤度重み $\omega(t) = g^2(t)$ は、適切な正則性条件の下で負対数尤度の上界を与える（Song et al., 2021）。より一般に、SNR依存の重み付けは、ノイズレベル間で学習の強調を再配分する一般的な方法を提供する（Kingma et al., 2021; Kingma and Gao, 2023）。
+
+\textbf{単調重み付けと増強付きELBO視点.} 腐敗レベルを記述する有用な方法は、対数信号対雑音比（log-SNR）
+
+\[
+\Lambda_t := \log\frac{\alpha_t^2}{\sigma_t^2}
+\]
+
+
+を通じてである。$\Lambda$ を完全なlog-SNRに用い、後の第9章で用いる半log-SNR座標 $\lambda_t = \log(\alpha_t/\sigma_t) = \tfrac{1}{2}\Lambda_t$ と区別する。$\Lambda_t$ は前方過程がノイズが多くなるにつれて減少するので、損失を共通の予測パラメータ化で表した後、$w(\Lambda)$ を各log-SNRレベルに割り当てられる実効的重みとする。
+Kingma and Gao（2023）の有用な結果は、$w(\Lambda)$ が $\Lambda$ について非増加（同値に、前方過程がノイズ多くなるにつれて重みが減少しない）なら、重み付き拡散目的は、モデルパラメータに独立な項を除いて、ガウス摂動データ上の平均負ELBOとして書き換えられる、というものである\footnote{単調性がなぜ重要かを見るため、ノイズレベル $t$ 以降の残りの変分コストを}。
+したがって単調重み付けは具体的な確率的解釈をもつ：単に一部のノイズレベルを他より強調するのではなく、異なる腐敗強度におけるデータのガウス腐敗版上での変分学習の平均化とみなせる。
+
+\textbf{結論.} 我々の目的にとっての主な教訓は、拡散学習における多くの見かけの設計選択が、目的におけるノイズレベル上の実効的重み付けをどのように再形成するか、を通じて理解できることである。この重み付けは、実用における最適化の風景に影響し、単調重み付けのような特別な場合には損失の変分的解釈にも影響する。
+
+\[
+L(t; x_0) := D_{\mathrm{KL}}\bigl(p(x_{[t,T]}|x_0)\big\|p_\phi(x_{[t,T]})\bigr)
+\]
+
+と定義する。ここで $x_{[t,T]} := \{x_s\}_{s\in[t,T]}$ は残りの連続拡散経路を表す。これは式 (2.2.13) の負ELBOの連続時間対応物であり、腐敗レベル $t$ から始まる；より正確には、$\phi$ に独立な項を除いて、摂動サンプル $x_t$ の期待負ELBOに等しい。
+$\epsilon$-予測に対し、Kingma and Gao（2023）は
+\[
+\frac{d}{dt}L(t; x_0) = \frac{1}{2}\frac{d\Lambda_t}{dt}\,\mathbb{E}_\epsilon\|\epsilon_\phi(x_t, t) - \epsilon\|_2^2
+\]
+
+を示す。ゆえに重み付き拡散損失は
+\[
+-\int_0^T w(\Lambda_t)\frac{d}{dt}L(t; x_0)\, dt = w(\Lambda_0)L(0; x_0) + \int_0^T \frac{d}{dt}w(\Lambda_t)\, L(t; x_0)\, dt + C
+\]
+
+であり、$C$ は $\phi$ に独立である。$w(\Lambda)$ が $\Lambda$ について非増加なら、$\Lambda_t$ が $t$ とともに減少するため $\frac{d}{dt}w(\Lambda_t) \ge 0$ である。したがって正規化後、上記の項は異なるガウス腐敗レベルにおけるELBO上の非負重み付けをなし、ガウス増強付きELBO解釈を与える。
+\end{document}

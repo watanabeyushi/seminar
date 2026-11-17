@@ -1,0 +1,445 @@
+\input{../../../common/translation-preamble}
+\begin{document}
+{\color{gray}\footnotesize 出典: §7.2\par}
+\vspace{0.2em}
+
+\section*{7.2 問題設定の分類}
+
+
+本節では、$p_{\mathrm{src}}$ から $p_{\mathrm{tgt}}$ へ質量を輸送する最も「効率的」あるいは「最適」な方法が何であるかという概念を導入する。これには古典的最適輸送（optimal transport, OT）と、等価な定式化としてシュレーディンガー橋（Schrödinger Bridge）を許容するそのエントロピー正則化変種が含まれる。この分類は、後に拡散モデルとのつながりを明確にする背景を与える。
+
+\subsection*{7.2.1 最適輸送（OT）}
+
+
+\translationfigure{fig-7-1.jpg}{図7.1: 同じ $p_{\mathrm{src}}$ と $p_{\mathrm{tgt}}$ の間の二次元における二つのカップリング。左：独立（ランダム）な対応付けは交差する経路を生じ、費用が高い。右：最適輸送カップリングは近傍の質量を対応付け、交差を避ける。}
+
+
+\textbf{OT 問題の Monge–Kantorovich（静的）定式化。} 費用関数 $c:\mathbb{R}^D\times\mathbb{R}^D\to\mathbb{R}$ を固定する。これは確率質量を $x$ から $y$ へ送る費用を規定する。目標は、ソース分布 $p_{\mathrm{src}}$ をターゲット分布 $p_{\mathrm{tgt}}$ へ、できるだけ安く変換することである。
+
+費用を定義するには、どの対 $(x,y)$ が対応付けられるかを知らなければならない。この役割を果たすのがカップリング（coupling）である。すなわち、周辺分布が $p_{\mathrm{src}}$ と $p_{\mathrm{tgt}}$ である $\mathbb{R}^D\times\mathbb{R}^D$ 上の同時分布 $\gamma$ である。言い換えれば、$(x,y)\sim\gamma$ とサンプリングすることは、ソースの $x$ をターゲットの $y$ と対応付けることを意味する。$\gamma$ がルベーグ測度に関する密度 $\gamma(x,y)$ をもつとき、周辺制約は次のように書ける。
+
+\[
+\int_{\mathbb{R}^D}\gamma(x,y)\,dy = p_{\mathrm{src}}(x),\qquad
+\int_{\mathbb{R}^D}\gamma(x,y)\,dx = p_{\mathrm{tgt}}(y).
+\]
+
+
+すなわち、$y$ について積分すれば $x$ におけるソース密度が回復し、$x$ について積分すれば $y$ におけるターゲット密度が回復する。
+
+説明のため、二つの標準的な例を挙げる。
+
+\begin{enumerate}
+\item \textbf{離散サポート。} $p_{\mathrm{src}}$ と $p_{\mathrm{tgt}}$ が有限個の点上にサポートされる場合、カップリングは、行和が $p_{\mathrm{src}}(i)$、列和が $p_{\mathrm{tgt}}(j)$ に等しい非負行列 $(\gamma_{ij})$ で表される。各エントリ $\gamma_{ij}$ は $i$ から $j$ へ送られる質量の量である。
+\end{enumerate}
+
+
+\begin{enumerate}
+\item \textbf{決定論的写像。} $T_{\#}p_{\mathrm{src}}=p_{\mathrm{tgt}}$ となる可測写像 $T$ が存在するとき、$\gamma=(I,T)_{\#}p_{\mathrm{src}}$ は各点 $x$ を直接 $T(x)$ へ動かす決定論的カップリングである。
+\end{enumerate}
+
+
+カップリング $\gamma$ が固定されると、輸送費用は単にこの計画の下での平均単位費用である。
+
+\[
+\int c(x,y)\,d\gamma(x,y) = \mathbb{E}_{(x,y)\sim\gamma}\bigl[c(x,y)\bigr].
+\]
+
+
+離散の場合、これは $\sum_{i,j}c_{ij}\gamma_{ij}$ に帰着し、連続設定では二重積分になる。以下では連続の場合のみに焦点を当てる。
+
+最適輸送問題は、すべての許容カップリングの中から、この期待費用を最小化するものを選ぶことである。
+
+\[
+\mathrm{OT}(p_{\mathrm{src}},p_{\mathrm{tgt}})
+:=
+\inf_{\gamma\in\Gamma(p_{\mathrm{src}},p_{\mathrm{tgt}})}
+\int c(x,y)\,d\gamma(x,y),
+\quad (7.2.1)
+\]
+
+
+ここで実行可能集合は単に周辺、すなわち質量保存の制約を課す。
+
+\[
+\Gamma(p_{\mathrm{src}},p_{\mathrm{tgt}})
+=
+\Bigl\{
+\gamma\in\mathcal{P}(\mathbb{R}^D\times\mathbb{R}^D):
+\int\gamma(x,y)\,dy=p_{\mathrm{src}}(x),\
+\int\gamma(x,y)\,dx=p_{\mathrm{tgt}}(y)
+\Bigr\},
+\]
+
+
+ここで $\mathcal{P}(\mathbb{R}^D\times\mathbb{R}^D)$ は $\mathbb{R}^D\times\mathbb{R}^D$ 上のすべての確率測度の集合を表す。
+
+\textbf{特別な場合：Wasserstein-2 距離。} Wasserstein-2 距離は、二次費用 $c(x,y)=\|x-y\|^2$ をもつ Monge–Kantorovich 問題の特別な場合である。二つの確率分布間の距離を次のように測る。
+
+\[
+W_2^2(p_{\mathrm{src}},p_{\mathrm{tgt}})
+:=
+\inf_{\gamma\in\Gamma(p_{\mathrm{src}},p_{\mathrm{tgt}})}
+\mathbb{E}_{(x,y)\sim\gamma}\bigl[\|x-y\|^2\bigr].
+\]
+
+
+$p_{\mathrm{src}}$ と $p_{\mathrm{tgt}}$ に関する適切な仮定の下で、Brenier の定理（定理 7.1 を参照）\footnote{Brenier の定理は、二次費用に対する最適輸送写像の存在と構造に関するものである。特に、$p_{\mathrm{src}}$ が次元が高々 $D-1$ の集合に質量を与えないとき、最適輸送写像 $T_*$ が一意に存在する。} は、二次費用に対する最適カップリング $\gamma$ が決定論的写像 $T:\mathbb{R}^D\to\mathbb{R}^D$ のグラフ上に集中することを保証する。その結果、Wasserstein-2 距離は次と等価に表せる\footnote{$W_2$ 距離には三つのよく使われる定式化がある。Monge 定式化（最適輸送写像に基づく）、Kantorovich 定式化（カップリングに基づく）、および Benamou–Brenier 動的定式化（式 (7.2.3) を参照）。これらは適切な正則性条件の下で等価である。}。
+
+\begin{align*}
+W_2^2(p_{\mathrm{src}},p_{\mathrm{tgt}})
+=
+\inf_{\substack{T:\mathbb{R}^D\to\mathbb{R}^D,\\ T_{\#}p_{\mathrm{src}}=p_{\mathrm{tgt}}}}
+\mathbb{E}_{x\sim p_{\mathrm{src}}}\bigl[\|T(x)-x\|^2\bigr].
+\quad (7.2.2)
+\end{align*}
+
+
+ここで $T_{\#}p_{\mathrm{src}}=p_{\mathrm{tgt}}$ は、$T$ が $p_{\mathrm{src}}$ を $p_{\mathrm{tgt}}$ へ押し出すこと、すなわち $x\sim p_{\mathrm{src}}$ に対して $T(x)\sim p_{\mathrm{tgt}}$ であることを意味する。
+
+したがって Wasserstein-2 距離は、与えられた周辺を整合させるすべてのカップリングまたは輸送写像の中での、最小の期待二乗輸送費用を表す。$T_*(x)$ と記される最適輸送写像は Monge 写像として知られ、$p_{\mathrm{src}}$ を $p_{\mathrm{tgt}}$ へ変換する最も効率的な方法を与える。
+
+\textbf{OT の Benamou–Brenier（動的）定式化。} Monge–Kantorovich 定式化のように分布を静的に直接写すのではなく、輸送は連続時間の流れとしてもモデル化できる。
+
+\[
+p_0:=p_{\mathrm{src}}\ \to\ p_t\ \to\ p_1:=p_{\mathrm{tgt}},\qquad t\in[0,1].
+\]
+
+
+Benamou and Brenier (2000) により導入されたこの動的定式化は、$p_t(x)$ における質量が時間とともにどのように発展するかを記述する滑らかな速度場 $v_t(x)$ を求める。
+
+Benamou–Brenier 定式化\footnote{Benamou–Brenier 定式化は、測度と速度の連続経路上で運動エネルギーを最小化することにより $W_2$ 距離を計算する方法を記述する。} は、二次費用 $c(x,y)=\|x-y\|_2^2$（すなわち $W_2$ 距離）に対して、式 (7.2.1) の静的 OT 問題の最適値が、運動エネルギー最小化問題の最適値に等しいことを示す。
+
+\begin{align*}
+W_2^2(p_{\mathrm{src}},p_{\mathrm{tgt}})
+=
+\min_{\substack{(p_t,v_t)\ \mathrm{s.t.}\ \partial_t p_t+\nabla\cdot(p_t v_t)=0,\\ p_0=p_{\mathrm{src}},\ p_1=p_{\mathrm{tgt}}}}
+\int_0^1\int_{\mathbb{R}^D}\|v_t(x)\|^2\,p_t(x)\,dx\,dt.
+\quad (7.2.3)
+\end{align*}
+
+
+ここで各 $t\in[0,1]$ に対して $p_t$ は $\mathbb{R}^D$ 上の確率分布である。特に、最適輸送流れ $p_t(x)$ は McCann の変位補間に従う。
+
+\[
+T_*^t(x)=(1-t)x+t\,T_*(x),
+\]
+
+
+ここで $T_*(x)$ は $p_{\mathrm{src}}$ を $p_{\mathrm{tgt}}$ へ輸送する OT 写像である。この線形補間は、一定速度で質量を直線に沿って動かす。各 $t\in[0,1]$ について $p_t=T_*^t{}_{\#}p_{\mathrm{src}}$ である。
+
+\translationfigure{fig-7-2.jpg}{図7.2: OT の動的視点の図示。補間 $p_t^{\mathrm{OT}}$ は時間とともに連続的に発展し、$p_{\mathrm{src}}$ を $p_{\mathrm{tgt}}$ へ決定論的に写す最小費用の輸送計画（McCann の変位補間）を与える。}
+
+
+最適輸送写像 $T_*$ は Monge–Ampère 方程式を満たす。
+
+\[
+p_{\mathrm{tgt}}\bigl(\nabla\psi(x)\bigr)\det\bigl(\nabla^2\psi(x)\bigr)=p_{\mathrm{src}}(x),
+\quad (7.2.4)
+\]
+
+
+ここで Brenier の定理により、ある凸関数 $\psi$ に対して $T_*(x)=\nabla\psi(x)$ である。しかしこの非線形 PDE は、明示解にとって典型的に手に負えない。なお、これは正規化流（normalizing flows）が用いる変数変換関係そのものである（式 (5.0.1) を参照）。流れは扱いやすいヤコビ行列式をもつ可逆輸送写像をパラメータ化するが、一般には勾配ポテンシャル構造 $T_*=\nabla\psi$ を課さない。その結果、訓練された流れは Brenier/OT 写像と大幅に異なりうる。
+
+\subsection*{7.2.2 エントロピー正則化最適輸送（EOT）}
+
+
+EOT を具体的に動機付けるため、サンプルから作られる経験分布を考える。$p_{\mathrm{src}}$ が重み $a_i$ をもつ点 $\{x^{(i)}\}_{i=1}^n\subset\mathbb{R}^D$ 上にサポートされ、$p_{\mathrm{tgt}}$ が重み $b_j$ をもつ $\{y^{(j)}\}_{j=1}^n\subset\mathbb{R}^D$ 上にサポートされるとする。カップリングは、行和が $a$ に、列和が $b$ に一致する $n\times n$ の非負行列 $\gamma=(\gamma_{ij})$ である。各エントリ $\gamma_{ij}$ は $x^{(i)}$ から $y^{(j)}$ へ輸送される質量の量を表す\footnote{経験（離散）測度は連続分布に対する原理的な代理を与える。基底費用が $c(x,y)=d(x,y)^p$（したがって OT 値が $W_p^p$ に等しい）であり、測度が有限の $p$ 次モーメントをもつとき、経験測度は定量的速度で母集団へ $W_p$ において収束する。Fournier and Guillin (2015) および Peyré, Cuturi, et al. (2019) の概観を参照。}。
+
+\textbf{なぜ OT を正則化するか？} この離散設定における古典的 OT（連続定式化の式 (7.2.1) で計数測度をとったもの）は、次の最小化に帰着する。
+
+\[
+\min_{\gamma=(\gamma_{ij})}\sum_{i,j}C_{ij}\gamma_{ij},
+\]
+
+
+ここで $C_{ij}=c(x^{(i)},y^{(j)})$ は、所定の基底費用 $c:\mathbb{R}^D\times\mathbb{R}^D\to\mathbb{R}_{\ge 0}$（例：$c(x,y)=\|x-y\|_2^2$）に対して、ソース点 $x^{(i)}$ からターゲット点 $y^{(j)}$ へ質量の一単位を動かす費用である。
+
+二つの主な問題が生じる。
+
+\begin{enumerate}
+\item \textbf{非一意性と不安定性。} 最小化子 $\gamma^*$ は一意である必要はない。例えば二つの輸送計画が同じ最小費用を達成する場合、ソルバはいずれかを選びうる。その結果、入力 $(a,b,C)$ の小さな変化（サンプルの移動、重みの調整、費用のわずかな摂動など）が解の急激な跳躍を引き起こしうる。
+\end{enumerate}
+
+
+\begin{enumerate}
+\item \textbf{高い計算費用。} 問題は $n^2$ 変数と $2n$ 制約をもつ線形計画である。実用的なソルバ（例：Hungarian アルゴリズム（Kuhn, 1955; Munkres, 1957）、ネットワーク単体法（Peyré, Cuturi, et al., 2019））は典型的に $O(n^3)$ でスケールし、大きな $n$ では実行不可能である。
+\end{enumerate}
+
+
+これらのボトルネックを克服するため、EOT 目的関数はパラメータ $\varepsilon>0$ で制御される正則化項を古典的 OT 問題へ導入する。
+
+\[
+\mathrm{EOT}_\varepsilon(p_{\mathrm{src}},p_{\mathrm{tgt}})
+:=
+\min_{\gamma\in\Gamma(p_{\mathrm{src}},p_{\mathrm{tgt}})}
+\int c(x,y)\,d\gamma(x,y)+\varepsilon\,D_{\mathrm{KL}}(\gamma\|M).
+\quad (7.2.5)
+\]
+
+
+参照測度 $M$ は典型的に周辺の積 $p_{\mathrm{src}}\otimes p_{\mathrm{tgt}}$ として選ばれる。KL 発散項は輸送計画 $\gamma$ の Shannon エントロピーと直接関係する。
+
+\[
+D_{\mathrm{KL}}(\gamma\|p_{\mathrm{src}}\otimes p_{\mathrm{tgt}})=-H(\gamma)+\mathrm{Constant},
+\]
+
+
+ここで $H(\gamma):=-\int\gamma(x,y)\log\gamma(x,y)\,dx\,dy$ である。
+
+この正則化項の追加は、以下に簡潔に概観するいくつかの理論的・実践的利点をもたらす。
+
+\textbf{なぜエントロピー正則化が助けになるか？}
+
+\begin{enumerate}
+\item \textbf{質量の拡散。} $t\mapsto t\log t$ は凸であり大きな $t$ で急速に増大するため、$\gamma\log\gamma$ の最小化は尖ったカップリング（一部の $\gamma(x,y)$ が非常に大きく、大半がほぼ零）を罰する。総質量 $\int\gamma=1$ が固定されているとき、$(x,y)\in\mathbb{R}^D\times\mathbb{R}^D$ 上で $\gamma(x,y)$ がより均等に分布する計画を好む。等価に、Shannon エントロピーの最大化はより高い「不確実性」（拡散性）を促進する。
+\end{enumerate}
+
+
+\begin{enumerate}
+\item \textbf{厳密凸性と一意性。} $H$ が厳密に凹であるため、式 (7.2.5) の目的は $\gamma$ について厳密に凸であり、$(p_{\mathrm{src}},p_{\mathrm{tgt}},c)$ に連続に依存する一意の最小化子 $\gamma_\varepsilon^*$ を与える。
+\end{enumerate}
+
+
+\begin{enumerate}
+\item \textbf{Sinkhorn 形式と正値性。} 穏やかな条件の下\footnote{$c<\infty$ が $p_{\mathrm{src}}\otimes p_{\mathrm{tgt}}$-ほとんど至るところで成り立ち、周辺カーネル積分が有限かつ正であると仮定する。簡単のため、$\gamma_\varepsilon^*$、$p_{\mathrm{src}}$、$p_{\mathrm{tgt}}$ がルベーグ測度に関する密度をもつ場合に焦点を当てる。}、最適化子は Schrödinger/Sinkhorn 形式をもつ。
+\end{enumerate}
+
+
+\[
+\gamma_\varepsilon^*(x,y)=u(x)\,\exp\Bigl(-\frac{c(x,y)}{\varepsilon}\Bigr)\,v(y)\,p_{\mathrm{src}}(x)\,p_{\mathrm{tgt}}(y),
+\]
+
+
+ここで正のスケーリング関数 $u,v$ は（大局的因子を除き）一意である。実務では、連続定式化は有限サンプルで近似され、EOT は有限（標本）Sinkhorn 反復に帰着する。エントロピー目的は厳密に凸であり、スケーリング（Sinkhorn/IPFP）アルゴリズムがそれを効率的に解く（Sinkhorn, 1964; Cuturi, 2013）。周辺あたり $n$ 個のサポート点をもつ密な問題（$n\times n$ カーネル）では、各 Sinkhorn 反復は $O(n^2)$ 時間と $O(n^2)$ メモリを要し、手法をよりスケーラブルで実用的にする（Altschuler et al., 2017）。
+
+\begin{enumerate}
+\item **$\varepsilon$ における極限。** $\varepsilon\to 0$ のとき、最適計画 $\gamma_\varepsilon^*$ はますます集中し、（場合により特異な）古典的 OT カップリングに近づく（このつながりは第7.3.2節で再訪する）。$\varepsilon$ が増大するにつれ、$\gamma_\varepsilon^*$ は徐々に広がり、独立カップリング $p_{\mathrm{src}}\otimes p_{\mathrm{tgt}}$ に近づく。
+\end{enumerate}
+
+
+\subsection*{7.2.3 シュレーディンガー橋（SB）}
+
+
+\textbf{SB の KL 定式化。} 1930年代に Erwin Schrödinger により導入されたシュレーディンガー橋（SB）問題は、次の問いを立てる。粒子がある単純な参照力学、例えばブラウン運動に従って動くとする。いま、二つの時刻で粒子を観測したとしよう。$t=0$ ではその分布が $p_{\mathrm{src}}$、$t=1$ では $p_{\mathrm{tgt}}$ である。これらの二つの分布を結ぶすべての可能な確率過程の中で、参照力学からのずれが最も小さいものはどれか？ここで「ずれ」は KL 発散で測られる。したがって SB 問題の解は、所定の境界条件を満たす過程へとブラウン運動を変形する最も尤もらしい方法である。
+
+これを精密にするため、$x_{0:T}:=\{x_t\}_{t\in[0,T]}$ を過程の完全な軌跡とする。軌跡の法則、すなわち全サンプルパス上の確率分布を $P$ と書く。$P$ の時刻 $t$ 周辺を $p_t$（または $P_t$）と記し、これは単一時刻における状態 $x_t$ の分布を記述する。形式的に、可測集合 $A\subseteq\mathbb{R}^D$ に対して
+
+\[
+p_t(A)=P(x_t\in A).
+\]
+
+
+言い換えれば、$p_t$ は、$P$ から多くの完全軌跡をサンプリングし、時刻 $t$ における状態を集めた経験分布——例えば状態が一次元ならヒストグラム——として見ることができる。
+
+次の SDE に支配される参照拡散 $\{x_t\}_{t\in[0,T]}$ を考える。
+
+\[
+dx_t=f(x_t,t)\,dt+g(t)\,dw_t,
+\quad (7.2.6)
+\]
+
+
+ここで $f:\mathbb{R}^D\times[0,T]\to\mathbb{R}^D$、$g:[0,T]\to\mathbb{R}$、および $\{w_t\}_{t\in[0,T]}$ は標準ブラウン運動である。$R$ を完全軌跡 $x_{0:T}:=\{x_t\}_{t\in[0,T]}$ のパス法則（同時分布）とし、$R_0$ を参照過程の初期周辺とする。この $R$ が参照軌跡分布として働く。
+
+この記法の下で、SB 問題は、所定の端点周辺を整合させつつ KL 発散において $R$ に最も近い軌跡法則 $P$ を求める。
+
+\[
+\mathrm{SB}(p_{\mathrm{src}},p_{\mathrm{tgt}})
+:=
+\min_P D_{\mathrm{KL}}(P\|R)
+\quad\text{s.t.}\quad
+P_0=p_{\mathrm{src}},\ P_T=p_{\mathrm{tgt}}.
+\quad (7.2.7)
+\]
+
+
+最適化子 $P^*$ は選ばれた参照過程 $R$ に依存する。
+
+\textbf{SB の確率制御の見方。} 式 (7.2.7) で任意のパス分布 $P$ 上を最適化するのではなく、より扱いやすいアプローチは、参照力学を錨とし、それにドリフトを許すことである。これは時間依存ドリフト $v_t(x_t)$ を導入することで行われる。これは参照過程を摂動し、候補軌跡分布の族を生成する。結果の力学は制御拡散の形をとる。
+
+\[
+dx_t=\bigl[f(x_t,t)+v_t(x_t)\bigr]\,dt+g(t)\,dw_t,
+\]
+
+
+ここで $v_t:\mathbb{R}^D\to\mathbb{R}^D$ は後で最適化されるドリフトである（式 (7.2.8)）。標準的な可積分条件（例：Novikov の条件）の下で、Girsanov の定理（第 C.2.1 節を参照）により、制御法則 $P$ と参照 $R$ の間の KL 発散は次の動的（運動）形式を許容する。
+
+\begin{align*}
+\begin{aligned}
+D_{\mathrm{KL}}(P\|R)
+&=
+D_{\mathrm{KL}}(p_{\mathrm{src}}\|R_0)
++\mathbb{E}_P\Biggl[\int_0^T\frac{1}{2}\frac{\|v_t(x_t)\|^2}{g^2(t)}\,dt\Biggr]\\
+&=
+D_{\mathrm{KL}}(p_{\mathrm{src}}\|R_0)
++\frac{1}{2}\int_0^T\int_{\mathbb{R}^D}\frac{\|v_t(x)\|^2}{g^2(t)}\,p_t(x)\,dx\,dt.
+\end{aligned}
+\end{align*}
+
+
+\translationfigure{fig-7-3.jpg}{図7.3: SB の確率制御の見方の図示。橋は、$p_{\mathrm{src}}$ と $p_{\mathrm{tgt}}$ を結びつつ参照からのずれが最小となる確率的経路を求める。}
+
+
+ここで $p_t$ は制御過程の下での $x_t$ の時刻 $t$ 周辺である。第二の等号は全期待値の法則から従う。SB 問題では $P_0=p_{\mathrm{src}}$ が固定されているため、第一項は制御に関して定数であり、最適化から省いてよい。特に $R_0=p_{\mathrm{src}}$ のときそれは消える。
+
+したがって SB 問題は、$t=0$ で $p_{\mathrm{src}}$、$t=T$ で $p_{\mathrm{tgt}}$ へ過程を操舵するすべての許容ドリフト $v_t$ 上で、期待制御エネルギーを最小化することとして再定式化できる（Dai Pra, 1991; Pra and Pavon, 1990; Pavon and Wakolbinger, 1991; Chen et al., 2016）。初期周辺が $p_{\mathrm{src}}$ に固定されているので、最適化子を変えずに参照過程が $R_0=p_{\mathrm{src}}$ をもつとしてよい。すると $D_{\mathrm{KL}}(p_{\mathrm{src}}\|R_0)=0$ である。これにより確率制御定式化が得られる。
+
+\begin{align*}
+\mathrm{SB}(p_{\mathrm{src}},p_{\mathrm{tgt}})
+=
+\min_{\substack{v_t\ \mathrm{s.t.}\ dx_t=[f(x_t,t)+v_t(x_t)]\,dt+g(t)\,dw_t,\\ x_0\sim p_{\mathrm{src}},\ x_T\sim p_{\mathrm{tgt}}}}
+\frac{1}{2}\int_0^T\int_{\mathbb{R}^D}\frac{\|v_t(x)\|^2}{g^2(t)}\,p_t(x)\,dx\,dt.
+\quad (7.2.8)
+\end{align*}
+
+
+重要なことに、端点分布 $p_{\mathrm{src}}$ と $p_{\mathrm{tgt}}$ は任意である。制御 $v_t$ はまさに、これらの周辺の間で参照力学を「橋渡し」し、かつ（KL 発散において）参照過程 $R$ にできるだけ近いように選ばれる。
+
+\textbf{特別なブラウン参照。} 式 (7.2.8) は、特に参照過程 $R_\varepsilon$（$\varepsilon>0$）がブラウン運動として選ばれるとき\footnote{この類似は精密化できる。等価な時間対称流体力学定式化において、連続の方程式 $\partial_t\rho_t+\nabla\cdot(\rho_t\tilde{v}_t)=0$ を満たす現在速度を $\tilde{v}_t$ と記すと、ブラウン参照 SB 目的（式 (7.2.10)）は、慣例的な定数因子を除き Benamou–Brenier 型の運動項に、Fisher 情報項を加えたものとして書ける。}、式 (7.2.3) の OT の Benamou–Brenier 定式化に似ている。
+
+\[
+dx_t=\sqrt{\varepsilon}\,dw_t,
+\]
+
+
+したがって $f\equiv 0$ かつ $g(t)\equiv\sqrt{\varepsilon}$ である。
+
+この設定では、SB 問題は端点周辺を整合させつつ（KL 発散において）ブラウン参照 $R_\varepsilon$ に最も近いパス分布 $P$ を求める。
+
+\[
+\mathrm{SB}_\varepsilon(p_{\mathrm{src}},p_{\mathrm{tgt}})
+:=
+\min_P D_{\mathrm{KL}}(P\|R_\varepsilon)
+\quad\text{s.t.}\quad
+P_0=p_{\mathrm{src}},\ P_T=p_{\mathrm{tgt}}.
+\quad (7.2.9)
+\]
+
+
+等価な確率制御定式化は次になる。
+
+\begin{align*}
+\mathrm{SB}_\varepsilon(p_{\mathrm{src}},p_{\mathrm{tgt}})
+=
+\min_{\substack{v_t\ \mathrm{s.t.}\ dx_t=v_t(x_t)\,dt+\sqrt{\varepsilon}\,dw_t,\\ x_0\sim p_{\mathrm{src}},\ x_T\sim p_{\mathrm{tgt}}}}
+\frac{1}{2\varepsilon}\int_0^T\int_{\mathbb{R}^D}\|v_t(x)\|^2\,p_t(x)\,dx\,dt,
+\quad (7.2.10)
+\end{align*}
+
+
+ここで $p_t$ はドリフト $v_t$ に駆動される拡散の時刻 $t$ 周辺を表す。
+
+\[
+dx_t=v_t(x_t)\,dt+\sqrt{\varepsilon}\,dw_t.
+\]
+
+
+\textbf{なぜ参照分布を指定する必要があるか？} 古典的 OT は参照パス分布を必要としない。なぜなら所定の基底費用が、ソース点をターゲット点と対応付けることの費用を既に教えてくれるからである。したがって最適化は、この費用を通じて許容カップリングを直接比較する。しかし SB 問題では、端点だけでなく確率的軌跡全体を比較する。したがって、制御されない力学が通常どのようなものかを規定する参照パス測度 $R$ が必要である。量 $D_{\mathrm{KL}}(P\|R)$ は、所定の端点分布を満たすために、許容過程 $P$ がこれらの参照力学からどれだけずれなければならないかを測る。
+
+\textbf{連成 PDE による特徴付け。} SB 解を記述する便利な方法は、二つの時空ポテンシャル $\Psi(x,t)$ と $\widehat{\Psi}(x,t)$ を通すことである。$p_t^{\mathrm{SB}}$ を式 (7.2.7) における最適軌跡法則 $P^*$ の時刻 $t\in[0,T]$ における周辺とする。すると対称因子分解が成り立つ（Dai Pra, 1991）。
+
+\[
+p_t^{\mathrm{SB}}(x)=\Psi(x,t)\,\widehat{\Psi}(x,t),
+\quad (7.2.11)
+\]
+
+
+ここで $\Psi$ と $\widehat{\Psi}$ は（線形）Schrödinger 系を解く（Caluya and Halder, 2021; Chen et al., 2021; Chen et al., 2022）。
+
+\begin{align*}
+\begin{aligned}
+\frac{\partial\Psi}{\partial t}(x,t)
+&=
+-\nabla_x\Psi(x,t)\cdot f(x,t)-\frac{g^2(t)}{2}\Delta_x\Psi(x,t),\\
+\frac{\partial\widehat{\Psi}}{\partial t}(x,t)
+&=
+-\nabla_x\cdot\bigl(\widehat{\Psi}(x,t)\,f(x,t)\bigr)+\frac{g^2(t)}{2}\Delta_x\widehat{\Psi}(x,t),
+\end{aligned}
+\quad (7.2.12)
+\end{align*}
+
+
+制約条件は $\Psi(x,0)\widehat{\Psi}(x,0)=p_{\mathrm{src}}(x)$、$\Psi(x,T)\widehat{\Psi}(x,T)=p_{\mathrm{tgt}}(x)$ である。
+
+\textbf{時間前進シュレーディンガー橋 SDE。} $\Psi$ が既知になれば、最適力学は時空因子 $\Psi$ により傾いた参照拡散である。
+
+\[
+dx_t=\bigl[f(x_t,t)+g^2(t)\nabla_x\log\Psi(x_t,t)\bigr]\,dt+g(t)\,dw_t,
+\quad x_0\sim p_{\mathrm{src}}.
+\quad (7.2.13)
+\]
+
+
+$Q$ を式 (7.2.13) の軌跡法則とする（したがって式 (7.2.11) と (7.2.12) により $Q_0=p_{\mathrm{src}}$ かつ $Q_T=p_{\mathrm{tgt}}$）。すると $Q=P^*$ であり、式 (7.2.8) の最小化子 $v^*$ は（Chen et al., 2021 の第4.6節を参照）
+
+\[
+v_t^*(x)=g^2(t)\nabla_x\log\Psi(x,t)
+\]
+
+
+である。すなわち、ドリフト補正 $g^2\nabla_x\log\Psi$ は、端点周辺を整合させるために必要な参照への最小 KL 摂動そのものである。
+
+\textbf{時間逆シュレーディンガー橋 SDE。} 同じ最適パス法則は時間を逆にして生成することもできる。時間逆ドリフトの形を見る便利な方法は、拡散に対する標準的な時間反転恒等式を概念的に用いることである。
+
+\[
+b_-(x,t)=b_+(x,t)-g^2(t)\nabla_x\log p_t^{\mathrm{SB}}(x),
+\]
+
+
+ここで $b_+=f+g^2\nabla\log\Psi$ および $p_t=\Psi\,\widehat{\Psi}$ である。これにより
+
+\[
+b_-(x,t)=f(x,t)-g^2(t)\nabla_x\log\widehat{\Psi}(x,t).
+\]
+
+
+したがって時間逆 SDE は次のように読める。
+
+\[
+dx_t=\bigl[f(x_t,t)-g^2(t)\nabla_x\log\widehat{\Psi}(x_t,t)\bigr]\,dt+g(t)\,d\bar{w}_t,
+\quad x_T\sim p_{\mathrm{tgt}}.
+\quad (7.2.14)
+\]
+
+
+等価に、時間を $y_\tau:=x_{T-\tau}$ で再パラメータ化し、$\tau$ が $0$ から $T$ へ増えるようにする。すると $y_\tau$ は $y_0\sim p_{\mathrm{tgt}}$ から $\tau$ について前進する。
+
+\[
+dy_\tau=
+-\Bigl[f(y_\tau,T-\tau)+g^2(T-\tau)\nabla_y\log\widehat{\Psi}(y_\tau,T-\tau)\Bigr]\,d\tau
++g(T-\tau)\,dw_\tau.
+\quad (7.2.15)
+\]
+
+
+時間前進と時間逆の両記述は同じ最適パス法則 $P^*$ を与え、それらは次で結ばれる。
+
+\[
+\nabla\log p_t^{\mathrm{SB}}=\nabla\log\Psi+\nabla\log\widehat{\Psi},
+\qquad
+b_-=b_+-g^2\nabla\log p_t^{\mathrm{SB}},
+\]
+
+
+したがってその周辺はすべての時刻で $p_t^{\mathrm{SB}}$ と一致する。追加のドリフト項 $g^2\nabla\log\Psi$（前進）と $-g^2\nabla\log\widehat{\Psi}$（時間逆）は、相対エントロピーにおいて参照に最も近いまま端点周辺を整合させるよう、参照拡散を操舵する制御力として働く。
+
+\textbf{連成 PDE アプローチの実践的障害。} 式 (7.2.14) に基づく生成過程を構成するには、式 (7.2.12) の連成 PDE を解いて後方 Schrödinger ポテンシャル $\widehat{\Psi}$ を得る必要がある。しかしこれらの PDE は、低次元設定でさえ悪名高く解きにくく、生成モデリングにおける直接適用を困難にする。これを回避するため、いくつかの研究は代替戦略を提案してきた。Score SDE 技法を活用して各半橋問題（$p_{\mathrm{tgt}}\leftarrow p_{\mathrm{src}}$ および $p_{\mathrm{tgt}}\to p_{\mathrm{src}}$）を反復的に解くこと（De Bortoli et al., 2021）；代理尤度境界を最適化すること（Chen et al., 2022; Liu et al., 2023）；あるいはサンプル対 $(x_0,x_T)\sim p_{\mathrm{src}}\otimes p_{\mathrm{tgt}}$ に対する事後 $x_t|x_0,x_T$ の解析解に基づくシミュレーション不要訓練を設計すること（Liu et al., 2023）。ここでは技術的詳細には立ち入らず、第7.4節で拡散モデルと SB のつながりを簡潔に議論する。
+
+\subsection*{7.2.4 大域的押し出しと局所力学：DGM に対する OT アナロジー}
+
+
+最適輸送の視点（式 (7.2.1)）から、深層生成モデルを活用して単純な事前からデータへの輸送（押し出し）写像を学習できる。すなわち $G_\phi{}_{\#}p_{\mathrm{prior}}\approx p_{\mathrm{data}}$ である。$G_\phi$ は一般に最適輸送写像と一致しないが（適切な条件の下で OT 目的を課す研究（Genevay et al., 2018; Onken et al., 2021）を除く）、Benamou–Brenier 定式化（式 (7.2.3)）は相補的な動的視点を提供する。単一の大域写像を直接学習するのではなく、時間依存の局所ベクトル場により生成される連続流れとして輸送を記述し、$p_{\mathrm{prior}}$ と $p_{\mathrm{data}}$ の間の滑らかな経路をたどる。この動的定式化は、静的シュレーディンガー橋問題（式 (7.2.7)）とその確率制御対応物（式 (7.2.8)）の関係と並行する。そこでは最適カップリングが制御拡散過程として実現される。同様のアナロジーが生成モデリングにも現れる。GAN や VAE のような標準的 DGM は大域的押し出し写像を学習するのに対し、拡散モデルは生成力学を駆動する時間依存の局所ベクトル場を学習する。
+
+
+
+
+
+
+
+\[
+\int_0^T\int\Biggl[\frac{1}{2}\|\tilde{v}_t(x)\|^2+\frac{\varepsilon^2}{8}\|\nabla_x\log\rho_t(x)\|^2\Biggr]\rho_t(x)\,dx\,dt.
+\]
+
+
+したがってブラウン参照／二次費用の場合、エントロピー OT は動的 OT の Fisher 情報正則化版として見ることができる。Chen et al. (2021) の問題 4.6 を参照。
+\end{document}

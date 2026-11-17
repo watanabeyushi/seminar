@@ -1,0 +1,45 @@
+1.3       Taxonomy of Modeling
+
+As we have seen, DGMs span a wide spectrum of modeling strategies. A fundamental
+distinction lies in how these models parameterize the underlying data distribution,
+that is, whether they specify pϕ (x) explicitly or only implicitly, irrespective of the
+training objective.
+
+      ■   Explicit Models: These models directly parameterize a probability distri-
+          bution pϕ (x) via a tractable or approximately tractable density or mass
+          function. Examples include ARs, NFs, VAEs, and DMs, all of which define
+          pϕ (x) either exactly or through a tractable bound.
+
+      ■   Implicit Models: These models specify a distribution only through a sampling
+          procedure, typically of the form x = Gϕ (z) for some noise variable z ∼ pprior .
+          In this case, pϕ (x) is not available in closed form and may not be defined at
+          all.
+
+      The table in Table 1.1 offers a concise summary of these contrasting approaches.
+                Table 1.1: Comparison of Explicit and Implicit Generative Models
+
+                                    Explicit                              Implicit
+                   Exact Likelihood      Approx. Likelihood
+                                                                  Not Directly Modeled/
+  Likelihood           Tractable           Bound/Approx.
+                                                                       Intractable
+  Objective             MLE                      ELBO                  Adversarial
+  Examples             NFs, ARs                VAEs, DMs                  GANs
+
+
+
+Connection to Diffusion Models. Taken together, these classical families of
+DGMs illustrate complementary strategies for modeling complex distributions.
+Beyond their standalone importance, they also provide guiding principles for
+understanding diffusion models. Diffusion methods inherit ideas from several of
+these perspectives: they connect to VAEs through variational training objectives,
+to EBMs through score-matching approaches that learn gradients of the log-
+density (closely tied to energy functions), and to NFs through continuous-time
+transformations.
+    To lay the groundwork for the diffusion methods discussed in later chapters, we
+will focus on three central paradigms: VAEs (Section 2.1), EBMs (Section 3.1), and
+NFs (Section 5.1). This exploration provides a foundation for the core principles
+that underlie modern diffusion-based generative modeling, which will be developed
+further in the chapters that follow.
+
+28                                                       Deep Generative Modeling

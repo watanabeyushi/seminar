@@ -1,0 +1,381 @@
+7.5       Is Diffusion Model’s ODE an Optimal Map to OT Problem?
+
+In this section, we focus on quadratic-cost optimal transport problem.
+
+
+7.5.1      PF-ODE Flow Is Generally Not Optimal Transport
+
+A natural question is whether the deterministic flow map induced by a diffusion
+process coincides with the optimal transport map under quadratic cost. The answer
+is no in general, and explicit counterexamples are already available in Gaussian
+settings. In particular, tanana2017comparison showed that, for a diffusion flow
+with a more general Gaussian reference, the resulting deterministic transport
+map can differ from the Brenier optimal transport map even when the endpoint
+distributions are Gaussian. Since both maps are explicit in this setting, their
+difference can be verified directly.
+    Below we present the stronger construction of Lavenant and Santambrogio
+(2022) in the standard-Gaussian Ornstein–Uhlenbeck setting that is directly relevant
+to diffusion models. Their argument establishes non-optimality for a broader class
+of initial distributions and provides structural insight into why the corresponding
+PF-ODE flow map need not be an optimal transport map.
+
+                  PF-ODE Flow                               Optimal Transport Map
+  pdata                               pprior     pdata                                pprior
+
+
+
+
+Figure 7.6: Comparing the PF-ODE flow map with the true OT map from pdata to pprior in 2D.
+Right: the quadratic-cost OT map, computed exactly via the Hungarian algorithm. Left: the
+PF-ODE flow map obtained by integrating the PF-ODE. The two maps visibly differ, illustrating
+that the PF-ODE does not generally recover the optimal transport map.
+                                        Source: Created by the authors with AI-assisted coding.
+
+
+
+
+Setup. We consider a VP SDE, specifically the Ornstein–Uhlenbeck process,
+which evolves a smooth initial density p0 toward the standard Gaussian N (0, I):
+                                       √
+                  dx(t) = −x(t) dt + 2 dw(t), x(0) ∼ p0 .
+
+236                                (Optional) Diffusion Models and Optimal Transport
+
+
+The associated PF-ODE is given by
+                  dSt (x)
+                          = −St (x) − ∇ log pt (St (x)),       S0 (x) = x.
+                    dt
+Here, St denotes the flow map pushing forward p0 to the marginal pt :
+                                                     Z
+            (St ) #p0 = pt ,   that is,   pt (y) =        δ(y − St (x))p0 (x) dx.
+                                                     RD
+
+These densities pt evolve via the Fokker-Planck equation:
+                                 ∂pt
+                                     = ∇ · (xpt ) + ∆pt .
+                                 ∂t
+This is equivalent to a continuity equation with velocity field:
+
+                               vt (x) = −x − ∇ log pt (x),
+
+whose flow is given by St (x). In other words, the PF-ODE can be written as:
+                                  dSt (x)
+                                          = vt (St (x)) .
+                                    dt
+      As t → ∞, the map transports the initial distribution to the prior:
+
+                               S∞ #p0 = N (0, I) =: pprior .
+
+Objective of Lavenant and Santambrogio (2022)’s Argument. Lavenant and
+Santambrogio (2022) do not directly assess whether the terminal map S∞ from p0
+to the Gaussian is optimal. Instead, they construct a specific initial distribution
+p0 and examine the entire PF-ODE trajectory. Their key observation is that
+optimality may fail at some point along the flow.
+    They consider the intermediate marginal pt = St #p0 and define the residual
+transport map from pt0 to the Gaussian as
+
+                          Tt→∞ := S∞ ◦ S−1
+                                        t ,          for all t ≥ 0.
+
+The core of their argument shows that, for a carefully chosen p0 , there exists a
+time t0 ≥ 0 such that Tt0 →∞ is not the quadratic-cost optimal transport map
+from the new starting distribution pt0 to N (0, I).
+    This result demonstrates that PF-ODE flows do not, in general, yield optimal
+transport maps, and that the property of optimality can break down for certain
+initial distributions.
+
+Some Tools. The argument of Lavenant and Santambrogio (2022) crucially relies
+on the following result, known as Brenier’s theorem:
+
+7.5. Is Diffusion Model’s ODE an Optimal Map to OT Problem?                     237
+
+
+     Theorem 7.1 (Informal Brenier’s Theorem). Let ν1 , ν2 be two probability
+     distributions on RD with smooth densities. A smooth map T : RD →
+     RD is the optimal transport from ν1 to ν2 (under quadratic cost) if
+     and only if T = ∇u for some convex function u. In this case, DT is
+     symmetric and positive semi-definite, and u satisfies the Monge–Ampère
+     equation:
+                                              ν1 (x)
+                           det D2 u(x) =              .
+                                           ν2 (∇u(x))
+    The proof also implicitly uses the following fact, which we will not repeat each
+time: a map is the optimal transport between two distributions if and only if its
+inverse is the optimal transport in the reverse direction.
+
+Proof Sketch: PF-ODE Is Not an OT Map in General. Lavenant and Santam-
+brogio (2022) employ a proof by contradiction: they assume that for every t ≥ 0,
+the map
+                                Tt = St ◦ S−1
+                                            ∞
+is the quadratic-cost optimal transport map from N (0, I) to pt .
+
+    Step 1: Brenier’s Theorem. By Brenier’s Theorem, the Jacobian of any
+optimal transport map from Gaussian must be symmetric and positive semi-
+definite. Thus,
+                      DTt (x) = DSt (S−1       −1
+                                      ∞ (x))D(S∞ )(x)
+must be symmetric for all t and x. Here, DTt (x) denotes the total differentiation
+with respect to x.
+
+   Step 2: Time-Differentiating the Symmetry Condition. Differentiating in
+time:
+                  ∂              ∂
+                                      
+                     DTt (x) =      DSt (S−1          −1
+                                            ∞ (x))D(S∞ )(x).
+                  ∂t             ∂t
+Given that the symmetry holds for all t, it follows that this derivative remains
+symmetric.
+   Using the flow ODE (differentiating in x), we obtain:
+            ∂(DSt )                                        
+                    = Dvt (St ) · DSt = −I − D2 log pt (St ) · DSt .
+               ∂t
+Combining the above, we see that
+                                              
+                             −I − D2 log pt (St ) · DSt · D(S−1
+                                                             ∞)
+
+is symmetric for all t ≥ 0.
+    At t = 0, we have S0 = I and DS0 = I, yielding:
+                                         
+                  −I − D2 log p0 (S−1          −1
+                                   ∞ (x)) · D(S∞ )(x)     is symmetric.
+
+238                                        (Optional) Diffusion Models and Optimal Transport
+
+
+    Step 3: The Commutation Condition. Since T0 = S−1       ∞ is assumed to be
+                                −1
+optimal, its Jacobian DT0 = D(S∞ ) is symmetric. Moreover, the Hessian D2 log p0
+is symmetric. Recall that two symmetric matrices multiply to a symmetric matrix
+if and only if they commute. Hence, for all x ∈ RD ,
+                    D2 log p0 S−1                                   D(S−1
+                                       
+                               ∞ (x)         must commute with         ∞ )(x).
+
+Setting y = S−1                                                 D
+             ∞ (x) gives the equivalent condition: for all y ∈ R ,
+
+                       D2 log p0 (y)       must commute with       DS∞ (y).
+   Now, we transform this condition into a more computable form. Since S∞ is
+optimal between p0 and N (0, I), Brenier’s theorem guarantees that S∞ = ∇u for
+some convex function u. From the Monge–Ampère equation, it follows that:
+                                            1
+             log p0 (y) = log det(D2 u(y)) − ∥∇u(y)∥2 + Constant.
+                                            2
+The condition becomes (with DS∞ = D u):  2
+
+
+
+                                 1
+                                             
+            2
+        D                  2
+                    log det D u − ∥∇u∥2           must commute with      D2 u.     (7.5.1)
+                                 2
+
+This yields a necessary condition for Tt to be optimal.
+
+   Step 4: Constructing the Counterexample. Let us show how to leverage this
+necessary condition to derive a contradiction.
+   Assume we can construct a convex function u such that
+                                               1
+                                                     
+                        D2 log det D2 u(x) − |∇u(x)|2
+                                               2
+does not commute with D2 u(x) for some x ∈ RD . Defining p0 = (∇u)−1 #N (0, I),
+Brenier’s theorem implies that ∇u is the optimal transport from p0 to N (0, I).
+However, the condition in Equation (7.5.1) fails, leading to a contradiction. Thus,
+our goal is to construct such a function. Consider
+                              1
+                      u(x) = ∥x∥2 + εϕ(x), for a small ε.
+                              2
+Then D2 u(0) = I + εD2 ϕ(0), and the commutation condition at x = 0 requires
+D2 ϕ(0) to commute with D2 (∆ϕ)(0).
+    For example, in R2 , choosing
+                                       ϕ(x1 , x2 ) = x1 x2 + x41
+provides a counterexample where the Hessian D2 log p0 and the Jacobian D2 u do
+not commute.
+   This contradiction shows that Tt cannot be optimal for all t ≥ 0. Therefore,
+there exists some t0 ≥ 0 such that the map Tt0 →∞ is not optimal.
+
+7.5. Is Diffusion Model’s ODE an Optimal Map to OT Problem?                                          239
+
+
+7.5.2   Can Canonical Linear Flow and Reflow Leads to an OT Map?
+
+
+We have seen that the PF-ODE (especially in VP type forward kernel) is generally
+not an OT map. One natural question now is:
+
+Question 7.5.1
+   Does the linear interpolation flow (1 − t)x0 + tx1 with x0 ∼ psrc and x1 ∼ ptgt ,
+   when applied to the independent coupling π(x0 , x1 ) = psrc (x0 )ptgt (x1 ), recover
+   the OT map?
+
+
+The answer to the question is no.
+   Nevertheless, combining a linear path with a given coupling offers a practical
+upper bound on the true OT cost. Among all possible paths, linear interpolation
+provides the tightest such upper bound, as we will see in the following discussion.
+
+
+
+
+Canonical Linear Flow and Optimal Transport. Focusing on optimal transport
+with quadratic cost, we consider the equivalent form of Equation (7.2.1), the
+Benamou–Brenier formulation in Equation (7.2.3):
+
+                                                                Z 1Z
+        K (psrc , ptgt ) :=                min                             ∥vt (x)∥2 pt (x) dx dt.
+                              (pt ,vt ) s.t. ∂t pt +∇·(pt vt )=0, 0   RD
+                                      p0 =psrc , p1 =ptgt
+
+
+
+Unlike the static Monge formulation (Equation (7.2.2)), where computing the
+optimal map requires solving the Monge–Ampère equation (Equation (7.2.4)), the
+Benamou–Brenier problem admits a convex reformulation after introducing the
+momentum field mt := pt vt . Nevertheless, discretizing this convex problem on a
+grid in RD remains intractable in high dimensions.
+    While solving the Benamou-Brenier formulation is generally intractable, Liu
+(2022) and Lipman et al. (2024) reveal that its kinetic energy admits a practical
+upper bound. This is achieved by restricting the search to a simpler family of
+conditional flows, where each path is defined by its fixed endpoints (x0 , x1 ) drawn
+from a coupling π0,1 of the source and target distributions. Within this conditional
+flow family, the canonical linear interpolation emerges as the optimal choice, as
+formalized below.
+
+240                                (Optional) Diffusion Models and Optimal Transport
+
+
+   Proposition 7.5.1: An Upper Bound on OT Kinetic Energy via Condi-
+                      tional Flows
+   Let π0,1 be any coupling between psrc and ptgt .
+
+      (1) The kinetic energy is bounded above by the expected path energy of
+          any conditional flow Ψt (x0 , x1 ) that connects the endpoints:
+                                                        Z 1                      
+                   K (psrc , ptgt ) ≤ E(x0 ,x1 )∼π0,1          ∥Ψ′t (x0 , x1 )∥2 dt   .
+                                                          0
+
+      (2) The unique conditional flow Ψ∗t that minimizes the upper bound on
+          the right-hand side is the linear interpolation path:
+
+                                Ψ∗t (x0 , x1 ) = (1 − t)x0 + tx1 .
+
+         Substituting this optimal path yields the tightest version of the bound:
+
+                          K (psrc , ptgt ) ≤ E(x0 ,x1 )∼π0,1 ∥x1 − x0 ∥2 .
+
+
+Proof for Proposition.
+
+  The proof relies on a straightforward application of Jensen’s inequality and
+  the tower property of conditional expectations, before solving the simplified
+  variational problem with the Euler-Lagrange equation; we refer to (Lipman
+  et al., 2024)’s Section 4.7 for the complete argument.                      ■
+   In other words, the linear interpolation Ψ∗t (i.e., the forward kernel used by
+Flow Matching and Rectified Flow) minimizes an upper bound on the true kinetic
+energy for any chosen coupling π0,1 .
+   We emphasize that optimality within this class of conditional flows does not
+guarantee global optimality on the marginal distributions.
+
+
+Reflow and Optimal Transport. The most naive transport plan between two
+distributions is to connect their samples with straight lines using a simple indepen-
+dent coupling. However, this approach is demonstrably not optimal, as the failure
+lies not in the straight-line paths themselves, but in the inefficient initial pairing
+of points.
+    The Reflow procedure may offer a constructive response. It is an iterative
+algorithm designed specifically to correct this pairing, and crucially, each step
+is guaranteed to be cost-non-increasing (Liu, Gong, et al., 2022). This property
+suggests Reflow systematically pushes the transport plan towards a more optimal
+configuration, which naturally motivates the central question of its convergence.
+
+7.5. Is Diffusion Model’s ODE an Optimal Map to OT Problem?                        241
+
+Question 7.5.2
+   What happens if we apply the Rectify operator iteratively? Can the resulting
+   sequence of transport plans converge to the optimal one, or does the fixed point
+   of the Reflow process yield the OT map?
+
+The short answer is no in general. Below, we explain what may go wrong. To recall,
+the Reflow procedure iteratively refines the coupling between psrc and ptgt via the
+update:
+                             π (k+1) = Rectify(π (k) ),
+initialized with the product coupling π (0) := psrc (x0 )ptgt (x1 ). More precisely,
+Rectify output the updated coupling π (k+1) via the following: At each iteration
+                                      (k)
+k = 0, 1, 2, . . ., a velocity field vt is learned via:
+                                 (k)
+                              vt       ∈ arg min L(ut π (k) ),
+                                            ut
+
+where L(ut π (k) ) is the loss (e.g., RF or FM loss) defined in Equation (5.4.1). Here,
+for notational simplicity, we adopt a non-parametric formulation for the velocity
+field, rather than a parameterized form ϕ employed in other contexts. The updated
+coupling is then given by:
+                                                                  (k)
+                    π (k+1) (x0 , x1 ) := psrc (x0 ) δ x1 − Ψ1 (x0 ) ,
+                                                                          
+
+         (k)                                                                        (k)
+where Ψ1 denotes the solution map at time t = 1 obtained by integrating vt
+from initial condition x0 .
+    It has been observed in (Liu, Gong, et al., 2022) that for a coupling π between
+psrc and ptgt , the existence of a velocity field vt that minimizes the Reflow loss,
+that is, satisfies L(vt |π) = 0, does not necessarily imply that the transport is
+optimal.
+    Motivated by the Benamou–Brenier framework, where the optimal transport
+velocity is known to be the gradient of a potential function, Liu (2022) proposed an
+additional constraint: the velocity field vt should be a potential field. Accordingly,
+the objective in Equation (5.4.1) is modified to restrict vt to the space of gradient
+vector fields, also known as potential flows:
+                           (k)
+                         wt      ∈       arg min          L(ut π (k) ),         (7.5.2)
+                                          ut : ut =∇φ
+                                     for some φ : RD →R
+
+with the rest of the procedure remaining the same as in Rectify. We denote this
+associated operator as Rectify⊥ , emphasizing the projection onto irrotational
+vector fields.
+   Let π be a coupling between psrc and ptgt . Liu, Gong, et al. (2022) conjecture
+the following equivalence characterizing optimality:
+
+242                              (Optional) Diffusion Models and Optimal Transport
+
+
+  (i) π is an optimal transport coupling.
+
+ (ii) π is a fixed point of the potential rectification operator:
+
+                                    π = Rectify⊥ (π).
+
+(iii) There exists a gradient velocity field vt = ∇φt such that the rectify loss
+      vanishes:
+                                     L(vt |π) = 0.
+
+However, Hertrich et al. (2025) exhibit two types of counterexamples:
+
+  1. When the intermediate distributions pt have disconnected support, one can
+     find fixed points of Rectify⊥ with zero Reflow loss and gradient velocity
+     fields that nonetheless fail to produce the optimal coupling.
+
+  2. Even when both endpoint distributions are Gaussian, there exist couplings
+     whose loss is arbitrarily small but whose deviation from the optimal coupling
+     is arbitrarily large.
+
+    Therefore, while rectified flows may yield strong generative models, their
+reliability as optimal transport solvers remains limited. This highlights an important
+gap between generative modeling and principled optimal transport theory, inviting
+further research at their intersection.
+    Finally, we note that transport cost does not always correlate with downstream
+performance; as such, computing the exact optimal transport map may not neces-
+sarily lead to better practical outcomes. Nonetheless, variants of optimal transport
+remain fundamental to many problems in science and engineering. Diffusion models
+offer a powerful framework for exploring these challenges.
+
+7.6. Closing Remarks                                                              243

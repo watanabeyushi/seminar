@@ -1,0 +1,215 @@
+4.4       Instantiations of SDEs
+
+Song et al. (2020c) categorize the drift term f (x, t) and the diffusion term g(t) in
+the forward SDE into three types based on the behavior of the variance during
+evolution. Here, we focus on two commonly used types: the Variance Explosion
+(VE) SDE and Variance Preserving (VP) SDE. While it is possible to design custom
+noise schedulers, their design can substantially influence empirical performance.
+Table 4.1 summarizes these two SDE instantiations.
+                             Table 4.1: Summary of the forward SDEs
+
+                            VE SDE                                          VP SDE
+      f (x, t)              q 0                                           − 12 β(t)x
+                               dσ 2 (t)
+                                                                           p
+      g(t)                       dt                                            β(t)
+                                                                                        p
+      SDE             dx(t) = g(t) dw(t)                  dx(t) = − 12 β(t)x(t) dt + β(t) dw(t)
+                                                                      Rt                    Rt          
+                                                                  −1    β(τ ) dτ         −    β(τ ) dτ
+  pt (xt |x0 )   N xt ; x0 , σ 2 (t) − σ 2 (0) I         N xt ; x0 e 2 0           , I − Ie 0
+      pprior             N (0, σ 2 (T )I)                                    N (0, I)
+
+
+
+
+4.4.1       VE SDE
+
+VE SDE has the following components:
+
+      ■   Drift Term: A zero drift term f = 0.
+                                          q
+                                              dσ 2 (t)
+      ■   Diffusion Term: g(t) =                dt     for some function σ(t).
+
+The forward SDE then takes the following form:
+                                                   s
+                                                        dσ 2 (t)
+                                      dx(t) =                    dw(t).                             (4.4.1)
+                                                          dt
+Similarly, the results from Section 4.4.3 imply the perturbation kernel for the VE
+SDE and suggest selecting an appropriate prior distribution:
+
+      ■   Perturbation Kernel:
+                                                                                
+                             pt (xt |x0 ) = N xt ; x0 , σ 2 (t) − σ 2 (0) I
+
+      ■   Prior Distribution: Assume that σ(t) is an increasing function for t ∈ [0, T ]
+          and that σ 2 (T ) ≫ σ 2 (0). The prior distribution is given by:
+
+                                              pprior := N (0, σ 2 (T )I).
+
+4.4. Instantiations of SDEs                                                                                      119
+
+
+   A typical instance of a VE SDE is NCSN with the following design:
+                                                   t
+                                            σmax
+                                        
+                        σ(t) := σmin                    ,     for t ∈ (0, 1],
+                                            σmin
+where σmin and σmax are pre-specified constants. Namely, the sequence of variances
+is designed as a geometric sequence. With this, NCSN is viewed as a discretized
+version of VE SDE, as discussed in Section 4.1.1.
+
+4.4.2     VP SDE
+Let β : [0, T ] → R≥0 be a non-negative function of t. A VP SDE is defined with
+the following components:
+
+   ■    Drift Term: A linear drift given by f (x, t) = − 12 β(t)x.
+                                 p
+   ■    Diffusion Term: g(t) =      β(t).
+
+Thus, the forward SDE is expressed as:
+                                 1             q
+                        dx(t) = − β(t)x(t) dt + β(t) dw(t).                                                   (4.4.2)
+                                 2
+   Using the results from Section 4.4.3, we can derive the perturbation kernel for
+the VP SDE and select an appropriate prior distribution:
+
+   ■    Perturbation Kernel:
+                                                      Rt                             Rt              
+                                                − 21        β(τ ) dτ              −        β(τ ) dτ
+                   pt (xt |x0 ) = N xt ; x0 e           0              , I − Ie       0                   .
+
+   ■    Prior Distribution: pprior := N (0, I).
+
+We remark that since the perturbation kernel is a Gaussian with a known mean
+and covariance, we can apply Equation (D.2.5) to compute its score function.
+    A classic example of a VP SDE is the DDPM, where the noise schedule β(t) is
+defined as:
+                 β(t) := βmin + t(βmax − βmin ), for all t ∈ [0, 1].
+Here, βmin and βmax are pre-defined constants. With this, DDPM can be interpreted
+as a discretization of the VP SDE, as discussed in Section 4.1.1.
+
+4.4.3     (Optional) How Is the Perturbation Kernel pt (xt |x0 ) Derived?
+If the drift term in the forward SDE Equation (4.1.3) is linear in x, taking the
+form
+
+                                       f (x, t) = f (t)x,
+
+120                                     Diffusion Models Today: Score SDE Framework
+
+
+for some scalar-valued, time-dependent function f (t) ∈ R, then Equation (4.1.3)
+becomes a linear SDE:
+
+                           dx(t) = f (t)x(t) dt + g(t) dw(t).
+
+   Even if the initial distribution pdata is non-Gaussian, the linearity of the drift
+ensures that the conditional process remains Gaussian. In particular, for t > 0,
+the transition kernel admits the form:
+
+                           pt (xt |x0 ) = N (xt ; m(t), P (t)ID ) ,
+
+where x0 ∼ pdata , and m(t) ∈ RD , P (t) ∈ R≥0 denote the conditional mean and
+(scalar) variance given x0 , defined as:
+
+            m(t) = E [xt |x(0) = x0 ] ,        P (t)ID = Cov [xt |x(0) = x0 ] .
+
+   These first and second moments evolve according to the following ODEs (Särkkä
+and Solin, 2019):
+                              dm(t)
+                                     = f (t)m(t),
+                               dt                                                       (4.4.3)
+                              dP (t)
+                                     = 2f (t)P (t) + g 2 (t),
+                               dt
+provided that the initial mean m(0) and variance P (0) are finite.
+    Since both ODEs are linear, they admit closed-form solutions via the integrating
+factor method. Given the initial condition x0 , the mean and variance evolve as
+                                                           Z t
+               m(t) = E(0 → t)x0 ,          P (t) =              E 2 (s → t)g(s)2 ds,   (4.4.4)
+                                                            0
+
+with m(0) = x0 and P (0) = 0. Here E(s → t) denotes the exponential integrating
+factor                                 Z             t
+                            E(s → t) := exp                f (u) du ,
+                                                   s
+which captures the accumulated effect of the drift from time s to t. Consequently,
+the transition kernel pt (xt |x0 ) also admits a closed-form expression.
+    We defer the justification that the conditional covariance of pt (xt |x0 ) is isotropic,
+that is Cov[xt |x0 ] = P (t)ID under a D-dimensional Wiener process with indepen-
+dent coordinates and diffusion g(t)ID , as well as the derivation of Equation (4.4.3),
+to Section C.1.5, which relies on Itô calculus.
+
+Example: VE SDE’s Transition Kernel
+                                                                         q
+                                                            dσ (t)            2
+   In the special case of VE SDE: f ≡ 0 and g(t) =            dt , the mean and
+   covariance of the solution to the SDE evolve as follows.
+
+4.4. Instantiations of SDEs                                                                           121
+
+   Mean.
+                    dm(t)
+                          = 0,       with      m(0) = x0 =⇒ m(t) = x0 .
+                     dt
+
+  Variance.
+           dP (t)   dσ 2 (t)
+                  =          ,     with       P (0) = 0 =⇒ P (t) = σ 2 (t) − σ 2 (0).
+            dt        dt
+  Therefore                                                                 
+                       pt (xt |x0 ) = N xt ; x0 , σ 2 (t) − σ 2 (0) ID .
+                                                                         
+
+                                                                                                       ■
+
+Example: VP SDE’s Transition Kernel
+   In the VP SDE case with drift f (x, t) = − 21 β(t)x and diffusion g(t) =
+                                                                                                p
+                                                                                                    β(t):
+
+   Mean m(t).
+                                                  Z t
+           dm     1                                                                1
+               = − β(t)m(t),          B(t) :=           β(s) ds,       m(t) = e− 2 B(t) x0 .
+            dt    2                                0
+
+
+  Variance P (t). The variance satisfies
+                                  dP
+                                     = −β(t)P (t) + β(t).
+                                  dt
+                                                                   Rt
+  Applying the integrating factor eB(t) with B(t) =                0 β(s) ds, we obtain
+
+                                 d h           i
+                                     P (t)eB(t) = β(t)eB(t) .
+                                 dt
+   Integrating both sides gives
+
+                                      P (t) = 1 − e−B(t) .
+
+   Hence the covariance is isotropic with
+
+                             P(t) = P (t)ID = 1 − e−B(t) ID .
+                                                                   
+
+
+
+   Final Closed-Form Transition Kernel.
+                                                                  
+                                                                                   Z t
+                               − 12 B(t)            −B(t) 
+                                                               
+       pt (xt |x0 ) = N 
+                        xt ; e          x0 , 1 − e         I D
+                                                                ,        B(t) =           β(s) ds.
+                              | {z } |              {z        }                       0
+                                  m(t)             P (t)ID
+
+                                                                                                       ■
+
+122                                             Diffusion Models Today: Score SDE Framework

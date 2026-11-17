@@ -133,22 +133,117 @@
 \end{frame}
 %=============================================
 \assuppl
-\begin{frame}{\supplmark：なぜ真のスコアが消えるか}
-    MSEを展開し、部分積分でクロス項の微分をモデル側へ移す
-    （3.1.3で一次元から多次元まで追った変形）。
+\begin{frame}{なぜ真のスコアが消えるか（狙い）}
+    式（3.2.1）の教師$s=\nabla\log p_{\mathrm{data}}$は未知である。\\
+    付録D.2.1では、二乗を展開し部分積分でクロス項の微分をモデル側へ移す。
     \begin{exampleblock}{残るもの}
         モデルの大きさ$\|s_\phi\|_2^2$と、
-        ヤコビアンの対角和$\operatorname{Tr}(\nabla_{\bm{x}}s_\phi)$だけである。\\
-        データサンプル上の平均で評価できる。
+        ヤコビアンの対角和$\operatorname{Tr}(\nabla_{\bm{x}}s_\phi)$だけ。\\
+        データサンプル上の平均で評価できる$\Rightarrow$式（3.2.2）。
     \end{exampleblock}
-    \begin{exampleblock}{注意}
-        トレース項は厳密には入力次元に応じた微分情報が要る。\\
-        高次元では計算が重くなり得る（3.3で別の対処へ進む）。
+    \begin{exampleblock}{3.1との違い}
+        3.1はエネルギー経由でヘッセが出た。\\
+        ここでは$s_\phi$を直接パラメータ化するので、トレースが残る。
     \end{exampleblock}
 \end{frame}
 %=============================================
+\assuppl
+\begin{frame}{\supplmark：D.2.1①　二乗を展開する}
+    \[
+        \resizebox{0.98\textwidth}{!}{$
+        \mathcal{L}_{\mathrm{SM}}(\phi)
+        =
+        \dfrac12
+        \mathbb{E}_{p_{\mathrm{data}}}
+        \bigl[
+        \|s_\phi\|_2^2
+        -
+        2\langle s_\phi,\,s\rangle
+        +
+        \|s\|_2^2
+        \bigr]
+        $}
+    \]
+    すなわち
+    \[
+        \resizebox{0.98\textwidth}{!}{$
+        \mathcal{L}_{\mathrm{SM}}
+        =
+        \dfrac12\mathbb{E}[\|s_\phi\|_2^2]
+        -
+        \mathbb{E}[\langle s_\phi,\,s\rangle]
+        +
+        \dfrac12\mathbb{E}[\|s\|_2^2].
+        $}
+    \]
+    最後の項は$p_{\mathrm{data}}$だけで決まり$\phi$に依らない（定数$C$の一部）。
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：D.2.1②　クロス項で$p$が約分される}
+    $s=\nabla_{\bm{x}}\log p_{\mathrm{data}}=\nabla p_{\mathrm{data}}/p_{\mathrm{data}}$より
+    \[
+        \mathbb{E}[\langle s_\phi,\,s\rangle]
+        =
+        \int s_\phi(\bm{x})^{\top}
+        \nabla_{\bm{x}}p_{\mathrm{data}}(\bm{x})\,d\bm{x}.
+    \]
+    座標成分ごとに書くと
+    \[
+        \sum_{i=1}^{D}
+        \int
+        s_\phi^{(i)}(\bm{x})\,
+        \partial_{x_i}p_{\mathrm{data}}(\bm{x})\,
+        d\bm{x}.
+    \]
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：D.2.1③　部分積分で微分をモデルへ}
+    各$i$で$u=s_\phi^{(i)}$、$v=p_{\mathrm{data}}$として部分積分し、
+    境界で$|uv|\to0$（$R\to\infty$）を仮定する。
+    \[
+        \int s_\phi^{(i)}\,\partial_{x_i}p_{\mathrm{data}}
+        =
+        -
+        \int
+        (\partial_{x_i}s_\phi^{(i)})\,
+        p_{\mathrm{data}}.
+    \]
+    $i$について和をとると
+    \[
+        \mathbb{E}[\langle s_\phi,\,s\rangle]
+        =
+        -
+        \mathbb{E}\bigl[
+        \operatorname{Tr}(\nabla_{\bm{x}}s_\phi)
+        \bigr].
+    \]
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{\supplmark：D.2.1④　$\mathcal{L}_{\mathrm{SM}}=\mathcal{L}_{\mathrm{eSM}}+C$}
+    クロス項の符号を戻すと
+    \[
+        \resizebox{0.98\textwidth}{!}{$
+        \mathcal{L}_{\mathrm{SM}}(\phi)
+        =
+        \mathbb{E}_{p_{\mathrm{data}}}
+        \Bigl[
+        \operatorname{Tr}(\nabla_{\bm{x}}s_\phi)
+        +
+        \tfrac12\|s_\phi\|_2^2
+        \Bigr]
+        +
+        C
+        $}
+    \]
+    括弧内が$\mathcal{L}_{\mathrm{eSM}}$（式3.2.2）。\\
+    $C=\tfrac12\mathbb{E}[\|s\|_2^2]$は$\phi$に依らない。
+\end{frame}
+%=============================================
 \asmain
-\begin{frame}{式（3.2.2）の二つの項}
+\begin{frame}{式（3.2.2）の二つの項──これから図で見る}
     \[
         \mathcal{L}_{\mathrm{eSM}}(\phi)
         =
@@ -159,63 +254,162 @@
         \underbrace{\tfrac12\|s_\phi\|_2^2}_{\text{大きさの項}}
         \Bigr]
     \]
+    \begin{itemize}
+        \item \textbf{大きさの項}: $\|s_\phi\|^2$ を抑える罰則。\\
+        期待値が$p_{\mathrm{data}}$なので\textbf{データの多い場所ほど強く効く}。
+        \item \textbf{発散項}: 正の符号で入るので、最小化は\textbf{局所収縮}を好む。
+        \item 最適解$s^\star=\nabla\log p_{\mathrm{data}}$になる理由は、後で SM と同値性から示す。
+    \end{itemize}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{図解：大きさの項は高密度ほど重い}
+    \centering
+    \includegraphics[width=0.95\linewidth]{esm-magnitude.png}
+    \vspace{-0.3em}
+    \begin{exampleblock}{一文}
+        同じ$\|s\|^2$でも、$p_{\mathrm{data}}$が大きい場所の寄与が損失を支配する。
+    \end{exampleblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{図解：なぜ「データが多いと強く効く」のか}
+    期待値の定義どおり
+    \[
+        \mathbb{E}_{p_{\mathrm{data}}}\!\bigl[\tfrac12\|s_\phi\|^2\bigr]
+        =\int p_{\mathrm{data}}(\bm{x})\,\tfrac12\|s_\phi(\bm{x})\|_2^2\,\mathrm{d}\bm{x}.
+    \]
     \begin{columns}[T,onlytextwidth]
-        \begin{column}{0.48\textwidth}
-            \begin{block}{大きさの項}
-                スコアが大きくなりすぎるのを抑える。\\
-                期待値は$p_{\mathrm{data}}$下なので、
-                データの多い場所ほど強く効く。
+        \begin{column}{0.52\textwidth}
+            \begin{block}{イメージ}
+                積分は「各地点の罰則$\times$そこにいる確率」。\\
+                人が多い駅では、同じマナー違反でも影響が大きい、に近い。
             \end{block}
         \end{column}
-        \begin{column}{0.48\textwidth}
-            \begin{block}{発散項}
-                損失に正の符号で入るので、
-                最小化は局所的な収縮
-                （負の発散）を好む。
-            \end{block}
+        \begin{column}{0.46\textwidth}
+            \begin{exampleblock}{誤解しやすい点}
+                高密度の\textbf{すべての点}で$s_\phi=0$にはならない。\\
+                最適$s^\star=\nabla\log p$がゼロなのは、密度の頂上（停留点）だけ。
+            \end{exampleblock}
         \end{column}
     \end{columns}
-    \vfill
-    二つの項が揃うと、最適解は$s^\star=\nabla_{\bm{x}}\log p_{\mathrm{data}}$になる。
 \end{frame}
 %=============================================
-\assuppl
-\begin{frame}{\supplmark：大きさの項は「データが多い場所」を重視する}
-    期待値は$p_{\mathrm{data}}$で取るので、
-    高密度領域ほど$\tfrac12\|s_\phi\|_2^2$の罰則が強く効く。
-    \begin{exampleblock}{誤解しやすい点}
-        これだけで「高密度のすべての点で$s_\phi=0$」になるわけではない。\\
-        母集団最適では
-        $s^\star(\bm{x})=\nabla_{\bm{x}}\log p_{\mathrm{data}}(\bm{x})$であり、
-        ゼロになるのは対数密度の停留点だけである。
-    \end{exampleblock}
+\asmain
+\begin{frame}{図解：発散項は収縮（吸い込み）を好む}
+    \centering
+    \includegraphics[width=0.92\linewidth]{esm-divergence.png}
+    \vspace{-0.2em}
+    \begin{block}{読み方}
+        損失に$+\operatorname{Tr}(\nabla s)$が入る $\Rightarrow$
+        発散が正（湧き出し）だと損、負（吸い込み）だと得。\\
+        だから最小化は左の場を好む。
+    \end{block}
 \end{frame}
 %=============================================
-\assuppl
-\begin{frame}{\supplmark：発散項は局所的な吸い込みを好む}
-    発散$\operatorname{Tr}(\nabla_{\bm{x}}s_\phi)$が負なら、
-    その付近では場が平均的に内側へ向かう。
-    \begin{exampleblock}{勾配場のとき}
-        $s_\phi=\nabla_{\bm{x}}u$なら、
-        $\nabla_{\bm{x}}s_\phi=\nabla_{\bm{x}}^2 u$（ヘッセ）で、
-        発散は$\operatorname{Tr}(\nabla_{\bm{x}}^2 u)$である。
-    \end{exampleblock}
-    停留点$\bm{x}_\star$（$s_\phi(\bm{x}_\star)=0$）でヘッセが負定値なら、
-    $u$は局所凹で、対数密度はそこで厳密な局所最大になる。
+\asmain
+\begin{frame}{凹性：場が（近似的に）勾配のとき}
+    発散項は正符号なので、最小化は\textbf{負の発散}（局所収縮）を好む。\\
+    ただし負の発散だけでは、停留点が吸い込みだと\textbf{保証しない}。
+    \begin{block}{精密化のための仮定}
+        対数密度に合わせる設定では自然なので、
+        スカラー$u:\mathbb{R}^D\to\mathbb{R}$に対し$s_\phi=\nabla_{\bm{x}}u$とおく。
+        \[
+            \nabla_{\bm{x}}s_\phi=\nabla_{\bm{x}}^2 u
+            \quad\text{（ヘッセ）},\qquad
+            \operatorname{Tr}(\nabla_{\bm{x}}s_\phi)
+            =\operatorname{Tr}(\nabla_{\bm{x}}^2 u)
+            \quad\text{（発散）}.
+        \]
+    \end{block}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{凹性：停留点での2次近似}
+    停留点$\bm{x}^\star$（$s_\phi(\bm{x}^\star)=\nabla_{\bm{x}}u(\bm{x}^\star)=0$）では
+    \[
+        u(\bm{x})
+        =
+        u(\bm{x}^\star)
+        +
+        \tfrac12
+        (\bm{x}-\bm{x}^\star)^\top
+        \nabla_{\bm{x}}^2 u(\bm{x}^\star)
+        (\bm{x}-\bm{x}^\star)
+        +
+        o(\|\bm{x}-\bm{x}^\star\|_2^2).
+    \]
+    ヘッセ$\nabla_{\bm{x}}^2 u(\bm{x}^\star)$が\textbf{負定値}なら、
+    $u$は$\bm{x}^\star$で局所凹であり、対数密度はそこで厳密な局所最大になる。
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{凹性：負定値なら吸い込みになる}
+    ヘッセの固有値がすべて負 $\Rightarrow$
+    $\operatorname{Tr}(\nabla_{\bm{x}}^2 u(\bm{x}^\star))<0$。
+    \begin{block}{結論}
+        この場合、停留点はスコア場の下で\textbf{局所的に吸引的}である。\\
+        小さな摂動は$\bm{x}^\star$へ引き戻される（吸い込み）。
+    \end{block}
+    \begin{itemize}
+        \item 負の発散を好むこと（損失の符号）
+        \item 勾配場$+$負定値ヘッセ $\Rightarrow$ 局所凹・局所最大・吸引
+    \end{itemize}
 \end{frame}
 %=============================================
 \assuppl
 \begin{frame}{\supplmark：負のトレースだけでは足りない}
-    ヘッセが負定値なら全固有値が負なので、
-    トレースも負である。
+    厳密な凹性（したがって対数密度の厳密な局所最大）には、
+    ヘッセ$\nabla_{\bm{x}}^2 u$全体が負定値であることが必要で、
+    単にトレースが負なだけでは足りない。
     \begin{exampleblock}{逆は成り立たない}
         トレースが負でも、正の固有値が混ざれば鞍点になり得る。\\
         したがって「発散が負 $\Rightarrow$ 必ず局所最大」ではない。
     \end{exampleblock}
     \begin{exampleblock}{読み方}
-        発散項は収縮を促す項であり、
-        単独でモードの形を保証する条件ではない。
+        発散項は収縮を促す項であり、単独でモードの形を保証する条件ではない。
     \end{exampleblock}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{なぜ最適解が$s^\star=\nabla\log p_{\mathrm{data}}$なのか}
+    \centering
+    \includegraphics[width=0.96\linewidth]{esm-why-optimal.png}
+\end{frame}
+%=============================================
+\asmain
+\begin{frame}{最適性の道筋（数式）}
+    \begin{enumerate}
+        \item 出発点は真の SM:
+        $\displaystyle
+        \mathcal{L}_{\mathrm{SM}}(\phi)
+        =\tfrac12\mathbb{E}_{p_{\mathrm{data}}}\|s_\phi-s\|_2^2$,\quad
+        $s=\nabla\log p_{\mathrm{data}}$.
+        \item 命題3.2.1より
+        $\mathcal{L}_{\mathrm{SM}}(\phi)=\mathcal{L}_{\mathrm{eSM}}(\phi)+C$
+        （$C$は$\phi$無関係）。
+        \item したがって\textbf{同じ最小化子}を共有する。\\
+        SM の最小は$s_\phi=s$なので、eSM も
+        $s^\star=\nabla_{\bm{x}}\log p_{\mathrm{data}}$。
+    \end{enumerate}
+    \begin{block}{二つの項の役割（直感）}
+        大きさの項はノルムを抑え、発散項は密度の形に合わせる。\\
+        両者が釣り合う点が真のスコア場である。
+    \end{block}
+\end{frame}
+%=============================================
+\assuppl
+\begin{frame}{インタラクティブ：場を切り替えて損失を見る}
+    ブラウザで次を開くと、吸い込み／湧き出し／真のスコアを切り替え、
+    発散の色と大きさの項の効きをその場で比較できる。
+    \begin{block}{ファイル}
+        \texttt{ch03-score-ncsn/3-2/interactive/esm-intuition.html}
+    \end{block}
+    \begin{itemize}
+        \item 「湧き出し」→ 発散項が正で損失が悪化
+        \item 「大きすぎる場」→ ノルム罰が跳ね上がる
+        \item 「真のスコア」→ バランスが取れる
+    \end{itemize}
 \end{frame}
 %=============================================
 \asmain
@@ -224,7 +418,10 @@
         \item スコア$s_\phi$をニューラルネットで直接近似する
         \item MSE損失（3.2.1）の教師は未知だが、
         等価形（3.2.2）はデータとモデルだけで評価できる
-        \item 大きさの項と発散項が、最適解$s^\star=\nabla\log p_{\mathrm{data}}$を与える
+        \item \textbf{大きさの項}: $p_{\mathrm{data}}$で重み付けされた$\|s\|^2$の罰則
+        \item \textbf{発散項}: 正符号のため収縮（吸い込み）を好む
+        \item \textbf{凹性}: 勾配場でヘッセが負定値なら局所最大・吸引
+        \item SM$=$eSM$+C$なので最適は$s^\star=\nabla\log p_{\mathrm{data}}$
     \end{itemize}
     \begin{block}{次}
         学習した$s_{\phi^\star}$を、ランジュバン動力学に入れてサンプルする。

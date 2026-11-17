@@ -1,0 +1,100 @@
+6.5   Closing Remarks
+
+This chapter has served as the keystone of our theoretical exploration, synthesizing
+the variational, score-based, and flow-based perspectives into a single, cohesive
+framework. We have shown that these three seemingly distinct approaches are not
+merely parallel but are deeply and fundamentally interconnected.
+     Our unification rests on two core insights. First, we identified the secret sauce
+common to all frameworks: a conditioning trick that transforms an intractable
+marginal training objective into a tractable conditional one, enabling stable and
+efficient learning. Second, we established that the Fokker-Planck equation is the
+universal law governing the evolution of probability densities. All three perspectives,
+in their own way, construct a generative process that respects this fundamental
+dynamic.
+     Furthermore, we showed that the oracle noise, clean-data, score, and velocity
+predictions contain the same information and can be converted into one another
+algebraically. This oracle equivalence does not make the prediction parameterization
+merely cosmetic: finite-capacity networks may approximate these targets differently,
+their training objectives can weight errors across noise levels differently, and finite-
+step numerical solvers can behave differently depending on the representation
+in which the dynamics are approximated. The important lesson is therefore to
+distinguish equivalence of the underlying continuous theory from equivalence of
+a practical training or sampling algorithm. At the density level, however, the
+common principle remains: modern diffusion methods construct dynamics whose
+marginals transport a simple prior toward the data distribution along a prescribed
+probability path.
+     With this unified and principled foundation firmly established, we are now
+equipped to move from the foundational theory to the practical application and
+acceleration of diffusion models. The central insight that generation is equivalent
+to solving a differential equation provides a powerful platform for control and
+optimization. The subsequent parts of this monograph will leverage this unified
+understanding to address key practical challenges:
+
+   1. Part C will focus on improving the sampling process at inference time. We
+      will explore how to steer the generative trajectory for controllable generation
+      (Chapter 8) and investigate advanced numerical solvers to dramatically
+      accelerate the slow, iterative sampling process (Chapter 9).
+
+   2. Part D will then look beyond iterative solvers to learn fast generators directly.
+      We will examine methods that can produce high-quality samples in just one
+      or a few steps, either through distillation from a teacher model (Chapter 10)
+      or by training from scratch (Chapter 11).
+
+208                            A Unified and Systematic Lens on Diffusion Models
+
+
+    Having unified the what and why of diffusion models, we now turn our attention
+to the exciting and practical frontiers of how.
+
+                                        7
+   (Optional) Diffusion Models and Optimal Transport
+
+
+
+
+Mapping one distribution to another (with generation as a special case) is a central
+challenge. Flow matching addresses this by learning a time-dependent velocity
+field that transports mass from source to target. This naturally connects to
+transport theory: classical optimal transport seeks the minimal cost path between
+distributions, while its entropy regularized form, the Schrödinger bridge, selects
+the most likely controlled diffusion relative to a reference such as Brownian motion.
+    In this chapter we review the foundations of optimal transport, entropic optimal
+transport, and Schrödinger bridges as formulations of the distribution–to–distribution
+problem. This leads to a central question: to what extent do diffusion models
+realize such optimal transports? They admit two views: as stochastic processes,
+defined through forward and reverse SDEs, and as deterministic processes, given
+by PF-ODEs. The stochastic view aligns directly with entropic optimal transport,
+while the PF-ODE does not generally correspond to any known transport objective.
+This gap leaves an open question: under what conditions can diffusion models be
+regarded as solving an optimal transport problem?
+
+
+  After this chapter, you will be able to...
+    ■ distinguish a transport coupling, a deterministic transport map, a dynamic
+      transport flow, and a stochastic Schrödinger bridge, and connect these
+      notions conceptually to deep generative modeling;
+    ■ understand what classical OT, entropic OT, and the Schrödinger bridge
+
+
+      problem optimize, and how these formulations are related;
+    ■ explain why a standard diffusion forward/reverse SDE does not, in general,
+
+
+      solve a prescribed two-endpoint Schrödinger bridge problem;
+    ■ explain why a diffusion PF-ODE defines a deterministic transport map but
+
+
+
+
+                                        209
+
+210                             (Optional) Diffusion Models and Optimal Transport
+
+
+     does not, in general, coincide with the quadratic-cost optimal transport
+     map.
+  Reader route. This chapter is optional for the main diffusion-model story.
+  Read it for a precise answer to the question “in what sense, if any, is diffusion
+  optimal transport?”
+
+7.1. Prologue of Distribution-to-Distribution Translation                         211

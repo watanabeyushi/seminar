@@ -1,0 +1,427 @@
+8.4       Training-Free Guidance
+
+Training-free guidance modifies the sampling dynamics of a fixed pre-trained
+diffusion model using an external condition, loss, or measurement objective, without
+retraining the diffusion model itself. The Bayes decomposition in Equation (8.1.1)
+provides a useful motivation in score space: guidance adds a condition-dependent
+direction to the unconditional score. In practice, a task-specific loss can be used
+to construct corrections either to the predicted clean sample or to the score used
+during sampling.
+    We first introduce these two general forms in Section 8.4.1. We then ask what
+distribution such surrogate-guided dynamics actually generate in Section 8.4.2,
+before turning to representative training-free approaches for inverse problems in
+Section 8.4.3.
+
+Setup and Notations. Let c denote a conditioning variable. We assume access to
+a pre-trained diffusion model sϕ× (xt , t) expressed in score prediction4 . In addition,
+suppose we are given a task loss
+                                       ℓ(·, c) : RD → R
+that measures disagreement with the desired condition, so that smaller ℓ(x, c)
+indicates better agreement. Examples include a perceptual distance to a reference
+target, or a feature-space distance or negative similarity derived from a pre-trained
+representation such as CLIP (Radford et al., 2021).
+    Consider the standard linear–Gaussian forward noising kernel
+                                pt (·|x0 ) := N ·; αt x0 , σt2 I .
+                                                                  
+
+We borrow the DDIM update introduced later in Equation (9.2.2) as a concrete
+example:
+                     xt→t−1 = αt−1        x̂0 (xt )    −σt−1 σt       ŝ(xt )      ,     (8.4.1)
+                                          | {z }                      | {z }
+                                       in data space              in noise space
+
+where x̂0 (xt ) := xϕ× (xt , t) is the clean x-prediction and ŝ(xt ) := sϕ× (xt , t) is the
+score prediction at noise level t.
+
+8.4.1      Conceptual Framework for Training-Free Guidance
+A common strategy is to use gradients of the task loss to modify either the predicted
+clean sample or the score term in the sampling update. To distinguish these two
+operations, define the data-space direction
+                         Gtdata (xt , c) := − ∇x0 ℓ(x0 , c)|x0 =x̂0 (xt ) .
+      4
+     Here, we adopt the score and x-prediction parameterizations for simplicity; other parameter-
+izations such as ϵ-prediction can be handled analogously.
+
+8.4. Training-Free Guidance                                                                       259
+
+
+For the noise-space correction, we reuse the guidance direction introduced in the
+Prologue,
+                          Gt (xt , c) := ∇xt log ht (xt ; c),
+for a positive guidance potential ht , specified below.
+    Using the DDIM update in Equation (8.4.1), the two corrections can be written
+compactly as
+                                                                                              
+  xt→t−1 = αt−1 x̂0 (xt ) + ηtdata Gtdata (xt , c) −σt−1 σt ŝ(xt ) + ηtlatent Gt (xt , c) ,
+                   |                 {z                 }              |                {z       }
+                               A. data space                                  B. noise space
+                                                                                               (8.4.2)
+
+where ηtdata , ηtlatent ≥ 0 control the strengths of the data-space and noise-space
+corrections, respectively.
+
+A. Guidance in Data Space. The data-space correction directly improves the
+current clean estimate by taking a local step that decreases the task loss:
+
+                          x̂0 (xt ) 7−→ x̂0 (xt ) + ηtdata Gtdata (xt , c).
+
+Thus the clean prediction is first moved toward better agreement with the condition
+and then used in the subsequent sampling update. This correction can also be
+applied repeatedly when multiple optimization steps are desired.
+    Representative examples include MGPD (He et al., 2023) and UGD (Bansal
+et al., 2023).
+
+B. Guidance in Noise Space. A closely related strategy applies guidance directly
+to the score used during sampling. Following the potential view introduced in
+Section 8.1, a common construction evaluates the task loss on the current denoised
+estimate and chooses
+                                                              
+                       ht (xt ; c) := exp −τ ℓ x̂0 (xt ), c        ,       τ > 0.
+
+By the definition of Gt above, this gives
+                                                                                    
+                  Gt (xt , c) = ∇xt log ht (xt ; c) = −τ ∇xt ℓ x̂0 (xt ), c .
+
+Accordingly, the score term in Equation (8.4.2) becomes
+
+                                    ŝ(xt ) + ηtlatent Gt (xt , c).
+
+Comparing this practical update with the population-level construction in Equa-
+tion (8.1.3), ηtlatent plays the role of the generic guidance strength wt , while ŝ(xt )
+replaces the exact unconditional score by its learned estimate.
+    When ht (xt ; c) is proportional to the true conditional likelihood pt (c|xt ) up
+to a factor independent of xt , Gt (xt , c) recovers the Bayes guidance direction
+
+260                                                      Guidance and Controllable Generation
+
+
+∇xt log pt (c|xt ). For a generic task loss, Gt instead defines a surrogate guidance
+direction.
+    Evaluating Gt requires differentiating through the x-prediction:
+
+                    Gt (xt , c) = −τ [∇xt x̂0 (xt )]⊤ ∇x0 ℓ(x0 , c)|x0 =x̂0 (xt ) ,
+
+which may incur substantial computational cost in practice.
+    Representative examples include (Yu et al., 2023; Chung et al., 2022; Bansal
+et al., 2023).
+    The constructions above specify how guidance modifies each sampling step.
+They do not, by themselves, determine the marginal distributions obtained after
+these modified dynamics are integrated across all noise levels. We clarify this
+distinction next.
+
+8.4.2    What Distribution Does Guided Sampling Produce?
+
+The potential view above has an exact fixed-time density interpretation at the
+population level. In particular, replacing the learned unconditional score estimate
+ŝ by the exact score, a positive potential ht (x; c) and guidance strength wt ≥ 0
+define the ideal guided field
+
+                               ∇x log pt (x) + wt ∇x log ht (x; c).
+
+At each fixed t, this is the score of
+                      1
+                                                                 Z
+      petilt
+        t (x|c) =          pt (x)ht (x; c)wt ,        Zt (c) =       pt (x)ht (x; c)wt dx,   (8.4.3)
+                    Zt (c)
+provided 0 < Zt (c) < ∞. The learned field used in practice approximates this
+ideal construction through the learned score estimate ŝ(xt ).
+    For the loss-based construction above,
+                                                                     
+                               ht (xt ; c) = exp −τ ℓ x̂0 (xt ), c ,
+
+and ηtlatent plays the role of wt .
+    This fixed-time identity does not determine the distribution generated after
+the guided dynamics are integrated across noise levels. Consequently, for a generic
+loss and guidance schedule, solving the guided PF-ODE from T to 0 does not in
+general produce samples distributed according to petilt0 (·|c).
+    The reason is cross-time consistency: densities at different noise levels cannot
+be chosen independently. For {petiltt }t to form the marginal path associated with
+the same forward diffusion, they must also satisfy the corresponding Fokker-Planck
+equation:
+                                                1 2
+                    ∂t petilt
+                         t + ∇x · f (t)xpetilt
+                                          t     − g (t)∆x petilt
+                                                            t = 0.
+                                                 2
+
+8.4. Training-Free Guidance                                                              261
+
+
+When this condition holds, the corresponding PF-ODE
+                     dx(t)              1
+                           = f (t)x(t) − g 2 (t)∇x log petilt
+                                                         t (x(t)|c)
+                       dt               2
+has petilt
+      t    as its marginal path when initialized from the corresponding terminal
+distribution petilt
+                T (·|c).
+    The compatibility condition can be checked directly. Substituting Equation (8.4.3)
+into the Fokker-Planck equation and using the fact that pt itself satisfies the same
+equation gives
+                                  1 2
+      ∂t petilt
+           t + ∇x · f (t)xpetilt
+                            t     − g (t)∆x petilt
+                                              t
+                                   2
+            "
+      = petilt ∂t log htwt + f (t)x · ∇x log htwt − g 2 (t)∇x log pt · ∇x log htwt
+                                                                                   
+          t
+                                                                                #
+                              1                                  2  Zt′
+                             − g 2 (t) ∆x log htwt + ∇x log htwt
+                                                  
+                                                                      −    ,
+                              2                                         Zt
+where the arguments (x; c) are suppressed for readability. Thus, the tilted family is
+a valid marginal path only when the bracketed quantity vanishes. A generic task loss
+and guidance schedule need not satisfy this condition. The mismatch can therefore
+remain even with exact score evaluation and exact ODE integration: it comes from
+the guided dynamics themselves rather than from numerical discretization. This
+is an instance of the broader Fokker-Planck consistency requirement discussed in
+(Lai et al., 2023a).
+    Two simple cases clarify the distinction. When wt ≡ 0, the tilt vanishes and
+the original unconditional path pt is recovered. For exact classifier guidance, under
+the standard setting where the forward diffusion corrupts x while leaving c fixed,
+                             ht (x; c) = pt (c|x),        wt ≡ 1.
+Bayes’ rule then gives
+                                   petilt
+                                     t (x|c) = pt (x|c),
+so the tilted family is exactly the conditional marginal path. This explains the
+special role of guidance weight 1 for the oracle classifier likelihood.
+    For a general guidance strength, for example
+                                      pt (x)pt (c|x)ω ,
+the expression still defines a valid fixed-time tilted density whenever it is normaliz-
+able, but it is not generally guaranteed to describe the marginals of the guided
+sampler. Special choices may satisfy the required compatibility condition, so ω = ̸ 1
+alone does not imply inconsistency.
+    Correction-based approaches such as Feynman-Kac Correctors (skreta2025feynman)
+explicitly account for this cross-time mismatch when the goal is to follow a pre-
+scribed sequence of tilted distributions more faithfully.
+
+262                                                Guidance and Controllable Generation
+
+
+8.4.3   Examples of Training-Free Approaches to Inverse Problems
+
+The principle introduced in Section 8.4.1 has important applications in inverse
+problems. We begin with an overview of the background and then provide several
+concrete examples illustrating how to leverage pre-trained diffusion models for
+inference-time inverse problem solving.
+
+Background on Inverse Problems. Let A denote a known forward operator,
+possibly nonlinear, and suppose that
+
+                        y = A(x0 ) + σy z,          z ∼ N (0, I).               (8.4.4)
+
+The Bayesian objective is to characterize the posterior p0 (x0 |y), which combines
+the measurement model with prior knowledge about plausible clean signals. Blind
+inverse problems extend this setting by treating unknown parameters of A as
+additional quantities to infer.
+    Classical inverse-problem methods commonly combine a data-fidelity term
+with an analytical or hand-designed prior in a variational or Bayesian formulation.
+Supervised restoration methods may instead learn a direct mapping from mea-
+surements to clean signals using paired data. Pre-trained diffusion models provide
+a third route: a learned prior over clean data can be reused across measurement
+operators, with measurement information introduced only at inference time.
+
+Pre-Trained Diffusion Models as Inverse Problem Solvers. For the measurement
+model above, Bayes’ rule gives
+
+              ∇xt log pt (xt |y) = ∇xt log pt (xt ) + ∇xt log pt (y|xt ) .      (8.4.5)
+                                  |      {z        }    |      {z       }
+                                      data score       measurement guidance
+
+The data score can be supplied by a pre-trained diffusion model, whereas the
+measurement term is generally unavailable in closed form. Training-free inverse
+solvers therefore introduce measurement information during sampling, but they
+need not all do so in the same mathematical form.
+    A useful distinction is between two common strategies. Some methods directly
+enforce measurement consistency by modifying or projecting the intermediate
+sample. Others approximate the likelihood score ∇xt log pt (y|xt ) and add it to the
+data score through Equation (8.4.5).
+
+   ILVR (Choi et al., 2021). ILVR provides a simple example of the first strategy.
+Let ϕN denote its linear low-pass operator. At each reverse step, one first samples
+an unconditional proposal
+                                 ′          ′
+                               xt−1 ∼ pθ (xt−1 |xt )
+
+8.4. Training-Free Guidance                                                          263
+
+
+and noises the reference image to the same level,
+
+                                    yt−1 ∼ pt−1 (yt−1 |y).
+
+The proposal is then refined according to
+                                                          ′
+                            xt−1 = ϕN (yt−1 ) + (I − ϕN )xt−1 .
+
+Thus, the prescribed low-frequency component comes from the noised reference,
+while the complementary component comes from the unconditional diffusion
+proposal. This is a sample-space consistency correction rather than an explicit
+approximation of ∇xt log pt (y|xt ).
+
+    Diffusion Posterior Sampling (DPS) (Chung et al., 2022). For a known
+nonlinear forward operator A with additive Gaussian measurement noise σy > 0,
+Diffusion Posterior Sampling (DPS) approximates
+                                                                      
+                     ∇xt log pt (y|xt ) ≈ ∇xt log p y|X0 = x̂0 (xt ) ,            (8.4.6)
+
+where x̂0 (xt ) := E[x0 |xt ] is the posterior mean of the clean sample given xt ,
+typically estimated from the pre-trained diffusion model using Tweedie’s formula
+(Equation (3.3.6)).
+    This plug-in approximation replaces the posterior average of the measurement
+likelihood by its value at the posterior mean:
+                            Z
+             pt (y|xt ) =       pt (y|xt , x0 )p(x0 |xt )dx0
+                            Z
+                                                                             
+                        =       pt (y|x0 )p(x0 |xt )dx0 ≈ pt y|X0 = x̂0 (xt ) ,
+
+where we have used that y depends only on x0 (not on xt ) given x0 , and the
+approximation holds under the assumption that the posterior p(x0 |xt ) is tightly
+peaked around its mean.
+   Since
+                  pt y|X0 = x̂0 (xt ) = N y; A(x̂0 (xt )), σy2 I ,
+                                                               
+
+we compute
+
+        ∇xt log pt (y|xt ) ≈ ∇xt log N y; A(x̂0 ), σy2 I
+                                                               
+
+                                1                     2
+                           = − 2 ∇xt y − A(x̂0 )
+                               2σy
+                              1                          ⊤                
+                           = 2 JA x̂0 (xt ) · ∇xt x̂0 (xt )   y − A x̂0 (xt ) ,
+                             σy
+                 
+where JA x̂0 (xt ) := ∇x0 A(x) x=x̂0 (xt ) denotes the Jacobian of the forward opera-
+tor with respect to its input. This formula propagates the gradient through the
+
+264                                                Guidance and Controllable Generation
+
+
+score approximation pipeline, reflecting how the measurement likelihood changes
+with respect to perturbations in the noisy sample xt .
+    For linear inverse problems, this further simplifies to:
+
+                                  1                                             
+          ∇xt log pt (y|xt ) ≈         [A · ∇xt x̂0 (xt )]⊤       y − A(x̂0 (xt )) .
+                                 σy2
+
+    A large body of work explores diffusion-based inverse problem solvers by propos-
+ing various approximations for ∇xt log pt (y|xt ). For a comprehensive overview, we
+refer readers to the survey by Daras et al. (2024).
+
+A Related Supervised Iterative-Restoration Viewpoint and Its Connection to
+the PF-ODE. The discussion above solves inverse problems by combining a
+pre-trained diffusion prior with the Bayes-rule decomposition in Equation (8.4.5).
+More specifically, these methods use the score of the prior distribution together
+with the measurement model to guide the reconstruction process. At the same
+time, they also reflect a broader idea: instead of recovering the clean signal in one
+step, they gradually improve a corrupted input through many small updates. A
+similar high-level strategy also appears in supervised image restoration, but from
+a different starting point. Rather than using a pre-trained score model as a prior,
+these methods learn the refinement procedure directly from paired corrupted and
+clean examples.
+    A representative example is InDI (delbracio2023inversion). Unlike the Bayes-
+rule-based approaches above, InDI begins with paired data (y, x0 ), where y is a
+corrupted observation and x0 is the corresponding clean target. Importantly, it
+does not assume in general that the corruption from x0 to y is known analytically
+or that it is Gaussian.
+    The basic idea is to connect the two endpoints by the interpolation path
+
+                         xt = (1 − t)x0 + ty,           t ∈ [0, 1].
+
+This path should be understood only as a convenient trajectory from the clean
+target to the corrupted observation. It is not a Gaussian noising process in general.
+Along this path, for any 0 ≤ s ≤ t, one has the exact relation
+                                            s     s
+                                 xs = 1 −       x0 + xt .
+                                             t      t
+Taking conditional expectation given xt yields
+                                            s             s
+                         E[xs |xt ] = 1 −       E[x0 |xt ] + xt .
+                                             t              t
+This shows that, to move from the current state xt to a slightly less degraded
+state, it is enough to predict the clean target from xt .
+
+8.4. Training-Free Guidance                                                    265
+
+
+    Based on this idea, one trains a time-conditioned predictor Fϕ (xt , t) from
+paired examples by minimizing the regression objective
+                                                                        2
+              min E(x0 ,y)∼p(x0 ,y),t∼p(t) Fϕ (1 − t)x0 + ty, t − x0 ,
+               ϕ                                                         2
+
+where p(x0 , y) denotes the joint distribution of data pairs consisting of a clean
+target x0 and its corrupted observation y, and p(t) specifies how the interpolation
+time is sampled during training. That is, Fϕ is trained to predict the clean
+target from an intermediate degraded state along the interpolation path. For this
+squared-error loss, the Bayes-optimal predictor is the conditional expectation
+
+                                 F∗ (xt , t) = E[x0 |xt ].
+
+Therefore, if the model class is sufficiently expressive and the optimization is
+successful, the learned predictor approximates the average clean target associated
+with the intermediate state xt at time t. In this sense, the training objective
+is similar in spirit to diffusion-model training: in both cases, one learns a time-
+conditioned regression from an intermediate corrupted state to a cleaner target.
+The difference is that diffusion models generate such training pairs synthetically
+from a prescribed forward corruption process, whereas here the endpoint pairs
+(y, x0 ) come directly from supervised restoration data.
+    At inference time, one starts from x̂1 = y and repeatedly refines the estimate
+by
+                                   ∆t                     ∆t 
+                         x̂t−∆t =     Fϕ (x̂t , t) + 1 −        x̂t .
+                                    t                      t
+Hence, the final reconstruction is produced by gradual refinement rather than
+by a single direct prediction. In the continuous-time limit, this leads to InDI’s
+residual-flow ODE
+                                 dxt    xt − Fϕ (xt , t)
+                                      =                  .
+                                  dt              t
+    Now suppose we further specialize to the Gaussian denoising setting, where
+the corruption is assumed to take the known analytic form
+
+                            y = x0 + σϵ,          ϵ ∼ N (0, I),
+
+with known noise level σ. Under this specialization, InDI’s residual-flow ODE re-
+duces exactly to the probability-flow ODE. Indeed, the interpolation path becomes
+
+                           xt = (1 − t)x0 + ty = x0 + tσϵ,
+
+which is precisely the standard diffusion form
+
+                   xt = αt x0 + σt ϵ,      with       αt = 1, σt = tσ.
+
+266                                            Guidance and Controllable Generation
+
+
+Therefore, the predictor Fϕ (xt , t) ≈ E[x0 | xt ] is now learning to denoise a
+Gaussian-corrupted intermediate state xt . In this case, the residual-flow ODE
+becomes
+                  dxt     xt − E[x0 | xt ]
+                       =                   = −σ̇t σt ∇xt log pt (xt ),
+                   dt            t
+where the last equality follows from σt = tσ together with Tweedie’s formula,
+
+                       E[x0 | xt ] = xt + σt2 ∇xt log pt (xt ).
+
+This is exactly the PF-ODE for this Gaussian denoising path, written in either
+denoiser form or score form. Thus, under the Gaussian denoising specialization,
+InDI suggests an alternative interpretation of diffusion modeling: one may view it
+as supervised denoiser learning on Gaussian-corrupted data, with the PF-ODE
+arising as the continuous-time limit of gradual refinement.
+
+8.5. From Reinforcement Learning to Direct Preference Optimization for Model
+Alignment                                                                    267
